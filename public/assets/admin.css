@@ -1,2 +1,121 @@
 /* O painel da Atos (/admin/): o mesmo desenho da Minha conta (conta.css), com o que so o painel tem. */
 .admin-quem { display: flex; justify-content: flex-end; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+main.conta.admin { max-width: 1040px; }
+
+/* ---------- Notas fiscais (assets/admin-nfse.js) ---------- */
+.nf-h2 { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.nf-sub { padding: 16px 0 8px; }
+.nf-intro { margin-top: 8px; }
+.nf-topo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-top: 12px; }
+.selo.aviso { color: var(--warning); border-color: #4a3d28; }
+.nf-aviso { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; margin-top: 12px; padding: 10px 14px; font-size: 13px; color: var(--warning); background: var(--surface-2); border: 1px solid #4a3d28; }
+.nf-aviso > span { flex: 1; min-width: 200px; }
+.nf-aviso.ok { color: var(--success); border-color: var(--success-line); }
+.nf-aviso strong { font-weight: 600; }
+.nf-aviso.dentro { margin: 0 16px 14px; }
+.nf-dentro { padding: 0 16px 14px; }
+.nf-faixa { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 10px 16px; font-size: 13px; color: var(--muted); }
+.nf-fatos { margin-top: 12px; }
+.nf-fatos .colunas { border-bottom: 0; }
+.card .colunas:last-child { border-bottom: 0; }
+.nf-n { color: var(--faint); }
+.nf-ok { color: var(--success); }
+.nf-ruim { color: var(--danger); }
+.nf-atencao { color: var(--warning); }
+.nf-tag { flex-shrink: 0; padding: 2px 8px; font-size: 11px; font-weight: 500; color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+
+/* a lista das notas */
+.nf-tabela { overflow-x: auto; overflow-y: hidden; }
+.nf-tabela > div { min-width: 680px; }
+.nf-tr {
+  width: 100%; display: grid; grid-template-columns: 72px minmax(160px, 1fr) 120px 110px 170px 24px; gap: 12px; align-items: center; min-height: 52px;
+  padding: 8px 16px; background: none; border: 0; border-top: 1px solid var(--line); color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+button.nf-tr:hover { background: var(--surface-hover); }
+.nf-tr[aria-expanded="true"] { background: var(--surface-hover); }
+.nf-th { min-height: 36px; border-top: 0; border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 500; color: var(--muted); cursor: default; }
+.nf-th + .nf-tr { border-top: 0; }
+.nf-tr .dir { text-align: right; }
+.nf-tr .num { font-variant-numeric: tabular-nums; }
+.nf-cel { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nf-cel strong { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nf-cel small { font-size: 11px; color: var(--faint); }
+.nf-sit { font-size: 12px; font-weight: 600; color: var(--muted); }
+.nf-sit.ok { color: var(--success); }
+.nf-sit.perigo { color: var(--danger); }
+.nf-sit.atencao { color: var(--warning); }
+.nf-seta { color: var(--faint); text-align: center; }
+.nf-det { padding: 4px 16px 16px; background: var(--surface-2); border-top: 1px solid var(--line-soft); }
+.nf-info { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 6px 16px; margin: 12px 0 4px; font-size: 13px; }
+.nf-info dt { color: var(--muted); }
+.nf-info dd { margin: 0; overflow-wrap: anywhere; }
+.nf-det .botoes { padding: 12px 0 0; }
+.nf-det .confirmar { padding: 12px 0 0; }
+.nf-det .confirmar .botoes { padding: 8px 0 0; }
+.nf-det .erro { margin-top: 8px; }
+.nf-hist { padding-top: 12px; }
+.nf-passos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line-soft); }
+.nf-passos li { display: grid; grid-template-columns: 130px minmax(0, 1fr) auto; gap: 12px; padding: 6px 0; font-size: 12px; color: var(--text-2); border-bottom: 1px solid var(--line-soft); }
+.nf-passos small, .nf-quando { color: var(--faint); font-size: 11px; }
+
+/* os formularios */
+.grade.nf-grade { padding: 0; }
+.campo select.seletor { height: 36px; font-size: 14px; width: 100%; }
+.campo textarea {
+  width: 100%; min-height: 72px; padding: 8px 12px; background: var(--bg); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 14px; outline: none; resize: vertical;
+}
+.campo textarea:focus { border-color: var(--faint); }
+.campo input[disabled], .campo select[disabled], .campo textarea[disabled] { color: var(--muted); cursor: not-allowed; }
+.nf-marcar { display: flex; align-items: center; gap: 8px; align-self: end; min-height: 36px; font-size: 13px; color: var(--text-soft); cursor: pointer; }
+.nf-marcar input { width: 16px; height: 16px; margin: 0; accent-color: var(--text); }
+.nf-lista { display: flex; flex-direction: column; max-height: 260px; overflow-y: auto; background: var(--bg); border: 1px solid var(--line); }
+.nf-lista button {
+  display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; background: none; border: 0; border-bottom: 1px solid var(--line-soft);
+  color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+.nf-lista button:last-child { border-bottom: 0; }
+.nf-lista button:hover, .nf-lista button[aria-selected="true"] { background: var(--surface-hover); }
+.nf-lista button small { font-size: 11px; color: var(--faint); }
+.nf-lista .dica { padding: 8px 12px; }
+.nf-escolhido { min-height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px; background: var(--bg); border: 1px solid var(--line); font-size: 14px; }
+.nf-busca-cl { width: 180px; }
+.nf-segredo { flex: 1; min-width: 180px; max-width: 360px; height: 32px; }
+
+/* o certificado */
+.nf-cert { align-items: center; }
+.nf-arquivo { position: relative; max-width: 260px; overflow: hidden; }
+.nf-arquivo span { overflow: hidden; text-overflow: ellipsis; }
+.nf-arquivo input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.nf-arquivo:focus-within { outline: 2px solid var(--text-soft); outline-offset: 2px; }
+.nf-marca { width: 18px; flex-shrink: 0; text-align: center; font-weight: 600; }
+
+/* os interruptores */
+.nf-chave {
+  width: 100%; display: flex; align-items: center; gap: 16px; padding: 14px 16px; background: none; border: 0; border-bottom: 1px solid var(--line);
+  color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.nf-chave:last-child { border-bottom: 0; }
+.nf-chave:hover { background: var(--surface-hover); }
+.nf-chave[disabled] { cursor: not-allowed; }
+.nf-chave .nome { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.nf-chave .nome strong { font-size: 13px; font-weight: 600; }
+.nf-chave .nome small { font-size: 12px; line-height: 1.5; color: var(--muted); }
+.nf-interruptor { position: relative; width: 36px; height: 20px; flex-shrink: 0; border: 1px solid var(--line-hover); background: var(--bg); }
+.nf-interruptor::after { content: ""; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; background: var(--faint); }
+.nf-chave[aria-checked="true"] .nf-interruptor { border-color: var(--text); background: var(--text); }
+.nf-chave[aria-checked="true"] .nf-interruptor::after { left: 19px; background: var(--on-light); }
+
+/* os clientes */
+.nf-clientes { margin-top: 12px; }
+button.nf-item { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+button.nf-item:hover, button.nf-item[aria-expanded="true"] { background: var(--surface-hover); }
+.nf-clientes .nf-det { border-bottom: 1px solid var(--line); }
+.nf-clientes .nf-det .grade { padding-top: 12px; }
+.nf-det > .dica { display: block; margin-top: 10px; }
+
+@media (max-width: 640px) {
+  .nf-info { grid-template-columns: 1fr; gap: 2px; }
+  .nf-info dd { margin-bottom: 6px; }
+  .nf-passos li { grid-template-columns: 1fr; gap: 2px; }
+  .nf-busca-cl { width: 100%; }
+}
