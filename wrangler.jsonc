@@ -2,8 +2,17 @@
 // so: a pasta public/ e o worker/. Publicado com "npx wrangler deploy".
 //
 // Segredos (npx wrangler secret put <NOME>):
-//   ATOS_CHAVE      a JWK privada que assina os id_token (tools/gerar-chave.mjs)
-//   RESEND_API_KEY  o envio dos codigos por e-mail (dominio atos.dev.br verificado no Resend)
+//   ATOS_CHAVE         a JWK privada que assina os id_token (tools/gerar-chave.mjs)
+//   RESEND_API_KEY     o envio dos codigos (e das NFS-e) por e-mail (dominio atos.dev.br verificado no Resend)
+//   NFSE_CHAVE_MESTRA  cifra o certificado A1 e o token da Cloudflare do emissor de NFS-e (openssl rand -base64 32;
+//                      trocar = instalar o certificado e colar o token de novo). Tambem no --env teste (outra).
+//
+// ANTES DO PRIMEIRO DEPLOY COM O EMISSOR DE NFS-e: o service binding SEFIN_MTLS, abaixo, aponta para o Worker
+// auxiliar "atos-nfse-mtls" - o deploy FALHA se ele nao existir. O dono cria o auxiliar uma vez (nfse-mtls/index.js,
+// com o proprio nfse-mtls/wrangler.jsonc: sem rota e sem *.workers.dev; worker/nfse/MTLS.md):
+//   cd nfse-mtls && npx wrangler deploy
+// Depois disso o painel republica o auxiliar sozinho a cada certificado novo (com o token da Cloudflare colado em
+// Notas fiscais); nao rode aquele deploy de novo (ele tiraria o binding do certificado).
 {
   "name": "atos",
   "compatibility_date": "2026-09-25",
@@ -34,17 +43,34 @@
   "observability": { "enabled": true },
   // A Atos Cobranca (docs/COBRANCA.md, worker/cobranca/): um objeto por cliente (a Conta Atos), com os dados
   // fiscais, as assinaturas, as compras e os direitos - o registro do dinheiro, com consistencia forte.
-  "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }] },
-  "migrations": [{ "tag": "v1-clientes-cobranca", "new_sqlite_classes": ["ClienteCobranca"] }],
+  //
+  // O emissor de NFS-e da Atos (worker/nfse/emissor.js, EmissorNFSe): uma instancia so (idFromName("atos")), SQLite,
+  // com o prestador, o certificado A1 cifrado (NFSE_CHAVE_MESTRA), a numeracao e as notas. O painel o usa por
+  // /api/admin/nfse/* (worker/nfse/api.js); a cobranca poe cada pagamento aprovado na fila (worker/nfse/atos.js).
+  "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }] },
+  "migrations": [
+    { "tag": "v1-clientes-cobranca", "new_sqlite_classes": ["ClienteCobranca"] },
+    { "tag": "v2-emissor-nfse", "new_sqlite_classes": ["EmissorNFSe"] }
+  ],
+  // A conexao com a Sefin (mTLS): todo pedido a Sefin/ADN sai pelo Worker auxiliar atos-nfse-mtls, que apresenta o
+  // certificado A1 (worker/nfse/MTLS.md, worker/nfse/sefin.js, fetchPeloMtls). Veja a nota no topo: o auxiliar
+  // precisa existir antes do deploy.
+  "services": [{ "binding": "SEFIN_MTLS", "service": "atos-nfse-mtls" }],
+  // O Cron de cada minuto: o PDF (e o e-mail) da NFS-e emitida que ainda nao tem (worker/index.js, scheduled ->
+  // worker/nfse/api.js, depoisPendentes; sem nota esperando, uma leitura do KV).
+  "triggers": { "crons": ["* * * * *"] },
   // O app "Atos Cobranca" no Mercado Pago (6924335552095997). Segredos (npx wrangler secret put):
   //   MP_ACCESS_TOKEN    o Access Token de producao do app (cobrar, assinar, devolver)
   //   MP_WEBHOOK_SECRET  a assinatura secreta do webhook (o aviso em https://atos.dev.br/api/mp/aviso)
   // MP_PUBLIC_KEY e a Public Key do mesmo app (nao e segredo; vai ao navegador por /api/mp-config).
   // PRODUTOS_ABERTOS: os produtos que ja vendem pela Atos ("pavlvs,..."); vazio = nenhum cobra ainda.
+  // CF_ACCOUNT_ID: a conta Cloudflare onde o painel cadastra o certificado A1 como mTLS e republica o auxiliar
+  // atos-nfse-mtls (worker/nfse/mtls.js; o token de API fica cifrado no KV). Identificador, nao segredo.
   "vars": {
     "APP_URL": "https://atos.dev.br",
     "MP_PUBLIC_KEY": "APP_USR-0bb20e6b-f846-4b8e-a267-12bfc8c7fc1a",
-    "PRODUTOS_ABERTOS": "pavlvs"
+    "PRODUTOS_ABERTOS": "pavlvs",
+    "CF_ACCOUNT_ID": "54164f67b5d5eb33c0a1d325dfebb449"
   },
   // O Worker de teste: npx wrangler deploy --env teste -> atos-teste.<conta>.workers.dev. As credenciais da aba
   // Teste do app Atos Cobranca (nenhum dinheiro de verdade), as vendas abertas so aqui, e os eventos num receptor
@@ -52,6 +78,12 @@
   // As contas sao as mesmas (o mesmo KV): entra-se com a Conta Atos e a senha. Os objetos de cobranca sao
   // outros (cada Worker tem os seus). Segredos proprios, com --env teste: MP_ACCESS_TOKEN (o de teste),
   // MP_WEBHOOK_SECRET e EVENTOS_SEGREDO_PAVLVS (um qualquer, diferente do de producao).
+  // A NFS-e no teste: o proprio emissor (outro Durable Object, outra numeracao) e as chaves "atos-teste:nfse:*" no KV
+  // (worker/nfse/atos.js, K); SEM o SEFIN_MTLS (o service binding obrigaria um auxiliar so do teste a existir): a
+  // nota de teste fica na fila ("sem conexão com a Sefin configurada") - para emitir de verdade em produção
+  // restrita, crie um auxiliar proprio (ex.: atos-teste-nfse-mtls) e acrescente aqui o "services". Sem CF_ACCOUNT_ID
+  // de proposito: o painel de teste nao cadastra mTLS nem republica o auxiliar (que seria o de producao).
+  // Segredo proprio, com --env teste: NFSE_CHAVE_MESTRA.
   "env": {
     "teste": {
       "name": "atos-teste",
@@ -59,7 +91,7 @@
       "routes": [],
       "kv_namespaces": [{ "binding": "CONTAS", "id": "c8011a70799b40b0b3215f4a01b2d28c" }],
       "ratelimits": [{ "name": "LIMITE", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } }],
-      "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }] },
+      "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }] },
       "vars": {
         "AMBIENTE": "teste",
         "APP_URL": "https://atos.dev.br",

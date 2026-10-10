@@ -12,9 +12,13 @@ import { atenderOIDC, ehRotaDoOIDC } from "./oidc.js";
 import { atenderGoogle, ehRotaDoGoogle } from "./google.js";
 import { atenderCobrancaV1, ehRotaDaCobrancaV1 } from "./cobranca/api.js";
 import { ehAmbienteDeTeste } from "./cobranca/eventos.js";
+import { atenderEmissor, depoisPendentes } from "./nfse/api.js";
+import { atenderAdmin, ehRotaDoAdmin } from "./admin.js";
 
 // O registro de cada cliente da Atos Cobranca (docs/COBRANCA.md): o Durable Object precisa sair do modulo principal.
 export { ClienteCobranca } from "./cobranca/cliente.js";
+// O emissor de NFS-e da Atos (worker/nfse/emissor.js): uma instancia so, idFromName("atos").
+export { EmissorNFSe } from "./nfse/emissor.js";
 
 const CSP_CONTA = [
   "default-src 'self'",
@@ -116,6 +120,12 @@ export default {
         if (url.pathname.startsWith("/api/") && !mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
         return comCabecalhos(await atenderOIDC(request, env, url, { dentroDoLimite }));
       }
+      // O painel da Atos (worker/admin.js): a equipe, pela Conta Atos com login recente; as notas no emissor.
+      if (ehRotaDoAdmin(url)) {
+        if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
+        const emissor = (req, e, u, quem) => atenderEmissor(req, e, u, quem, { ctx });
+        return comCabecalhos(await atenderAdmin(request, env, url, { emissor }), true);
+      }
       if (ehRotaDaConta(url)) {
         if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
         return comCabecalhos(await atenderConta(request, env, url, { dentroDoLimite }));
@@ -133,12 +143,19 @@ export default {
       const r = await env.ASSETS.fetch(new Request(request.url, { method: request.method, headers: semCondicao }));
       return (r.headers.get("content-type") || "").includes("text/html") ? comCspDoCheckout(r) : comCabecalhos(r);
     }
-    const conta = /^\/(entrar|conta)(\/|$)/.test(url.pathname);
+    // O painel (/admin) tem a CSP da conta: so scripts da propria Atos.
+    const conta = /^\/(entrar|conta|admin)(\/|$)/.test(url.pathname);
     // Cada secao da Minha conta tem o proprio endereco; a pagina e uma so.
     if (/^\/conta\/(dados|assinaturas|faturamento|carteira)\/?$/.test(url.pathname)) {
       return comCabecalhos(await env.ASSETS.fetch(new Request(new URL("/conta/", url), request)), true);
     }
     return comCabecalhos(await env.ASSETS.fetch(request), conta);
+  },
+
+  // O Cron de cada minuto (wrangler.jsonc, triggers): o PDF (e o e-mail) de uma NFS-e emitida que ainda nao tem
+  // (worker/nfse/api.js, depoisPendentes; sem nota esperando, uma leitura do KV).
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(depoisPendentes(env).catch(() => null));
   },
 };
 

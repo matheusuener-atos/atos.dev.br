@@ -23,14 +23,16 @@ export function htmlDoEmail({ titulo, texto, pre }) {
     "</table></td></tr></table></body></html>";
 }
 
-export async function enviarEmail(env, { para, assunto, titulo, texto, pre }) {
+/* anexos (opcional): [{nome, b64}] - a NFS-e manda o PDF e o XML (nfse/atos.js). */
+export async function enviarEmail(env, { para, assunto, titulo, texto, pre, anexos }) {
   if (!env.RESEND_API_KEY) return { ok: false, status: 503, erro: "o envio de e-mail ainda não está ligado" };
   try {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: "Bearer " + env.RESEND_API_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({ from: env.EMAIL_DE || DE, reply_to: RESPONDER, to: [para], subject: String(assunto || "").slice(0, 200),
-        html: htmlDoEmail({ titulo, texto, pre }), text: [titulo, texto, "Atos · atos.dev.br"].filter(Boolean).join("\n\n") }),
+        html: htmlDoEmail({ titulo, texto, pre }), text: [titulo, texto, "Atos · atos.dev.br"].filter(Boolean).join("\n\n"),
+        ...(Array.isArray(anexos) && anexos.length ? { attachments: anexos.map((a) => ({ filename: String(a.nome || "anexo"), content: String(a.b64 || "") })) } : {}) }),
     });
     if (!r.ok) return { ok: false, status: 502, erro: "o provedor de e-mail recusou" };
     return { ok: true };

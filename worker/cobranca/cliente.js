@@ -116,10 +116,12 @@ export class ClienteCobranca {
       case "cobranca_salvar": {
         // A cobranca do mes, pelo id do Mercado Pago: o aviso pode chegar mais de uma vez, e a situacao muda.
         const chave = PREFIXOS.cobranca + d.registro.ref;
-        const antes = (await s.get(chave)) || { criada: agora };
+        const guardado = (await s.get(chave)) || null;
+        const antes = guardado || { criada: agora };
         const r = { ...antes, ...d.registro, atualizada: agora };
         await s.put(chave, r);
-        return { ok: true, registro: r };
+        // `antes`: como estava (null se e nova) - quem chama ve se ela acabou de ficar paga (a NFS-e, uma vez so).
+        return { ok: true, registro: r, antes: guardado };
       }
       case "ler": {
         const r = PREFIXOS[d.tipo] ? await s.get(PREFIXOS[d.tipo] + d.ref) : null;

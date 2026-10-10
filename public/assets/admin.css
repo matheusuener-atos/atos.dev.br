@@ -1,0 +1,2 @@
+/* O painel da Atos (/admin/): o mesmo desenho da Minha conta (conta.css), com o que so o painel tem. */
+.admin-quem { display: flex; justify-content: flex-end; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }

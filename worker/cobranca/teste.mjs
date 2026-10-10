@@ -17,9 +17,11 @@ function checar(cond, texto, extra) {
 
 // --- o ambiente: o KV, os objetos dos clientes (de verdade, com storage em memoria) e o Mercado Pago simulado
 const kv = new Map();
+// Quantas vezes cada chave da fila da NFS-e foi gravada (o aviso repetido nao pode gravar de novo).
+const gravacoesDaFila = new Map();
 const CONTAS = {
   async get(k, tipo) { const v = kv.get(k); return v === undefined ? null : tipo === "json" ? JSON.parse(v) : v; },
-  async put(k, v) { kv.set(k, v); },
+  async put(k, v) { if (k.startsWith("atos:nfse:pag:")) gravacoesDaFila.set(k, (gravacoesDaFila.get(k) || 0) + 1); kv.set(k, v); },
   async delete(k) { kv.delete(k); },
 };
 function storage() {
@@ -99,12 +101,15 @@ async function contaComSessao(email, sub) {
   return "__Host-atos=" + segredo;
 }
 const cookie = await contaComSessao("dona@escritorio.adv.br", "pv-dona");
+const segundoPlano = [];
 async function chamar(caminho, { metodo = "GET", corpo, origem = A, semCookie, headers = {} } = {}) {
   const h = { ...headers };
   if (!semCookie) h.cookie = cookie;
   if (metodo !== "GET" && origem) h.origin = origem;
   if (corpo !== undefined) h["content-type"] = "application/json";
-  const r = await worker.fetch(new Request(A + caminho, { method: metodo, headers: h, body: corpo === undefined ? undefined : JSON.stringify(corpo) }), env, { waitUntil: () => {} });
+  const r = await worker.fetch(new Request(A + caminho, { method: metodo, headers: h, body: corpo === undefined ? undefined : JSON.stringify(corpo) }), env, { waitUntil: (p) => segundoPlano.push(p) });
+  // O que foi para o ctx.waitUntil (a fila da NFS-e, o indice dos clientes) termina antes de conferir.
+  await Promise.all(segundoPlano.splice(0));
   let d = null;
   try { d = await r.clone().json(); } catch { d = null; }
   return { status: r.status, d, r };
@@ -159,6 +164,12 @@ checar(r.status === 409 && r.d.codigo === "sem_perfil", "sem os dados fiscais: p
 r = await chamar("/api/cobranca/v1/cliente", { metodo: "POST", corpo: PERFIL });
 checar(r.status === 200 && r.d.perfil.tipo === "pf" && r.d.perfil.documento === "52998224725" && r.d.perfil.email === "dona@escritorio.adv.br" && r.d.perfil.endereco.uf === "PA",
   "dados fiscais salvos: CPF so com digitos, o e-mail e o da Conta Atos", r.d);
+{
+  // O indice dos clientes da NFS-e (nfse/atos.js): o painel lista os tomadores sem varrer os objetos.
+  const ind = JSON.parse(kv.get("atos:nfse:clientes:" + (await idDoCliente("pv-dona"))) || "null");
+  checar(ind && ind.nome === "Dona Moura" && ind.documento === "52998224725" && ind.email === "dona@escritorio.adv.br",
+    "perfil salvo: o indice atos:nfse:clientes:<cliente> fica com o nome, o documento e o e-mail", ind);
+}
 const fechado = { ...env, PRODUTOS_ABERTOS: "" };
 r = { r: await worker.fetch(new Request(A + "/api/cobranca/v1/assinar", { method: "POST", headers: { cookie, origin: A, "content-type": "application/json" },
   body: JSON.stringify({ preco: "pavlvs.escritorio.mes", token: "x".repeat(32) }) }), fechado, {}) };
@@ -219,6 +230,13 @@ await aviso("subscription_authorized_payment", "ap-1");
 dir = (await chamar("/api/cobranca/v1/minhas")).d.direitos.find((x) => x.produto === "pavlvs");
 checar(Math.abs((Date.parse(dir.ate) - Date.now()) / 86400000 - umMes) < 0.01, "o mesmo aviso de novo: estende uma vez so");
 {
+  const k = "atos:nfse:pag:ap-ap-1";
+  const pag = JSON.parse(kv.get(k) || "null");
+  checar(pag && pag.cliente === await idDoCliente("pv-dona") && pag.valor === 1290 && pag.nota === "pendente" && pag.produto === "pavlvs"
+    && pag.descricao === "PAVLVS Escritório · mensalidade" && gravacoesDaFila.get(k) === 1,
+    "a mensalidade paga entra na fila da NFS-e uma vez (o aviso veio duas), sem o emissor ligado (sem binding)", { pag, vezes: gravacoesDaFila.get(k) });
+}
+{
   // A Minha conta: o produto com o nome do plano e a assinatura, e a mensalidade uma vez so no Faturamento.
   const c = (await chamar("/api/cobranca/v1/conta")).d;
   const pv = c.produtos.find((x) => x.produto === "pavlvs");
@@ -247,6 +265,16 @@ checar(r.d.status === "paga" && dir.creditos.length === 1 && dir.creditos[0].pre
 rr = await aviso("order", "ORD0");
 dir = (await chamar("/api/cobranca/v1/minhas")).d.direitos.find((x) => x.produto === "pavlvs");
 checar(rr.status === 200 && dir.creditos.length === 1, "o aviso da mesma order depois: nao credita de novo");
+{
+  const k = "atos:nfse:pag:" + recarga;
+  const pag = JSON.parse(kv.get(k) || "null");
+  checar(pag && pag.valor === 120 && pag.descricao === "PAVLVS Escritório · recarga" && pag.nota === "pendente" && gravacoesDaFila.get(k) === 1,
+    "a recarga paga (a tela e depois o aviso) entra na fila da NFS-e uma vez so", { pag, vezes: gravacoesDaFila.get(k) });
+  const outras = [...kv.keys()].filter((x) => x.startsWith("admin:") || x.startsWith("nfse:"));
+  checar(outras.length === 0, "nenhuma chave do PAVLVS (admin:*, nfse:*) no KV compartilhado", outras);
+}
+// Com a emissao automatica ligada e o emissor ausente (sem o binding EMISSOR_NFSE): a cobranca segue.
+kv.set("atos:nfse:config", JSON.stringify({ auto: true, email: true, mail: true }));
 const outraConta = await contaComSessao("nova@x.com", "pv-nova");
 await worker.fetch(new Request(A + "/api/cobranca/v1/cliente", { method: "POST", headers: { cookie: outraConta, origin: A, "content-type": "application/json" }, body: JSON.stringify({ ...PERFIL, documento: "11.222.333/0001-81", nome: "Escritório Moura Ltda" }) }), env, {});
 r = { r: await worker.fetch(new Request(A + "/api/cobranca/v1/pagar", { method: "POST", headers: { cookie: outraConta, origin: A, "content-type": "application/json" }, body: JSON.stringify({ preco: "pavlvs.advogado.recarga", forma: "pix" }) }), env, {}) };
@@ -260,6 +288,12 @@ r = { r: await worker.fetch(new Request(A + "/api/cobranca/v1/minhas", { headers
 const dirNova = (await r.r.json()).direitos.find((x) => x.produto === "pavlvs");
 const meses = dirNova && (Date.parse(dirNova.ate) - Date.now()) / 86400000;
 checar(dirNova && dirNova.plano === "advogado" && meses > 360 && meses < 370, "o aviso do Pix pago: o PAVLVS fica pago por um ano", dirNova);
+{
+  const pag = JSON.parse(kv.get("atos:nfse:pag:" + anoPix.id) || "null");
+  checar(pag && pag.cliente === await idDoCliente("pv-nova") && pag.descricao === "PAVLVS Advogado · anual" && pag.valor === 3990 && pag.nota === "pendente",
+    "com o \"auto\" ligado e sem o emissor: a compra fica paga e o pagamento fica na fila, pendente", pag);
+}
+kv.delete("atos:nfse:config");
 
 console.log("nunca cobrar em dobro");
 r = await chamar("/api/cobranca/v1/pagar", { metodo: "POST", corpo: { preco: "pavlvs.plus.ano", forma: "pix" } });

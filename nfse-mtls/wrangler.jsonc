@@ -1,0 +1,18 @@
+// O Worker auxiliar atos-nfse-mtls (index.js; worker/nfse/MTLS.md): so repassa a Sefin/ADN o que o Worker
+// principal (atos) manda pelo service binding SEFIN_MTLS, com o certificado A1 no binding mtls_certificate SEFIN.
+//
+// Este arquivo e SO para criar o auxiliar na primeira vez (antes do primeiro deploy do Worker atos com o emissor):
+//   cd nfse-mtls && npx wrangler deploy
+// Ele existe para o wrangler nao subir a pasta e achar o wrangler.jsonc da raiz (o do site, com as rotas e os
+// bindings da Atos). Depois disso quem publica o auxiliar e o painel (worker/nfse/mtls.js, pela API, com o binding
+// SEFIN do certificado): um "wrangler deploy" daqui de novo TIRARIA o binding SEFIN (as notas iriam para a fila ate o
+// painel reinstalar o certificado).
+{
+  "name": "atos-nfse-mtls",
+  "main": "index.js",
+  "compatibility_date": "2026-09-25",
+  "no_bundle": true,
+  // Sem rota publica: quem chama e so o Worker atos, pelo service binding.
+  "workers_dev": false,
+  "preview_urls": false
+}

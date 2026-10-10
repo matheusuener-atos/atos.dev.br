@@ -25,6 +25,7 @@ import { catalogoPublico, MOEDA, PRODUTOS, produtoAberto, resolveOffer, voltaPer
 import { cliente, clienteDaRef, idDoCliente, novaRef } from "./cliente.js";
 import { ehAmbienteDeTeste, segredoDo } from "./eventos.js";
 import { criarPreapproval, ErroMP, fraseDaRecusa, mpFetch } from "./mp.js";
+import { indexarCliente, porNaFila } from "../nfse/atos.js";
 
 const ACOES = { pause: "paused", reactivate: "authorized", cancel: "cancelled" }; // cancel -> canceled (a API grafa "cancelled")
 const PIX_VALIDADE = "P1D";
@@ -46,7 +47,7 @@ function chavePublica(env) {
 export async function atenderCobrancaV1(request, env, url, deps = {}) {
   const p = url.pathname;
   const buscar = deps.fetch || fetch;
-  const op = { buscar };
+  const op = { buscar, ctx: deps.ctx };
 
   if (p === "/api/mp-config") {
     // A chave publica do app Atos Cobranca. Sem cache: uma pagina guardada nao fica com a chave velha.
@@ -97,7 +98,10 @@ export async function atenderCobrancaV1(request, env, url, deps = {}) {
       const d = (await lerJson(request)) || {};
       const perfil = conferirPerfil(d, s.email);
       if (perfil.erro) return erro(400, perfil.erro);
-      return json({ perfil: (await meu.pedir("perfil_salvar", { perfil })).perfil });
+      const salvo = (await meu.pedir("perfil_salvar", { perfil })).perfil;
+      // O indice dos clientes da NFS-e (nfse/atos.js): o painel lista os tomadores sem varrer os objetos.
+      await emSegundoPlano(op, indexarCliente(env, cid, salvo));
+      return json({ perfil: salvo });
     }
 
     if (p === "/api/cobranca/v1/conta" && request.method === "GET") return json(await minhaConta(meu));
@@ -119,7 +123,7 @@ export async function atenderCobrancaV1(request, env, url, deps = {}) {
       // Pix esperando: confere no Mercado Pago (se o aviso atrasar, a tela nao fica parada).
       if (compra.mp_id && ["aguardando", "processando"].includes(compra.status)) {
         const o = await mpFetch(env, "GET", "/v1/orders/" + encodeURIComponent(compra.mp_id), undefined, op);
-        if (o.ok) compra = (await aplicarOrder(env, o.dados)) || compra;
+        if (o.ok) compra = (await aplicarOrder(env, o.dados, op)) || compra;
       }
       return json(publicaCompra(compra));
     }
@@ -307,7 +311,7 @@ async function pagar(request, env, s, cid, meu, op) {
     await meu.pedir("atualizar", { tipo: "compra", ref, campos: { status: "recusada", motivo: String(detalhe || r.status).slice(0, 120), resposta: JSON.stringify(r.dados || null).slice(0, 800) } });
     return erro(402, forma === "pix" ? "não deu para gerar o Pix agora: tente de novo" : fraseDaRecusa(detalhe), "recusada");
   }
-  const compra = (await aplicarOrder(env, r.dados)) || { ref, status: "processando" };
+  const compra = (await aplicarOrder(env, r.dados, op)) || { ref, status: "processando" };
   if (compra.status === "recusada") return erro(402, fraseDaRecusa(compra.motivo), "recusada");
   return json(publicaCompra(compra));
 }
@@ -317,8 +321,9 @@ async function pagar(request, env, s, cid, meu, op) {
 const ESTADO_DA_ORDER = { processed: "paga", action_required: "aguardando", processing: "processando", failed: "recusada",
   canceled: "cancelada", cancelled: "cancelada", expired: "vencida", refunded: "devolvida" };
 
-/* Uma order buscada no Mercado Pago, aplicada a compra dela. Devolve a compra como ficou. */
-export async function aplicarOrder(env, order) {
+/* Uma order buscada no Mercado Pago, aplicada a compra dela. Devolve a compra como ficou. op.ctx (se houver): a
+   fila da NFS-e vai em segundo plano. */
+export async function aplicarOrder(env, order, op = {}) {
   const dono = clienteDaRef(order && order.external_reference);
   if (!dono || dono.tipo !== "compra") return null;
   const meu = cliente(env, dono.clienteId);
@@ -339,8 +344,31 @@ export async function aplicarOrder(env, order) {
     if (c.periodo === "ano") await meu.pedir("estender", { produto: c.produto, plano: c.plano, metadados, meses: 12, origem });
     else if (c.periodo === "mes") await meu.pedir("estender", { produto: c.produto, plano: c.plano, metadados, meses: 1, origem });
     else await meu.pedir("estender", { produto: c.produto, origem, credito: { preco: c.preco, centavos: c.centavos, metadados } });
+    // A NFS-e: so quando a compra ACABOU de ficar paga (o objeto atende um pedido de cada vez: o aviso e a consulta
+    // da tela nao veem os dois a virada). A fila ainda confere a ref (porNaFila).
+    if (!r.antes || r.antes.status !== "paga") {
+      await emSegundoPlano(op, porNaFila(env, { id: c.ref, cliente: dono.clienteId, produto: c.produto, preco: c.preco,
+        descricao: descricaoDaNota(c.preco, c.periodo), valor: c.centavos / 100, quando: c.paga_em }));
+    }
   }
   return c;
+}
+
+/* O texto da nota: o nome do preco no catalogo (o mes no Pix diz que e um mes). */
+function descricaoDaNota(preco, periodo) {
+  const nome = (resolveOffer(preco) || {}).nome || String(preco || "");
+  return periodo === "mes" ? nome + " · um mês" : nome;
+}
+
+/* O que nao pode atrasar nem quebrar a cobranca (a fila da NFS-e, o indice dos clientes): com o ctx, em segundo
+   plano; sem ele, esperado aqui. Nunca lanca. */
+function emSegundoPlano(op, promessa) {
+  const t = Promise.resolve(promessa).catch((e) => console.warn("cobranca: a NFS-e falhou (a cobranca segue)", String((e && e.message) || e).slice(0, 200)));
+  if (op && op.ctx && typeof op.ctx.waitUntil === "function") {
+    op.ctx.waitUntil(t);
+    return undefined;
+  }
+  return t;
 }
 
 const ESTADO_DA_ASSINATURA = { pending: "pending", authorized: "authorized", paused: "paused", cancelled: "canceled", canceled: "canceled" };
@@ -363,7 +391,7 @@ export async function aplicarCobrancaRecorrente(env, ap, op) {
   if (!assinatura) return null;
   const aprovado = ap.payment && ap.payment.status === "approved";
   const recusado = ap.payment && ["rejected", "cancelled", "canceled"].includes(ap.payment.status);
-  await cliente(env, clienteDaRef(assinatura.ref).clienteId).pedir("cobranca_salvar", { registro: {
+  const salva = await cliente(env, clienteDaRef(assinatura.ref).clienteId).pedir("cobranca_salvar", { registro: {
     ref: "ap-" + String(ap.id), assinatura: assinatura.ref, produto: assinatura.produto, preco: assinatura.preco, plano: assinatura.plano,
     centavos: Math.round(Number(ap.transaction_amount) * 100) || assinatura.centavos, forma: "cartao",
     status: aprovado ? "paga" : recusado ? "recusada" : "processando", quando: ap.debit_date || ap.date_created || new Date().toISOString() } });
@@ -371,6 +399,12 @@ export async function aplicarCobrancaRecorrente(env, ap, op) {
     const dono = clienteDaRef(assinatura.ref);
     await cliente(env, dono.clienteId).pedir("estender", { produto: assinatura.produto, plano: assinatura.plano,
       metadados: (resolveOffer(assinatura.preco) || {}).metadados || null, meses: 1, origem: "ap:" + ap.id });
+    // A NFS-e da mensalidade: so quando ela ACABOU de ficar paga (o aviso repetido nao poe de novo na fila).
+    const c = salva && salva.registro;
+    if (c && (!salva.antes || salva.antes.status !== "paga")) {
+      await emSegundoPlano(op, porNaFila(env, { id: c.ref, cliente: dono.clienteId, produto: c.produto, preco: c.preco,
+        descricao: ((resolveOffer(c.preco) || {}).nome || c.preco) + " · mensalidade", valor: c.centavos / 100, quando: c.quando }));
+    }
   }
   return assinatura;
 }
@@ -419,7 +453,7 @@ async function receberAviso(request, env, url, deps) {
 export async function aplicarAviso(env, tipo, id, op) {
   if (tipo === "order") {
     const o = await mpFetch(env, "GET", "/v1/orders/" + encodeURIComponent(id), undefined, op);
-    return o.ok ? aplicarOrder(env, o.dados) : null;
+    return o.ok ? aplicarOrder(env, o.dados, op) : null;
   }
   if (tipo === "subscription_preapproval" || tipo === "preapproval") {
     const g = await mpFetch(env, "GET", "/preapproval/" + encodeURIComponent(id), undefined, op);
