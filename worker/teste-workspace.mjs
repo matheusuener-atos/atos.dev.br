@@ -40,7 +40,7 @@ env.CLIENTES = { idFromName: (n) => n, get(id) {
   return { fetch: (url, op) => objetos.get(id).fetch(new Request(url, op)) };
 } };
 const A = "https://atos.dev.br";
-const VERSAO = "2026-10-11";
+const VERSAO = PRODUTOS.workspace.termos.versao;
 
 async function sessao(email, { idade = 0 } = {}) {
   const segredo = "s-" + email + "-" + idade;

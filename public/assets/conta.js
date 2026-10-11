@@ -116,7 +116,7 @@
       '<div class="colunas">' +
       '<div><span class="rotulo">Situação</span><span>' + esc(x.ativo ? "Ativo desde " + data(x.ativado) : x.desativado ? "Desativado em " + data(x.desativado) : "Não ativado") + "</span></div>" +
       '<div><span class="rotulo">Inclui</span><span>O Login Atos para os seus sistemas</span></div>' +
-      (x.termos ? '<div><span class="rotulo">Termos aceitos</span><span>' + esc("Versão de " + data(x.termos.versao + "T12:00:00Z") + ", em " + data(x.termos.aceito)) + "</span></div>" : "") +
+      (x.termos ? '<div><span class="rotulo">Termos aceitos</span><span>' + esc("Versão de " + data(String(x.termos.versao).slice(0, 10) + "T12:00:00Z") + (/\.\d+$/.test(x.termos.versao) ? " (revisão " + String(x.termos.versao).split(".").pop() + ")" : "") + ", em " + data(x.termos.aceito)) + "</span></div>" : "") +
       "</div>" +
       '<div class="botoes"><a class="btn p' + (x.ativo ? "" : " primario") + '" href="' + esc(x.endereco) + '">' + (x.ativo ? "Ir ao Workspace" : "Ativar o " + esc(x.nome)) + "</a></div>";
     return h + "</div>";

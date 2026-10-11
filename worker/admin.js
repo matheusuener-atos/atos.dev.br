@@ -24,6 +24,8 @@
 //   *    /api/admin/<produto>/...            encaminhado ao Worker do produto (PRODUTOS: o binding e o segredo),
 //                                            assinado; so com a area do produto
 //   GET|POST /api/admin/oauth...             o "Entrar com Atos" (worker/oidc-painel.js); so o dono
+//   GET|POST /api/admin/email...             o e-mail Atos do Workspace (worker/email-atos.js, atenderEmailPainel);
+//                                            area "atos"; ver: todos; suspender, reativar, remover: dono e suporte
 //   GET  /api/admin/github/entrar?volta=     302 para o GitHub (OAuth App do painel do PAVLVS)
 //   GET  /api/admin/github/retorno           volta do GitHub: confere a escrita no repositorio e guarda o token
 //   POST /api/admin/github/sair              esquece o GitHub desta sessao
@@ -39,6 +41,7 @@ import { aleatorio, b64url, deB64url, b64urlTexto, emailValido, json, kv, limpar
 import { COOKIE, sessaoDe } from "./contas.js";
 import { enviarEmail as enviarEmailPadrao } from "./email.js";
 import { TIPOS_OAUTH, aplicarOAuth, atenderOAuthPainel, chaveDoRegistro, conferirOAuth } from "./oidc-painel.js";
+import { atenderEmailPainel, ehRotaDoEmailNoPainel } from "./email-atos.js";
 
 export const RECENTE_S = 12 * 3600;
 export const PAPEIS = ["dono", "financeiro", "suporte"];
@@ -55,7 +58,7 @@ export const PRODUTOS = {
   pavlvs: { nome: "PAVLVS", binding: "PAVLVS", segredo: "PAINEL_SEGREDO_PAVLVS", origem: "https://paulus.ia.br", github: true },
 };
 // Nomes que nao podem ser id de produto (sao rotas do proprio painel).
-export const RESERVADOS = ["eu", "nfse", "equipe", "alteracoes", "publicar", "retroagir", "github", "oauth", "atos"];
+export const RESERVADOS = ["eu", "nfse", "equipe", "alteracoes", "publicar", "retroagir", "github", "oauth", "atos", "email"];
 export const AREA_ATOS = "atos";
 
 // O prefixo aqui e la (o Worker do PAVLVS atende o mesmo caminho) e a janela da assinatura.
@@ -120,6 +123,8 @@ export const MATRIZ = [
   ["Incluir, editar e tirar pessoas da equipe; mudar papéis e áreas", ["dono"]],
   ["Cadastrar os aplicativos do Entrar com Atos (Login Atos) e gerar os segredos", ["dono"]],
   ["Retroagir uma alteração da equipe ou do Login Atos", ["dono"]],
+  ["Ver os endereços do e-mail Atos (Atos Workspace) e o registro de entregas", PAPEIS],
+  ["Suspender, reativar e remover um endereço do e-mail Atos por abuso", ["dono", "suporte"]],
 ];
 
 const te = new TextEncoder();
@@ -693,6 +698,11 @@ export async function atenderAdmin(request, env, url, deps = {}) {
     if (quem.papel === "suporte" && m !== "GET") return json({ erro: "o suporte só consulta as notas" }, 403);
     if (!deps.emissor) return json({ erro: "o emissor de notas ainda não está ligado" }, 503);
     return deps.emissor(request, env, url, quem);
+  }
+  // O e-mail Atos (worker/email-atos.js): area "atos"; suspender, reativar e remover so dono e suporte (conferido la).
+  if (ehRotaDoEmailNoPainel(p)) {
+    if (!quem.areas.includes(AREA_ATOS)) return json({ erro: "você não atua na Atos: peça ao dono para incluir a área" }, 403);
+    return atenderEmailPainel(request, env, url, c);
   }
   if (p === "/api/admin/oauth" || p.startsWith("/api/admin/oauth/")) {
     if (quem.papel !== "dono") return json({ erro: "o Login Atos é só do dono" }, 403);

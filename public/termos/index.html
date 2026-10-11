@@ -47,8 +47,8 @@
     Um aplicativo cadastrado por outra pessoa aparece na tela de permissão com o e-mail de quem o cadastrou e o aviso de que não é da Atos.</p>
 
     <h2 id="workspace">Termos do Atos Workspace</h2>
-    <p><strong>Versão de 11 de outubro de 2026.</strong> Ao ativar o Atos Workspace, a Atos registra esta versão e a data em que você a aceitou.</p>
-    <p>O Atos Workspace é o produto da Atos para quem constrói sistemas com a conta Atos. Hoje ele inclui o Login Atos para os seus sistemas: cadastrar os seus sistemas no Entrar com Atos, em atos.dev.br/workspace/integracoes.
+    <p><strong>Versão de 11 de outubro de 2026, revisão 2</strong> (acrescenta o e-mail Atos). Ao ativar o Atos Workspace, a Atos registra esta versão e a data em que você a aceitou.</p>
+    <p>O Atos Workspace é o produto da Atos para quem constrói sistemas com a conta Atos. Ele inclui o Login Atos para os seus sistemas (cadastrar os seus sistemas no Entrar com Atos, em atos.dev.br/workspace/integracoes) e o e-mail Atos (um endereço @atos.dev.br que encaminha para o seu e-mail, em atos.dev.br/workspace/email, quando estiver ligado; abaixo).
     É gratuito: ativar é aceitar estes termos, sem cartão nem pagamento. Hoje nada no Workspace é cobrado.</p>
 
     <h3>Ativar e desativar</h3>
@@ -68,6 +68,20 @@
       <li>Não use nome, marca ou aparência que se passe pela Atos, por um produto dela ou por outro serviço. Nomes como Atos, PAVLVS, Paulus, Google e Mercado Pago são recusados.</li>
       <li>Limites: até 5 aplicativos por conta, 5 acessos por aplicativo, 500 pessoas liberadas por aplicativo e 60 mudanças por hora. Criar e mudar pede um login das últimas 12 horas.</li>
       <li>A Atos pode desligar ou apagar um aplicativo usado para fraude, para enganar quem entra ou para atacar o serviço. O motivo do desligamento aparece para você no registro do aplicativo.</li>
+    </ul>
+
+    <h3 id="email-atos">E-mail Atos</h3>
+    <p>Com o Atos Workspace ativo, você pode reservar um endereço <code>nome@atos.dev.br</code> (um por conta) que encaminha o que chega para um e-mail seu. Ao usar:</p>
+    <ul>
+      <li><strong>Não é uma caixa de entrada.</strong> A Atos não guarda as mensagens: cada uma é passada ao seu destino na hora da entrega, pela Cloudflare (o serviço de e-mail da Atos). Não dá para enviar nem responder como o endereço @atos.dev.br.</li>
+      <li>O destino precisa ser confirmado duas vezes: com o código que a Atos manda para ele e com o e-mail de verificação da Cloudflare. Só então você liga o encaminhamento. Trocar o destino desliga o encaminhamento até o novo ser confirmado.</li>
+      <li>O encaminhamento começa desligado. Desligado, com o destino ainda não confirmado, com o endereço suspenso ou com o Atos Workspace desativado, as mensagens são <strong>recusadas na entrega</strong>: quem mandou recebe o aviso de falha do próprio provedor. A Atos não responde a ninguém e a recusa não diz para onde iria.</li>
+      <li>Limites: mensagens de até 20 MB; 60 encaminhadas por hora e 300 por dia por endereço; 10 por hora do mesmo remetente; 5 por hora de respostas automáticas. Acima disso, as mensagens são recusadas. Mensagens que já passaram pela Atos (laços de encaminhamento) também.</li>
+      <li>A Atos não garante a entrega: ela depende da Cloudflare e do provedor do seu destino, que pode recusar uma mensagem ou mandá-la para o spam.</li>
+      <li>Nomes de 3 a 30 caracteres. Os endereços da própria Atos (contato, master, pagamentos, naoresponda, suporte, financeiro, admin, postmaster, abuse e outros), os nomes dos produtos dela e os de serviços são reservados. Um endereço removido fica 30 dias sem poder ser de outra conta.</li>
+      <li>As vagas são limitadas: a Cloudflare limita os destinos de cada conta. Quando acabam, a Atos não aceita destinos novos até abrir vagas; o endereço que você já reservou continua seu.</li>
+      <li>Não use o endereço para spam, fraude, para se passar por outra pessoa ou pela Atos, nem para receber o que a lei proíbe. A Atos pode suspender ou remover um endereço usado assim, na hora; você vê o motivo na área do Workspace. Para denunciar um endereço @atos.dev.br, escreva para contato@atos.dev.br.</li>
+      <li>Você pode desligar ou remover o endereço quando quiser. Desativar o Atos Workspace para o encaminhamento (o endereço continua reservado).</li>
     </ul>
 
     <h2>Suspensão e exclusão</h2>

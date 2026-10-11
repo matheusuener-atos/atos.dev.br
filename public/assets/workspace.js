@@ -1,6 +1,7 @@
 /* O Atos Workspace (/workspace/ e /workspace/integracoes): o produto da Atos para quem constroi sistemas com a Conta
-   Atos. Visao geral (o que e, a ativacao, os termos aceitos, desativar) e Integracoes (workspace-integracoes.js, com o
-   cartao "Como integrar" do integrar.js, carregados so quando a guia abre e o Workspace esta ativo).
+   Atos. Visao geral (o que e, a ativacao, os termos aceitos, desativar), Integracoes (workspace-integracoes.js, com o
+   cartao "Como integrar" do integrar.js, carregados so quando a guia abre e o Workspace esta ativo) e E-mail Atos
+   (workspace-email.js, carregado quando a guia abre).
 
      GET  /api/eu                     quem esta dentro (sem sessao: /entrar/?volta=<esta pagina>)
      GET  /api/workspace              a ativacao, os termos atuais, o login recente e quantos aplicativos a conta tem
@@ -11,7 +12,7 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var SECOES = ["geral", "integracoes"];
+  var SECOES = ["geral", "integracoes", "email"];
   var S = { conta: null, ws: null, erro: "", aceito: false, ocupado: false, confirmar: false, msg: "" };
 
   function esc(s) {
@@ -30,14 +31,17 @@
     if (isNaN(d)) return "";
     return d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
   }
-  /* A versao dos termos ("2026-10-11") como data. */
-  function versao(v) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v || "")); return m ? m[3] + "/" + m[2] + "/" + m[1] : String(v || ""); }
+  /* A versao dos termos ("2026-10-11", ou "2026-10-11.2" na segunda revisao do dia) como data. */
+  function versao(v) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})(?:\.(\d+))?$/.exec(String(v || ""));
+    return m ? m[3] + "/" + m[2] + "/" + m[1] + (m[4] ? ", revisão " + m[4] : "") : String(v || "");
+  }
 
   function secaoAtual() {
     var m = /^\/workspace\/([a-z]+)/.exec(location.pathname);
     return m && SECOES.indexOf(m[1]) > 0 ? m[1] : "geral";
   }
-  var GUIAS = [["geral", "Visão geral", "/workspace/"], ["integracoes", "Integrações", "/workspace/integracoes"]];
+  var GUIAS = [["geral", "Visão geral", "/workspace/"], ["integracoes", "Integrações", "/workspace/integracoes"], ["email", "E-mail Atos", "/workspace/email"]];
   function guias() {
     var sec = secaoAtual();
     return '<nav class="guias" aria-label="Atos Workspace">' + GUIAS.map(function (g) {
@@ -58,7 +62,10 @@
       "O Atos Workspace é o que você ativa para construir com ela.</p>" +
       '<p>Hoje ele traz o <strong>Login Atos para os seus sistemas</strong>: você cadastra o seu site, aplicativo ou servidor no “Entrar com Atos”, ' +
       "as pessoas entram nele com a Conta Atos (por OpenID Connect, como entram com o Google) e você decide quem pode entrar. " +
-      '<a href="/integracao/">Como funciona</a>.</p></div>';
+      '<a href="/integracao/">Como funciona</a>.</p>' +
+      (S.ws && S.ws.email && S.ws.email.disponivel
+        ? "<p>E o <strong>e-mail Atos</strong>: um endereço @atos.dev.br que encaminha para o seu e-mail (não é caixa de entrada; desligado, as mensagens são recusadas).</p>"
+        : "<p>Em preparação: o <strong>e-mail Atos</strong>, um endereço @atos.dev.br que encaminha para o seu e-mail.</p>") + "</div>";
   }
 
   function blocoAtivar(W) {
@@ -101,6 +108,9 @@
     }
     h += h2("O que está incluído") + '<div class="card"><a class="item" href="/workspace/integracoes" data-ws-secao="integracoes"><span class="logo inicial" aria-hidden="true">L</span>' +
       '<span class="nome"><strong>Integrações</strong><small>O Login Atos para os seus sistemas · ' + esc(String(W.apps)) + " de 5 aplicativos</small></span>" +
+      '<span class="seta" aria-hidden="true">→</span></a>' +
+      '<a class="item" href="/workspace/email" data-ws-secao="email"><span class="logo inicial" aria-hidden="true">@</span>' +
+      '<span class="nome"><strong>E-mail Atos</strong><small>' + (W.email && W.email.disponivel ? "Um endereço @atos.dev.br que encaminha para o seu e-mail" : "Em preparação") + "</small></span>" +
       '<span class="seta" aria-hidden="true">→</span></a></div>';
     h += h2("Desativar") + '<div class="card">';
     if (S.confirmar) {
@@ -155,13 +165,27 @@
     });
   }
 
+  // ------------------------------------------------------------ E-mail Atos
+
+  function email() {
+    var h = titulo("E-mail Atos", "Um endereço @atos.dev.br que encaminha para o seu e-mail.");
+    if (!S.ws) return h + (S.erro ? vazio(esc(S.erro) + ' <button type="button" class="link" data-ws="recarregar">Tentar de novo</button>') : vazio("Carregando…"));
+    return h + '<div id="em-raiz"><div class="card"><p class="vazio">Carregando…</p></div></div>';
+  }
+  function montarEmail() {
+    script("/assets/workspace-email.js", function () { var r = $("em-raiz"); if (r && window.WorkspaceEmail) window.WorkspaceEmail.montar(r); });
+  }
+  /* Ativou ou desativou: o e-mail Atos le o estado de novo. */
+  function emailDeNovo() { if (window.WorkspaceEmail) window.WorkspaceEmail.recarregar(); }
+
   // ------------------------------------------------------------ desenhar e carregar
 
-  var DESENHO = { geral: geral, integracoes: integracoes };
+  var DESENHO = { geral: geral, integracoes: integracoes, email: email };
   function desenhar() {
     var sec = secaoAtual();
     $("secao").innerHTML = DESENHO[sec]();
     if (sec === "integracoes" && S.ws && S.ws.ativo) montarIntegracoes();
+    if (sec === "email" && S.ws) montarEmail();
   }
   function ir(sec) {
     var url = sec === "geral" ? "/workspace/" : "/workspace/" + sec;
@@ -198,11 +222,11 @@
     var a = b.getAttribute("data-ws");
     if (a === "recarregar") { S.erro = ""; desenhar(); carregar(); }
     else if (a === "ativar") {
-      mudar("/api/workspace/ativar", { aceito: true, versao: S.ws.termos.versao }, function (d) { S.msg = d.ativo ? "Atos Workspace ativo. As Integrações já estão liberadas." : ""; });
+      mudar("/api/workspace/ativar", { aceito: true, versao: S.ws.termos.versao }, function (d) { S.msg = d.ativo ? "Atos Workspace ativo. As Integrações já estão liberadas." : ""; emailDeNovo(); });
     }
     else if (a === "desativar") { S.confirmar = true; S.erro = ""; desenhar(); }
     else if (a === "desativar-nao") { S.confirmar = false; S.erro = ""; desenhar(); }
-    else if (a === "desativar-sim") mudar("/api/workspace/desativar", { confirmar: true });
+    else if (a === "desativar-sim") mudar("/api/workspace/desativar", { confirmar: true }, emailDeNovo);
   });
   document.addEventListener("change", function (e) {
     var el = e.target;

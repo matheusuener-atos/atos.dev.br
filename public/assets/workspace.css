@@ -11,3 +11,17 @@
 .ws-botoes { display: flex; flex-wrap: wrap; gap: 8px; }
 .ws-ok { margin-top: 12px; }
 .secao .confirmar .erro { margin: 0; }
+/* E-mail Atos (workspace-email.js) */
+.we-form { display: flex; flex-direction: column; gap: 10px; }
+.we-alias { display: flex; align-items: stretch; }
+.we-alias input { flex: 1; min-width: 0; }
+.we-dominio { display: inline-flex; align-items: center; padding: 0 12px; font-size: 14px; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-left: 0; white-space: nowrap; }
+.we-passos { display: flex; flex-direction: column; }
+.we-passo { display: flex; gap: 14px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.we-passo > div { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1; }
+.we-passo strong { font-size: 14px; color: var(--text); }
+.we-num { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: var(--muted); border: 1px solid var(--line); }
+.we-num.feito { color: var(--success); border-color: var(--success-line); }
+.we-linha { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.we-linha .campo { width: 180px; }
+.we-erro { padding: 0 16px 14px; }

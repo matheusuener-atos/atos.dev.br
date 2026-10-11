@@ -47,11 +47,20 @@
   // O emissor de NFS-e da Atos (worker/nfse/emissor.js, EmissorNFSe): uma instancia so (idFromName("atos")), SQLite,
   // com o prestador, o certificado A1 cifrado (NFSE_CHAVE_MESTRA), a numeracao e as notas. O painel o usa por
   // /api/admin/nfse/* (worker/nfse/api.js); a cobranca poe cada pagamento aprovado na fila (worker/nfse/atos.js).
-  "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }] },
+  "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }] },
   "migrations": [
     { "tag": "v1-clientes-cobranca", "new_sqlite_classes": ["ClienteCobranca"] },
-    { "tag": "v2-emissor-nfse", "new_sqlite_classes": ["EmissorNFSe"] }
+    { "tag": "v2-emissor-nfse", "new_sqlite_classes": ["EmissorNFSe"] },
+    { "tag": "v3-email-atos", "new_sqlite_classes": ["EmailAtos"] }
   ],
+  // O e-mail Atos (worker/email-atos.js, EmailAtos): uma instancia so (idFromName("registro")) com os aliases, os destinos,
+  // os contadores e o registro (30 dias). A mensagem chega pelo handler email() do Worker: o dono configura, no painel da
+  // Cloudflare (atos.dev.br > Email > Email Routing > Routing rules), o catch-all com a acao "Send to a Worker" -> atos
+  // (as regras especificas de contato@, master@ etc. continuam como estao). O destino de cada pessoa e criado na conta
+  // pela API, com o segredo CF_EMAIL_TOKEN (npx wrangler secret put CF_EMAIL_TOKEN): um token de API so com a permissao
+  // de CONTA "Email Routing Addresses: Edit", na conta CF_ACCOUNT_ID (abaixo). Sem o segredo, o e-mail Atos fica
+  // desligado (as rotas dizem isso, com 503). EMAIL_LIMITE_DESTINOS (var, opcional; padrao 190): ate quantos destinos a
+  // conta Cloudflare pode ter (o teto dela e 200 por conta, contando os do dono) antes de a Atos parar de aceitar destino novo.
   // A conexao com a Sefin (mTLS): todo pedido a Sefin/ADN sai pelo Worker auxiliar atos-nfse-mtls, que apresenta o
   // certificado A1 (worker/nfse/MTLS.md, worker/nfse/sefin.js, fetchPeloMtls). Veja a nota no topo: o auxiliar
   // precisa existir antes do deploy.
@@ -111,9 +120,12 @@
       "routes": [],
       "kv_namespaces": [{ "binding": "CONTAS", "id": "c8011a70799b40b0b3215f4a01b2d28c" }],
       "ratelimits": [{ "name": "LIMITE", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } }],
-      "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }] },
+      "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }] },
       "vars": {
         "AMBIENTE": "teste",
+        // O e-mail Atos no teste: a Cloudflare simulada (worker/email-atos.js): os destinos ficam no objeto, "verificados"
+        // ao conferir, e o codigo volta na resposta (nenhum e-mail sai). Nada chega por e-mail a este Worker.
+        "EMAIL_CF_SIMULADA": "1",
         "APP_URL": "https://atos.dev.br",
         "MP_PUBLIC_KEY": "APP_USR-8eddac59-2852-455f-8b12-04f7761ff00b",
         "PRODUTOS_ABERTOS": "pavlvs",

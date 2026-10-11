@@ -35,13 +35,14 @@
 
     <h2>O que a conta Atos guarda</h2>
     <ul>
-      <li><strong>O seu e-mail</strong>, que é a própria conta (não criamos endereço @atos.dev.br para ninguém), e <strong>o nome</strong> que você digitou.</li>
+      <li><strong>O seu e-mail</strong>, que é a própria conta, e <strong>o nome</strong> que você digitou. (Um endereço @atos.dev.br só existe se você reservar um no e-mail Atos, abaixo; ele não substitui o e-mail da conta.)</li>
       <li><strong>Se você entra com o Google</strong>: o identificador da sua conta Google, o e-mail confirmado por ele e o nome. A senha do Google não passa pela Atos, e a Atos pede ao Google só isso (nada de e-mail, agenda ou arquivos).</li>
       <li><strong>A senha, só como resumo</strong> (PBKDF2-SHA256 com sal próprio). A senha em si não fica guardada em lugar nenhum, e ninguém consegue lê-la de volta.</li>
       <li><strong>Um identificador da conta</strong>. Se você já entrava no PAVLVS com o Google pelo mesmo e-mail, é o mesmo identificador de lá, para ser a mesma conta.</li>
       <li><strong>As sessões abertas</strong>: só o resumo do código do cookie <code>__Host-atos</code>, por 30 dias.</li>
       <li><strong>Os aplicativos a que você deu acesso</strong>, o que cada um pode ver, quando você permitiu e o último acesso.</li>
       <li><strong>Se você ativa o Atos Workspace</strong>: que ele está ativo ou não, quando você ativou e desativou, a versão dos termos do Workspace que você aceitou e quando, e o histórico dessas mudanças (as últimas 50). Fica no mesmo registro dos seus dados de cobrança na Atos, para mostrar o que você aceitou e quando.</li>
+      <li><strong>Se você usa o e-mail Atos</strong> (em Atos Workspace › E-mail Atos): o endereço que você reservou, o destino para onde ele encaminha, se o destino foi confirmado (o código da Atos e a verificação da Cloudflare) e quando, se o encaminhamento está ligado, e o registro das mudanças (as últimas 50 no endereço; as mudanças, por um ano). O conteúdo das mensagens <strong>não</strong> é guardado: elas passam direto ao destino. De cada mensagem que chega, a Atos registra só quando, o resultado (encaminhada, recusada e por quê), o tamanho e o domínio de quem mandou (não o endereço inteiro), por 30 dias; para o limite por remetente, guarda um resumo (hash) do endereço de quem mandou só enquanto dura a contagem (uma hora, até a limpeza seguinte, em poucas horas). A Cloudflare mantém o próprio registro das entregas na conta da Atos, nas regras dela. Mensagens a endereços que não existem só entram numa contagem por dia. A equipe da Atos vê os endereços, o e-mail da conta, o destino e esse registro, para coibir abuso. O destino também fica cadastrado na conta Cloudflare da Atos até você removê-lo ou trocá-lo.</li>
       <li><strong>Se você cadastra um sistema</strong> (em Atos Workspace › Integrações): os dados do aplicativo, quem você liberou para entrar e o registro das mudanças (quem, quando, o quê). Esse registro fica um ano depois que o aplicativo é apagado.</li>
       <li><strong>Se alguém liberou o seu e-mail</strong> num aplicativo: o e-mail fica na lista daquele aplicativo, que só quem o administra vê e muda (e a equipe da Atos, para coibir abuso). A Atos usa a lista só para decidir se você pode entrar nele.</li>
       <li><strong>Se você assina algo com a Atos</strong> (como o PAVLVS): os dados para a nota fiscal (nome ou razão social, CPF ou CNPJ e endereço), as assinaturas, os pagamentos e até quando cada produto está pago. O cartão não passa pela Atos: é digitado nos campos seguros do Mercado Pago e fica guardado só lá; a Atos sabe apenas a bandeira. O produto que você assina recebe da Atos só o plano e até quando ele está pago.</li>
@@ -65,9 +66,9 @@
 
     <h2>Com quem os dados são tratados</h2>
     <ul>
-      <li><strong>Cloudflare</strong>: hospeda o site, guarda os dados da conta e das cobranças e conta as visitas às páginas públicas.</li>
+      <li><strong>Cloudflare</strong>: hospeda o site, guarda os dados da conta e das cobranças, conta as visitas às páginas públicas e, no e-mail Atos, recebe as mensagens, verifica o destino e as encaminha.</li>
       <li><strong>Mercado Pago</strong>: processa os pagamentos (cartão e Pix) e guarda o cartão de quem assina.</li>
-      <li><strong>Resend</strong>: entrega os e-mails com os códigos.</li>
+      <li><strong>Resend</strong>: entrega os e-mails com os códigos (também o código que confirma o destino do e-mail Atos).</li>
       <li><strong>Google</strong>: só para quem escolhe “Continuar com Google”, confirma quem é você.</li>
     </ul>
     <p>Cloudflare, Resend e Google podem tratar os dados fora do Brasil. Não vendemos dados nem os usamos para publicidade.</p>

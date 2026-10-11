@@ -1,6 +1,7 @@
 // O Atos Workspace (atos.dev.br/workspace; a tela e public/assets/workspace.js): o produto da Atos para quem constroi
 // sistemas com a Conta Atos. A Conta Atos e a identidade e a carteira da pessoa (entrar, assinar, pagar); o Workspace e
-// o que ela ativa para construir. Hoje ele inclui o Login Atos para os sistemas dela (Integracoes; worker/integracoes.js).
+// o que ela ativa para construir. Hoje ele inclui o Login Atos para os sistemas dela (Integracoes; worker/integracoes.js)
+// e o e-mail Atos (um endereco @atos.dev.br que encaminha; worker/email-atos.js, quando ligado na Atos).
 //
 // O produto esta no catalogo da Atos Cobranca (cobranca/catalogo.js, "workspace": gratuito, com a versao dos termos).
 // Ativar nao passa pelo Mercado Pago: e a pessoa, com login recente, aceitando os termos do Workspace. A ativacao e o
@@ -15,7 +16,7 @@
 //
 // Rotas (so a propria pagina; a sessao da Conta Atos):
 //   GET  /api/workspace              {conta, recente, limites, produto, termos (os atuais), ativo, ativado, desativado,
-//                                     aceito: {versao, quando}|null, apps (quantos a conta cadastrou)}
+//                                     aceito: {versao, quando}|null, apps (quantos a conta cadastrou), email: {disponivel}}
 //   POST /api/workspace/ativar       {aceito: true, versao} a versao dos termos que a pessoa leu (tem de ser a atual)
 //   POST /api/workspace/desativar    {confirmar: true}
 // Mudar pede login das ultimas 12 horas (o mesmo das Integracoes e do painel).
@@ -25,6 +26,7 @@ import { sessaoDe } from "./contas.js";
 import { PRODUTOS } from "./cobranca/catalogo.js";
 import { cliente, idDoCliente } from "./cobranca/cliente.js";
 import { ID_APP_TERCEIRO, KO } from "./oidc.js";
+import { emailAtosLigado } from "./email-atos.js";
 
 export const WORKSPACE = "workspace";
 const RECENTE_H = 12;
@@ -78,6 +80,8 @@ export async function atenderWorkspace(request, env, url, deps = {}) {
   const tela = async (d) => json({
     conta: { email: sessao.email }, recente, limites: { recente_h: RECENTE_H }, produto: { id: WORKSPACE, nome: PRODUTOS[WORKSPACE].nome, gratuito: true },
     termos, ...vistaDoWorkspace(d), apps: await quantosApps(env, sessao.sub),
+    // O e-mail Atos (worker/email-atos.js): ligado neste Worker? (a guia diz "em preparacao" sem ele)
+    email: { disponivel: emailAtosLigado(env) },
   });
   if (!env.CLIENTES) return WORKSPACE_FORA();
   const p = url.pathname;

@@ -8,6 +8,8 @@ import { conferirIdToken } from "./oidc.js";
 import { nomeReservado } from "./integracoes.js";
 import { sha256 } from "./comum.js";
 import { ClienteCobranca } from "./cobranca/cliente.js";
+import { PRODUTOS } from "./cobranca/catalogo.js";
+const PRODUTOS_TERMOS = PRODUTOS.workspace.termos.versao;
 
 let falhas = 0;
 const checar = (ok, descricao, detalhe) => {
@@ -46,7 +48,7 @@ function objetosDeClientes(e) {
 env.CLIENTES = objetosDeClientes(env);
 const envT = { ...env, AMBIENTE: "teste" };
 envT.CLIENTES = objetosDeClientes(envT);
-const ativar = (cookie, e = env) => chamar("/api/workspace/ativar", { cookie, corpo: { aceito: true, versao: "2026-10-11" }, e });
+const ativar = (cookie, e = env) => chamar("/api/workspace/ativar", { cookie, corpo: { aceito: true, versao: PRODUTOS_TERMOS }, e });
 const A = "https://atos.dev.br";
 
 async function sessao(email, { idade = 0 } = {}) {
