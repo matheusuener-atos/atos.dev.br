@@ -351,3 +351,13 @@ button.pv-tr.pv-clicavel:hover, .pv-tr.pv-aberto { background: var(--surface-hov
   body.pv-imprimindo .pv-so-impressao { display: block; margin-bottom: 12px; font-size: 14px; }
   body.pv-imprimindo .pv-tabela > div { min-width: 0; }
 }
+
+/* As caixas de marcar do painel: quadradas como o resto da Atos (o navegador arredonda as nativas). */
+#admin input[type="checkbox"], #admin-camada input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none; width: 16px; height: 16px; margin: 0; border: 1px solid var(--muted); border-radius: 0;
+  background: transparent; display: inline-grid; place-content: center; cursor: pointer; vertical-align: middle; flex: none;
+}
+#admin input[type="checkbox"]::before, #admin-camada input[type="checkbox"]::before { content: ""; width: 8px; height: 8px; background: currentColor; transform: scale(0); }
+#admin input[type="checkbox"]:checked::before, #admin-camada input[type="checkbox"]:checked::before { transform: scale(1); }
+#admin input[type="checkbox"]:focus-visible, #admin-camada input[type="checkbox"]:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+#admin input[type="checkbox"]:disabled, #admin-camada input[type="checkbox"]:disabled { opacity: .4; cursor: not-allowed; }
