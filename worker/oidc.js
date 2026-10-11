@@ -263,6 +263,9 @@ export function lerPedido(consulta, reg = FIXOS, emissor = EMISSOR) {
   if (!escopos.includes("openid")) return erro("invalid_scope", "o escopo openid é obrigatório");
   const prompt = lista(q.get("prompt"));
   if (prompt.includes("none") && prompt.length > 1) return erro("invalid_request", "prompt=none não combina com outro");
+  // prompt=create ("Initiating User Registration via OpenID Connect 1.0"): sem sessao, a /entrar abre em "Criar a
+  // conta Atos". Com sessao aberta, a especificacao deixa fora do escopo se a conta e nova ou ja existia (4.1: o que
+  // vale e o id_token da volta); entao o pedido segue como sempre (consentimento ou volta), com "Trocar de conta" a mao.
   const maxAge = q.has("max_age") ? Math.max(0, parseInt(q.get("max_age"), 10) || 0) : null;
   return {
     pedido: {
@@ -407,7 +410,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
       claims_supported: ["sub", "email", "email_verified", "name", "auth_time", "nonce"],
       code_challenge_methods_supported: ["S256"],
       token_endpoint_auth_methods_supported: ["none", "client_secret_basic", "client_secret_post"],
-      prompt_values_supported: ["none", "login", "consent"],
+      prompt_values_supported: ["none", "login", "consent", "create"],
       authorization_response_iss_parameter_supported: true,
       ui_locales_supported: ["pt-BR"],
     }, null, 2), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" } });
@@ -579,6 +582,8 @@ export async function atenderOIDC(request, env, url, deps = {}) {
       escopos: pedido.escopos.map((s) => ({ id: s, texto: ESCOPOS[s] })),
       conta: sessao ? { email: sessao.email, nome: sessao.nome } : null,
       entrar, permitido, negado, dica: pedido.dica, google: googleLigado(env),
+      // prompt=create: quando precisa entrar, a pagina abre no "Criar a conta Atos" (com "Ja tem conta? Entrar").
+      criar: entrar && pedido.prompt.includes("create"),
       // Sem acesso: a pagina oferece voltar ao aplicativo com error=access_denied.
       ...(negado ? { voltar: semAcesso() } : {}),
     });

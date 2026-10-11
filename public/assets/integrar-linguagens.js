@@ -18,7 +18,7 @@
   "use strict";
   if (raiz.IntegrarLinguagens) return;
 
-  var PACOTE = "https://atos.dev.br/pacotes/entrar/0.1.0/entrar.js";
+  var PACOTE = "https://atos.dev.br/pacotes/entrar/0.2.0/entrar.js";
   var jsTexto = function (s) { return JSON.stringify(String(s)); };
 
   // ------------------------------------------------------------------ JavaScript (o pacote @atos.dev.br/entrar)

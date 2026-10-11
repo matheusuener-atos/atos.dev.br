@@ -155,7 +155,8 @@
       if (d.erro) { ir("fatal", d.erro); return; }
       S.pedido = d;
       S.google = Boolean(d.google);
-      if (d.entrar) { S.email = S.email || d.dica || (d.conta && d.conta.email) || ""; ir("entrar", S.erro); return; }
+      // prompt=create (d.criar): o aplicativo pediu o cadastro; "Ja tem conta? Entrar" continua o mesmo pedido.
+      if (d.entrar) { S.email = S.email || d.dica || (d.conta && d.conta.email) || ""; ir(d.criar ? "criar" : "entrar", S.erro); return; }
       if (d.negado) { ir("negado"); return; }
       if (d.permitido) { autorizar(true); return; }
       ir("consentir");

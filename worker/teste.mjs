@@ -155,6 +155,20 @@ for (const fora of ["https://www.paulus.ia.br/api/acesso/atos/retorno", "https:/
 }
 r = await chamar("/api/pedido", { corpo: { consulta: consulta({ code_challenge: p2.desafio, prompt: "consent" }) } });
 checar(r.d.permitido === false, "prompt=consent pede de novo");
+r = await chamar("/api/pedido", { corpo: { consulta: consulta({ code_challenge: p2.desafio, prompt: "create" }) }, semCookie: true });
+checar(r.d.entrar === true && r.d.criar === true && !r.d.ir && r.d.app.nome === "PAVLVS", "prompt=create sem sessao: a pagina abre no Criar a conta", r.d);
+r = await chamar("/api/pedido", { corpo: { consulta: consulta({ code_challenge: p2.desafio, login_hint: "novo@exemplo.test", prompt: "create" }) }, semCookie: true });
+checar(r.d.criar === true && r.d.dica === "novo@exemplo.test", "prompt=create leva o login_hint para o cadastro", r.d);
+r = await chamar("/api/pedido", { corpo: { consulta: consulta({ code_challenge: p2.desafio, prompt: "create" }) } });
+checar(r.d.entrar === false && r.d.criar === false && r.d.permitido === true, "prompt=create com sessao aberta: segue o pedido como sempre (a especificacao deixa fora do escopo)", r.d);
+r = await chamar("/api/autorizar", { corpo: { consulta: consulta({ code_challenge: p2.desafio, prompt: "create" }), permitir: true } });
+checar(r.d.ir && new URL(r.d.ir).searchParams.get("code"), "prompt=create com sessao: permitir volta com o codigo", r.d);
+for (const pr of ["create none", "none create"]) {
+  r = await chamar("/api/pedido", { corpo: { consulta: consulta({ code_challenge: p2.desafio, prompt: pr }) } });
+  checar(r.d.ir && new URL(r.d.ir).searchParams.get("error") === "invalid_request" && !new URL(r.d.ir).searchParams.get("code"), "prompt=" + pr + ": invalid_request", r.d);
+}
+r = await chamar("/.well-known/openid-configuration", { metodo: "GET" });
+checar(JSON.stringify(r.d.prompt_values_supported) === JSON.stringify(["none", "login", "consent", "create"]), "descoberta anuncia prompt=create", r.d.prompt_values_supported);
 
 console.log("revogar");
 r = await chamar("/api/apps", { metodo: "GET" });

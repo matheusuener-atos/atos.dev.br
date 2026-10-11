@@ -6,6 +6,7 @@
 //
 // Navegador (cliente publico):
 //   botao.onclick = () => atos.entrar();          // gera state, nonce e code_verifier, guarda em sessionStorage e vai a Atos
+//   criar.onclick = () => atos.entrar({ criarConta: true }); // o mesmo, abrindo a Atos em "Criar a conta Atos" (prompt=create)
 //   const pessoa = await atos.retorno();          // na pagina de volta: confere tudo e devolve {id, nome, email, ...} (ou null)
 //
 // Servidor (cliente confidencial; o segredo vem de process.env.ATOS_CLIENT_SECRET, nunca das opcoes):
@@ -197,7 +198,13 @@ export function entrarComAtos(opcoes) {
     const desafio = b64url(await c.subtle.digest("SHA-256", te.encode(verifier)));
     const u = new URL(d.authorization_endpoint);
     const q = { client_id: clientId, redirect_uri: voltaPara, response_type: "code", scope: escopos.join(" "), state, nonce, code_challenge: desafio, code_challenge_method: "S256" };
-    if (e.prompt) q.prompt = String(e.prompt);
+    if (e.criarConta) {
+      // prompt=create ("Initiating User Registration via OpenID Connect 1.0"): a Atos abre em "Criar a conta Atos".
+      // A especificacao recomenda nao combinar create com outro prompt.
+      if (e.prompt && String(e.prompt) !== "create") throw new ErroAtos("configuracao", "criarConta não combina com prompt (\"" + e.prompt + "\"): use um dos dois.");
+      // Uma Atos que nao anuncia create na descoberta: vai a tela de entrar de sempre, que tem o "Criar conta".
+      if ((d.prompt_values_supported || []).includes("create")) q.prompt = "create";
+    } else if (e.prompt) q.prompt = String(e.prompt);
     if (e.dica) q.login_hint = String(e.dica);
     for (const [k, v] of Object.entries(q)) u.searchParams.set(k, v);
     return { url: u.toString(), guardar: { state, nonce, verifier, voltaPara, criado: Date.now() } };

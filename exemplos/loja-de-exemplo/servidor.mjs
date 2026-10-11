@@ -27,11 +27,17 @@ app.use(session({
 }));
 
 // 2. O botão "Entrar com Atos" leva para cá: o pacote gera state, nonce e o PKCE, e a pessoa vai à Atos.
-app.get("/entrar", async (req, res) => {
-  const { url, guardar } = await atos.comecar();
+//    O "Criar conta" vai a /criar-conta: o mesmo, com a Atos abrindo em "Criar a conta Atos" (prompt=create,
+//    pacote 0.2.0 ou mais novo; o 0.1 ignora a opção e abre a tela de entrar, que também tem o "Criar conta").
+//    Quem já tem conta clica em "Já tem conta? Entrar" lá mesmo; quem já está com a sessão aberta na Atos
+//    segue direto para a permissão.
+async function irParaAtos(req, res, extra) {
+  const { url, guardar } = await atos.comecar(extra);
   req.session.atos = guardar;
   res.redirect(url);
-});
+}
+app.get("/entrar", (req, res) => irParaAtos(req, res));
+app.get("/criar-conta", (req, res) => irParaAtos(req, res, { criarConta: true }));
 
 // 3. A Atos devolve a pessoa aqui (o endereço de volta cadastrado). O pacote confere tudo e troca o código.
 app.get(new URL(atos.voltaPara).pathname, async (req, res) => {
@@ -65,7 +71,7 @@ app.get("/", (req, res) => {
   const p = req.session.pessoa;
   const topo = p
     ? `<form method="post" action="/sair"><button class="link" type="submit">Sair</button></form>`
-    : `<a class="botao-atos" href="/entrar"><span class="marca-atos" aria-hidden="true">A</span>Entrar com Atos</a>`;
+    : `<nav class="acoes"><a class="botao-atos" href="/entrar"><span class="marca-atos" aria-hidden="true">A</span>Entrar com Atos</a><a class="botao-criar" href="/criar-conta">Criar conta</a></nav>`;
   const corpo = p
     ? `<section class="ola">
         <p class="sobre">Área de clientes</p>
@@ -78,8 +84,11 @@ app.get("/", (req, res) => {
       </section>`
     : `<section class="vitrine-topo">
         <h1>Bolos e doces feitos em casa</h1>
-        <p>Encomende pela área de clientes e retire no sábado. Entre para ver os seus pedidos.</p>
-        <a class="botao-atos grande" href="/entrar"><span class="marca-atos" aria-hidden="true">A</span>Entrar com Atos</a>
+        <p>Encomende pela área de clientes e retire no sábado. Primeira vez aqui? Crie a sua conta. Já é cliente? Entre para ver os seus pedidos.</p>
+        <div class="botoes">
+          <a class="botao-atos grande" href="/entrar"><span class="marca-atos" aria-hidden="true">A</span>Entrar com Atos</a>
+          <a class="botao-criar" href="/criar-conta">Criar conta</a>
+        </div>
       </section>`;
   res.send(pagina("Loja da Maria", `<header class="cabeca"><a class="logo" href="/">Loja da Maria</a>${topo}</header>${corpo}${vitrine()}`));
 });

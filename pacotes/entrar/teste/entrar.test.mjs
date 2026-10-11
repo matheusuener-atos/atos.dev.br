@@ -117,6 +117,62 @@ test("navegador: entrar() guarda em sessionStorage e retorno() confere e devolve
   }
 });
 
+test("criarConta: a ida leva prompt=create, a Atos abre no cadastro e, com sessão, segue até a volta", async () => {
+  process.env.ATOS_CLIENT_SECRET = SEGREDO;
+  const a = servidor();
+  const ida = await a.comecar({ criarConta: true });
+  const u = new URL(ida.url);
+  assert.equal(u.searchParams.get("prompt"), "create");
+  // Sem sessao na Atos: a pagina /entrar abre em "Criar a conta Atos".
+  const consulta = u.search.slice(1);
+  const r = await fetch(atos.emissor + "/api/pedido", { method: "POST", headers: { origin: atos.emissor, "content-type": "application/json" }, body: JSON.stringify({ consulta }) });
+  const d = await r.json();
+  assert.equal(d.entrar, true);
+  assert.equal(d.criar, true);
+  // Com a sessao aberta (a pessoa ja tem conta, ou acabou de criar): segue como o login e a volta conclui.
+  const p = await a.concluir(await atos.navegador(ida.url, "joao"), ida.guardar);
+  assert.equal(p.id, PESSOAS.joao.sub);
+  // A descoberta anuncia create.
+  const desc = await (await fetch(atos.emissor + "/.well-known/openid-configuration")).json();
+  assert.ok(desc.prompt_values_supported.includes("create"));
+});
+
+test("criarConta: não combina com prompt, e sem create na descoberta vai sem prompt", async () => {
+  const a = servidor();
+  await rejeita(a.comecar({ criarConta: true, prompt: "none" }), "configuracao", /criarConta/);
+  await rejeita(a.comecar({ criarConta: true, prompt: "login" }), "configuracao", /criarConta/);
+  assert.equal(new URL((await a.comecar({ criarConta: true, prompt: "create" })).url).searchParams.get("prompt"), "create");
+  // Uma Atos antiga (a descoberta sem "create"): a ida vai sem prompt, para a tela de entrar de sempre.
+  const semCreate = async (url, init) => {
+    const r = await fetch(url, init);
+    if (!String(url).endsWith("/.well-known/openid-configuration")) return r;
+    const d = await r.json();
+    d.prompt_values_supported = ["none", "login", "consent"];
+    return new Response(JSON.stringify(d), { status: r.status, headers: { "content-type": "application/json" } });
+  };
+  const antiga = servidor({ fetch: semCreate });
+  assert.equal(new URL((await antiga.comecar({ criarConta: true })).url).searchParams.get("prompt"), null);
+});
+
+test("navegador: entrar({ criarConta: true }) vai à Atos com prompt=create", async () => {
+  const g = globalThis;
+  const antes = { window: g.window, document: g.document, sessionStorage: g.sessionStorage, location: g.location };
+  let foiPara = "";
+  const guardado = new Map();
+  Object.assign(g, {
+    window: {}, document: {},
+    sessionStorage: { getItem: (k) => (guardado.has(k) ? guardado.get(k) : null), setItem: (k, v) => guardado.set(k, String(v)), removeItem: (k) => guardado.delete(k) },
+    location: { href: VOLTA_PAGINA, assign: (u) => { foiPara = u; } },
+  });
+  try {
+    await entrarComAtos({ clientId: PUB, voltaPara: VOLTA_PAGINA, emissor: atos.emissor }).entrar({ criarConta: true });
+    assert.equal(new URL(foiPara).searchParams.get("prompt"), "create");
+    assert.equal(guardado.size, 1);
+  } finally {
+    for (const [k, v] of Object.entries(antes)) { if (v === undefined) delete g[k]; else g[k] = v; }
+  }
+});
+
 test("quem não está liberado volta com access_denied, com erro claro", async () => {
   process.env.ATOS_CLIENT_SECRET = SEGREDO;
   const a = servidor();

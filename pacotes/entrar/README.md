@@ -6,7 +6,7 @@ O **Entrar com Atos** (OpenID Connect) em JavaScript, no navegador e no Node 18 
 npm install @atos.dev.br/entrar
 ```
 
-Sem npm (uma página sem empacotador): o mesmo código num arquivo só, servido pela Atos, `https://atos.dev.br/pacotes/entrar/0.1.0/entrar.js`; importe de `"./entrar.js"`.
+Sem npm (uma página sem empacotador): o mesmo código num arquivo só, servido pela Atos, `https://atos.dev.br/pacotes/entrar/0.2.0/entrar.js`; importe de `"./entrar.js"`.
 
 Antes, cadastre o seu sistema em [atos.dev.br/conta/integracoes](https://atos.dev.br/conta/integracoes): o aplicativo, o acesso (o `client_id`) e o endereço de volta. Veja também [atos.dev.br/integracao](https://atos.dev.br/integracao/).
 
@@ -63,6 +63,21 @@ app.get("/auth/atos/retorno", async (req, res) => {
 
 Com `ATOS_CLIENT_SECRET` definido, a troca do código usa `client_secret_basic`; sem ele, o cliente é público (`client_id` no corpo). No navegador, nunca há segredo.
 
+## Criar conta (0.2.0)
+
+Para um botão "Criar conta" ao lado do "Entrar com Atos", passe `criarConta: true`: a ida leva `prompt=create` ([Initiating User Registration via OpenID Connect 1.0](https://openid.net/specs/openid-connect-prompt-create-1_0.html)) e a Atos abre direto em "Criar a conta Atos". A pessoa cria a conta (com o código que chega no e-mail), permite e volta; a volta é igual à do login (`retorno()` ou `concluir()`). Lá mesmo, "Já tem conta? Entrar" continua o mesmo pedido, e quem já está com a sessão aberta na Atos vai direto para a permissão (ou a volta).
+
+```js
+botaoCriar.addEventListener("click", () => atos.entrar({ criarConta: true }));      // navegador
+app.get("/criar-conta", async (req, res) => {                                       // servidor
+  const { url, guardar } = await atos.comecar({ criarConta: true });
+  req.session.atos = guardar;
+  res.redirect(url);
+});
+```
+
+`criarConta` não combina com `prompt` (lança `ErroAtos` com `codigo: "configuracao"`). Uma Atos cuja descoberta não anuncia `create` em `prompt_values_supported` recebe a ida sem `prompt` (a tela de entrar, que também tem "Criar conta"). Quem entra depende do modo do aplicativo na Atos: com "Qualquer Conta Atos", a conta nova entra; com "Só as pessoas liberadas", a conta é criada, mas quem não está na lista volta com `access_denied`.
+
 ## A API
 
 `entrarComAtos({ clientId, voltaPara, escopos?, emissor?, fetch? })`
@@ -74,9 +89,9 @@ Devolve `{ entrar, retorno, comecar, concluir, sair }`:
 
 | | |
 |---|---|
-| `entrar({ prompt?, dica? })` | navegador: vai à Atos. `prompt`: `"none"`, `"login"` ou `"consent"`; `dica`: o e-mail sugerido. |
+| `entrar({ prompt?, dica?, criarConta? })` | navegador: vai à Atos. `prompt`: `"none"`, `"login"` ou `"consent"`; `dica`: o e-mail sugerido; `criarConta: true`: abre em "Criar a conta Atos" (veja abaixo). |
 | `retorno(endereco?)` | navegador: a pessoa, ou `null` se o endereço não é uma volta. |
-| `comecar({ prompt?, dica? })` | servidor: `{ url, guardar }`. |
+| `comecar({ prompt?, dica?, criarConta? })` | servidor: `{ url, guardar }`. |
 | `concluir(urlDaVolta, guardar)` | servidor: a pessoa. |
 | `sair(accessToken)` | invalida o `access_token` na Atos (a sessão local é sua). |
 
@@ -86,7 +101,7 @@ Toda falha lança `ErroAtos`, com `codigo` (`access_denied`, `login_required`, `
 
 ## Testes
 
-Contra a Atos de verdade: o Worker deste repositório em `wrangler dev`, com contas, sessões e um aplicativo fabricados no KV local (`teste/atos-local.mjs`). Cobrem o servidor com o segredo, o navegador (sessionStorage simulado), `access_denied`, `state` e `iss` trocados, o código usado duas vezes e `id_token` forjados (outra chave com o mesmo `kid`, corpo mexido, `alg: none` e `HS256`, `kid` desconhecido; e assinados pela chave certa, mas vencidos, com outro `aud`, `azp`, `iss` ou `nonce`).
+Contra a Atos de verdade: o Worker deste repositório em `wrangler dev`, com contas, sessões e um aplicativo fabricados no KV local (`teste/atos-local.mjs`). Cobrem o servidor com o segredo, o navegador (sessionStorage simulado), o `criarConta` (`prompt=create`, a Atos abrindo no cadastro, a recusa com `prompt` e a Atos sem `create` na descoberta), `access_denied`, `state` e `iss` trocados, o código usado duas vezes e `id_token` forjados (outra chave com o mesmo `kid`, corpo mexido, `alg: none` e `HS256`, `kid` desconhecido; e assinados pela chave certa, mas vencidos, com outro `aud`, `azp`, `iss` ou `nonce`).
 
     cd pacotes/entrar
     npm test

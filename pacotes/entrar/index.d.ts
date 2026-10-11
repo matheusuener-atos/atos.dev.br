@@ -36,8 +36,14 @@ export interface OpcoesAtos {
 }
 
 export interface ExtraDaIda {
-  /** "none" tenta sem mostrar tela; "login" pede a senha de novo; "consent" pede a permissão de novo. */
-  prompt?: "none" | "login" | "consent";
+  /** "none" tenta sem mostrar tela; "login" pede a senha de novo; "consent" pede a permissão de novo; "create" = criarConta. */
+  prompt?: "none" | "login" | "consent" | "create";
+  /**
+   * Abre a Atos em "Criar a conta Atos" (prompt=create), com "Já tem conta? Entrar" no mesmo pedido.
+   * Quem já está com a sessão aberta na Atos segue direto para a permissão (ou a volta). Não combina com prompt.
+   * Numa Atos que não anuncia "create" na descoberta, vai à tela de entrar de sempre.
+   */
+  criarConta?: boolean;
   /** O e-mail sugerido na tela de entrar (login_hint). */
   dica?: string;
 }

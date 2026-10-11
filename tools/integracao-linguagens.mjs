@@ -1,7 +1,8 @@
 // Gera, a partir de public/assets/integrar-linguagens.js (a fonte unica dos trechos de cada linguagem):
 //   - a secao "Na sua linguagem" de public/integracao/index.html (entre <!-- linguagens:inicio --> e <!-- linguagens:fim -->);
 //   - os exemplos testados de exemplos/entrar-com-atos/ (python/app.py, dotnet/Program.cs, node/servidor.mjs);
-//   - a copia do pacote servida pela Atos: public/pacotes/entrar/0.1.0/entrar.js (= pacotes/entrar/index.js).
+//   - a copia do pacote servida pela Atos: public/pacotes/entrar/<versao do package.json>/entrar.js (= pacotes/entrar/index.js);
+//     as versoes anteriores ficam como estao (um endereco com versao nao muda de conteudo).
 //
 //   node tools/integracao-linguagens.mjs            grava
 //   node tools/integracao-linguagens.mjs --conferir so confere (worker/teste-linguagens.mjs faz o mesmo)
@@ -25,6 +26,8 @@ export async function arquivosGerados() {
   const l = L.lista({ confidencial: true });
   const codigo = (id) => l.find((x) => x.id === id).codigo || l.find((x) => x.id === id).codigos[0].texto;
   const pagina = lf(await readFile(join(RAIZ, "public/integracao/index.html"), "utf8"));
+  const { version: versao } = JSON.parse(await readFile(join(RAIZ, "pacotes/entrar/package.json"), "utf8"));
+  if (!L.PACOTE.endsWith("/pacotes/entrar/" + versao + "/entrar.js")) throw new Error("IntegrarLinguagens.PACOTE (" + L.PACOTE + ") nao e a versao do package.json (" + versao + ")");
   const i = pagina.indexOf(INICIO);
   const f = pagina.indexOf(FIM);
   if (i < 0 || f < i) throw new Error("public/integracao/index.html sem os marcadores " + INICIO + " e " + FIM);
@@ -35,7 +38,7 @@ export async function arquivosGerados() {
     "exemplos/entrar-com-atos/dotnet/Program.cs": codigo("dotnet"),
     // O exemplo testado roda com a copia do pacote ao lado (testar.mjs), sem npm install: o import aponta para ela.
     "exemplos/entrar-com-atos/node/servidor.mjs": codigo("js").replace('from "@atos.dev.br/entrar"', 'from "./entrar.js"'),
-    "public/pacotes/entrar/0.1.0/entrar.js": lf(await readFile(join(RAIZ, "pacotes/entrar/index.js"), "utf8")),
+    ["public/pacotes/entrar/" + versao + "/entrar.js"]: lf(await readFile(join(RAIZ, "pacotes/entrar/index.js"), "utf8")),
   };
 }
 
