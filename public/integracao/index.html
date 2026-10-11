@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Integração: Entrar com Atos · Atos</title>
+<meta name="description" content="Use o Entrar com Atos no seu sistema: login por OpenID Connect com a Conta Atos, como o Entrar com o Google. Como cadastrar o aplicativo, escolher quem pode entrar e integrar.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#080707">
+<meta property="og:title" content="Entrar com Atos no seu sistema">
+<meta property="og:description" content="Login por OpenID Connect com a Conta Atos: o que o sistema recebe, como cadastrar e como integrar.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://atos.dev.br/integracao/">
+<link rel="canonical" href="https://atos.dev.br/integracao/">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/conta.css">
+<link rel="stylesheet" href="/assets/integracao.css">
+<script src="/assets/tema.js"></script>
+<script src="/assets/topo.js" defer></script>
+</head>
+<body>
+<header class="topo">
+  <a class="marca" href="/" aria-label="Atos, página inicial">Atos</a>
+  <nav aria-label="Principal">
+    <a href="/#projetos">Projetos</a>
+    <a href="/#indice">Escritos</a>
+    <a href="/#indice">Carta</a>
+    <a href="/entrar/" class="forte" data-conta>Entrar</a>
+  </nav>
+</header>
+
+<main class="integracao">
+  <h1>Entrar com Atos no seu sistema</h1>
+  <p class="lead">O “Entrar com Atos” é um login pronto para o seu site, aplicativo ou servidor: a pessoa entra com a Conta Atos dela, do mesmo jeito que entra com o Google. Por baixo é OpenID Connect, o padrão aberto que as bibliotecas de login já conhecem.</p>
+  <div class="chamadas">
+    <a class="btn primario" href="/entrar/?volta=/conta/integracoes">Criar conta ou entrar<span class="seta" aria-hidden="true">→</span></a>
+    <a class="btn" href="#passo-a-passo">Ver o passo a passo</a>
+  </div>
+
+  <section id="o-que-e" aria-labelledby="o-que-e-titulo">
+    <h2 id="o-que-e-titulo">O que é</h2>
+    <div class="pontos">
+      <div>
+        <h3>O que o sistema recebe</h3>
+        <p>Um identificador fixo da conta (o <code>sub</code>, que não muda), o nome e o e-mail. Só com o consentimento da pessoa, pedido na primeira vez.</p>
+      </div>
+      <div>
+        <h3>Quem pode entrar</h3>
+        <p>Quem cadastrou o sistema decide: só as pessoas que ele liberar, ou qualquer Conta Atos.</p>
+      </div>
+      <div>
+        <h3>A pessoa no controle</h3>
+        <p>Ela vê os sistemas que têm acesso em Minha conta e pode tirar a permissão quando quiser.</p>
+      </div>
+      <div>
+        <h3>Padrão aberto</h3>
+        <p>Código de autorização com PKCE e um <code>id_token</code> assinado, que o seu sistema confere sozinho pelas chaves públicas.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="como-e" aria-labelledby="como-e-titulo">
+    <h2 id="como-e-titulo">Como a pessoa vê</h2>
+    <div class="corpo">
+      <p>O seu sistema manda a pessoa para atos.dev.br. Ela entra (ou cria a conta), confere o que o sistema vai receber e permite. Depois volta ao seu endereço já identificada. Da segunda vez em diante, com a sessão aberta, a volta é direta.</p>
+    </div>
+    <div class="capturas">
+      <figure class="captura">
+        <img src="/assets/integracao/entrar.webp" width="720" height="900" loading="lazy" decoding="async"
+          alt="Tela de entrar da Atos aberta por um aplicativo: o título “Entrar com a conta Atos”, a frase “Para continuar no Sistema de Exemplo”, os campos de e-mail e senha, o botão Entrar e o link Criar conta.">
+        <figcaption><strong>1. Entrar</strong>A pessoa entra com o e-mail e a senha da Conta Atos, ou cria a conta ali mesmo. A página diz para qual sistema ela está entrando.</figcaption>
+      </figure>
+      <figure class="captura">
+        <img src="/assets/integracao/consentimento.webp" width="720" height="900" loading="lazy" decoding="async"
+          alt="Tela de consentimento: “O Sistema de Exemplo quer entrar com a sua conta Atos”, a conta que está entrando, a lista do que o sistema poderá (saber que é você, ver o e-mail, ver o nome) e os botões Cancelar e Permitir.">
+        <figcaption><strong>2. Permitir</strong>Na primeira vez, a Atos mostra o seu sistema e o que ele vai receber, com os links da política de privacidade e dos termos dele. Nada segue sem o “Permitir”.</figcaption>
+      </figure>
+      <figure class="captura larga">
+        <img src="/assets/integracao/aplicativos.webp" width="1200" height="210" loading="lazy" decoding="async"
+          alt="Minha conta da Atos, seção Aplicativos com acesso: o Sistema de Exemplo, com o que ele recebe, a data em que foi permitido, o último acesso e o botão Tirar o acesso.">
+        <figcaption><strong>3. Tirar o acesso</strong>Em Minha conta › Aplicativos com acesso, a pessoa vê os sistemas que permitiu e tira o acesso de qualquer um. Na próxima vez, o sistema pede a permissão de novo.</figcaption>
+      </figure>
+    </div>
+    <p class="nota-fim">Capturas com dados fictícios.</p>
+  </section>
+
+  <section id="passo-a-passo" aria-labelledby="passo-a-passo-titulo">
+    <h2 id="passo-a-passo-titulo">Passo a passo</h2>
+    <ol class="passos">
+      <li>
+        <div>
+          <h3>Crie sua Conta Atos (ou entre)</h3>
+          <p>É a mesma conta com que as pessoas vão entrar no seu sistema. <a href="/entrar/?volta=/conta/integracoes">Criar conta ou entrar</a>.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Cadastre o aplicativo</h3>
+          <p>Em Minha conta › Integrações, cadastre o aplicativo e o acesso:</p>
+          <ul>
+            <li><strong>O aplicativo:</strong> o nome que a pessoa verá, o site, a política de privacidade e os termos.</li>
+            <li><strong>O acesso:</strong> página ou aplicativo (cliente público, sem segredo) ou servidor (cliente confidencial, com um segredo mostrado uma vez só: guarde-o na hora).</li>
+            <li><strong>O endereço de volta:</strong> exato, como o seu sistema vai mandar no <code>redirect_uri</code>. Em <code>https</code> (ou <code>http</code> só em <code>127.0.0.1</code>, para testar na sua máquina).</li>
+          </ul>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Escolha quem pode entrar</h3>
+          <p>Só as pessoas que você liberar, pelo e-mail da Conta Atos delas (você, que cadastrou, sempre entra), ou qualquer Conta Atos. Quem não está liberado não entra: a Atos avisa a pessoa, e a volta ao seu sistema traz <code>error=access_denied</code>. Tirar alguém da lista vale no próximo login e no <code>/oauth/userinfo</code>; um <code>id_token</code> já emitido vale até vencer.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Integre</h3>
+          <p>O bloco “Como integrar” da Integrações traz o seu <code>client_id</code>, os endereços e um pedido pronto para colar no Claude Code, além de comandos para PowerShell e Linux. Ou siga a <a href="#referencia">referência técnica</a> abaixo com a biblioteca OpenID Connect da sua linguagem.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Teste</h3>
+          <p>Entre com uma conta liberada, confira o nome e o e-mail que chegaram e tente com uma que não está liberada. Depois tire o acesso em Minha conta e veja o pedido de permissão aparecer de novo.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section id="referencia" aria-labelledby="referencia-titulo">
+    <h2 id="referencia-titulo">Referência técnica</h2>
+    <div class="corpo">
+      <p>Para quem integra à mão. Qualquer biblioteca OpenID Connect que lê a descoberta configura o resto sozinha a partir do emissor.</p>
+    </div>
+
+    <h3>Endereços</h3>
+    <dl class="tabela-ref">
+      <div><dt>Emissor (issuer)</dt><dd><code>https://atos.dev.br</code></dd></div>
+      <div><dt>Descoberta</dt><dd><code>https://atos.dev.br/.well-known/openid-configuration</code></dd></div>
+      <div><dt>Autorização</dt><dd><code>https://atos.dev.br/entrar</code></dd></div>
+      <div><dt>Token</dt><dd><code>https://atos.dev.br/oauth/token</code></dd></div>
+      <div><dt>Dados da pessoa</dt><dd><code>https://atos.dev.br/oauth/userinfo</code></dd></div>
+      <div><dt>Chaves públicas (JWKS)</dt><dd><code>https://atos.dev.br/oauth/jwks</code></dd></div>
+      <div><dt>Revogação</dt><dd><code>https://atos.dev.br/oauth/revogar</code></dd></div>
+    </dl>
+
+    <h3>Como funciona</h3>
+    <dl class="tabela-ref">
+      <div><dt>Fluxo</dt><dd>Código de autorização (<code>response_type=code</code>), com a volta na consulta (<code>response_mode=query</code>).</dd></div>
+      <div><dt>PKCE</dt><dd>Obrigatório para todos os clientes, só com <code>S256</code>.</dd></div>
+      <div><dt>Escopos</dt><dd><code>openid</code> (obrigatório), <code>email</code> e <code>profile</code>.</dd></div>
+      <div><dt>state e nonce</dt><dd>O <code>state</code> volta como foi mandado; o <code>nonce</code> vem dentro do <code>id_token</code>. A volta também traz <code>iss=https://atos.dev.br</code>.</dd></div>
+      <div><dt>Código</dt><dd>Vale 2 minutos e uma vez só. Trocado em <code>POST /oauth/token</code> com o <code>code_verifier</code> e o mesmo <code>redirect_uri</code>.</dd></div>
+      <div><dt>Cliente confidencial</dt><dd>Manda o segredo por <code>client_secret_basic</code> ou <code>client_secret_post</code>. O cliente público não usa segredo.</dd></div>
+      <div><dt>id_token</dt><dd>JWT assinado em <code>ES256</code>. Confira a assinatura pela JWKS (pelo <code>kid</code>) e os campos <code>iss</code>, <code>aud</code> (o seu <code>client_id</code>), <code>exp</code> e <code>nonce</code>.</dd></div>
+      <div><dt>Campos</dt><dd><code>sub</code>; com <code>email</code>: <code>email</code> e <code>email_verified</code>; com <code>profile</code>: <code>name</code>. Também <code>auth_time</code>.</dd></div>
+      <div><dt>Validade</dt><dd><code>id_token</code> e <code>access_token</code> valem 1 hora. Não há <code>refresh_token</code>: para outra hora, peça o login de novo (com a sessão aberta na Atos, a volta é direta).</dd></div>
+      <div><dt>prompt</dt><dd><code>none</code>, <code>login</code> e <code>consent</code>; também <code>max_age</code> e <code>login_hint</code>.</dd></div>
+      <div><dt>Erros na volta</dt><dd><code>error=access_denied</code> quando a pessoa não permite ou não está liberada; com <code>prompt=none</code>, <code>login_required</code> ou <code>consent_required</code>.</dd></div>
+    </dl>
+
+    <h3>O pedido de autorização</h3>
+    <pre class="codigo" tabindex="0" aria-label="Exemplo da URL de autorização"><code>https://atos.dev.br/entrar
+  ?client_id=SEU_CLIENT_ID
+  &amp;redirect_uri=https%3A%2F%2Fseusistema.com.br%2Fretorno
+  &amp;response_type=code
+  &amp;scope=openid%20email%20profile
+  &amp;state=VALOR_ALEATORIO
+  &amp;nonce=OUTRO_VALOR_ALEATORIO
+  &amp;code_challenge=BASE64URL_DO_SHA256_DO_VERIFIER
+  &amp;code_challenge_method=S256</code></pre>
+    <p class="nota-fim">As quebras de linha são só para ler: a URL vai numa linha só.</p>
+
+    <h3>A troca do código</h3>
+    <pre class="codigo" tabindex="0" aria-label="Exemplo da troca do código pelo token"><code>POST https://atos.dev.br/oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code
+&amp;code=CODIGO_RECEBIDO
+&amp;redirect_uri=https%3A%2F%2Fseusistema.com.br%2Fretorno
+&amp;client_id=SEU_CLIENT_ID
+&amp;code_verifier=O_VERIFIER_DO_INICIO</code></pre>
+    <p class="nota-fim">A resposta traz <code>id_token</code>, <code>access_token</code> (<code>Bearer</code>, para <code>/oauth/userinfo</code>), <code>expires_in</code> e <code>scope</code>.</p>
+  </section>
+
+  <p class="nota-fim">Veja também os <a href="/termos/">Termos de uso</a> e a <a href="/privacidade/">Política de privacidade</a> da Conta Atos.</p>
+</main>
+
+<footer class="rodape" id="rodape">
+  <span>Atos</span>
+  <div>
+    <details>
+      <summary>Contato</summary>
+      <div>
+        <a href="mailto:contato@atos.dev.br">contato@atos.dev.br</a>
+        <a href="https://wa.me/5594992417837" target="_blank" rel="noopener">+55 (94) 99241-7837</a>
+      </div>
+    </details>
+    <a href="/integracao/" aria-current="page">Integração</a>
+    <a href="/privacidade/">Privacidade</a>
+    <a href="/termos/">Termos</a>
+  </div>
+</footer>
+</body>
+</html>

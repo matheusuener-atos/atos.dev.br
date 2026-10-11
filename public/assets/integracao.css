@@ -1,0 +1,66 @@
+/* A pagina Integracao (/integracao/): o "Entrar com Atos" para quem integra o proprio sistema. Usa o sistema
+   visual de conta.css (cores, topo, rodape, botoes); aqui so o que e desta pagina. Cantos retos em tudo. */
+
+main.integracao { flex: 1; width: 100%; max-width: 920px; margin: 0 auto; padding: 48px 28px 96px; display: flex; flex-direction: column; }
+.integracao h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(30px, 4vw, 40px); line-height: 1.15; text-wrap: balance; }
+.integracao .lead { max-width: 640px; margin-top: 12px; font-size: 16px; line-height: 1.6; color: var(--text-soft); text-wrap: pretty; }
+.integracao .chamadas { padding-top: 24px; }
+.integracao .chamadas .btn { height: 40px; padding: 0 18px; }
+.integracao .chamadas .btn.primario .seta { color: var(--on-light); }
+
+.integracao section { margin-top: 64px; padding-top: 32px; border-top: 1px solid var(--line); scroll-margin-top: 72px; }
+.integracao h2 { font-family: var(--serif); font-weight: 400; font-size: 26px; line-height: 1.2; }
+.integracao h3 { font-size: 13px; font-weight: 600; color: var(--silver); margin-top: 28px; }
+.integracao .corpo { max-width: 640px; display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+.integracao p, .integracao li { font-size: 15px; line-height: 1.65; color: var(--text-soft); text-wrap: pretty; }
+.integracao strong { color: var(--text); font-weight: 600; }
+.integracao ul { margin: 0; padding-left: 20px; }
+.integracao li + li { margin-top: 8px; }
+.integracao code { font-family: Consolas, "Cascadia Mono", "SFMono-Regular", Menlo, monospace; font-size: 13px; color: var(--text); overflow-wrap: anywhere; }
+
+/* os pontos principais, em grade */
+.pontos { margin-top: 20px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--line); background: var(--surface); overflow: hidden; }
+.pontos > div { padding: 16px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); margin: 0 -1px -1px 0; }
+.pontos h3 { margin: 0; font-size: 13px; color: var(--text); }
+.pontos p { font-size: 13px; line-height: 1.55; color: var(--muted); }
+
+/* as capturas */
+.capturas { margin-top: 24px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 20px; align-items: start; }
+.captura.larga { grid-column: 1 / -1; }
+.captura { margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.captura img { display: block; width: 100%; height: auto; border: 1px solid var(--line); background: var(--surface); }
+.captura figcaption { font-size: 13px; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
+.captura figcaption strong { display: block; font-size: 13px; color: var(--text); font-weight: 600; }
+
+/* o passo a passo */
+.passos { list-style: none; margin: 20px 0 0; padding: 0; counter-reset: passo; display: flex; flex-direction: column; border: 1px solid var(--line); background: var(--surface); }
+.passos > li { counter-increment: passo; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 16px; padding: 18px 16px; margin: 0; border-top: 1px solid var(--line); }
+.passos > li:first-child { border-top: 0; }
+.passos > li::before {
+  content: counter(passo, upper-roman); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+  background: var(--bg); border: 1px solid var(--line); font-family: var(--serif); font-size: 15px; color: var(--text);
+}
+.passos h3 { margin: 0 0 4px; font-size: 14px; color: var(--text); }
+.passos p, .passos li { font-size: 14px; line-height: 1.6; color: var(--text-soft); }
+.passos ul { margin-top: 6px; }
+.passos li li + li { margin-top: 4px; }
+
+/* a referencia */
+.tabela-ref { margin-top: 20px; border: 1px solid var(--line); background: var(--surface); }
+.tabela-ref > div { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; padding: 12px 16px; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.55; }
+.tabela-ref > div:first-child { border-top: 0; }
+.tabela-ref dt { color: var(--muted); font-weight: 500; }
+.tabela-ref dd { margin: 0; color: var(--text-soft); min-width: 0; }
+.codigo { margin: 12px 0 0; padding: 14px 16px; overflow-x: auto; background: var(--surface-2); border: 1px solid var(--line); font-family: Consolas, "Cascadia Mono", "SFMono-Regular", Menlo, monospace; font-size: 13px; line-height: 1.6; color: var(--text); white-space: pre; tab-size: 2; }
+.codigo code { overflow-wrap: normal; }
+.integracao .nota-fim { margin-top: 20px; font-size: 13px; color: var(--muted); }
+.integracao .nota-fim a, .integracao .corpo a, .integracao .passos a { color: var(--text); }
+
+@media (max-width: 640px) {
+  .capturas, .pontos { grid-template-columns: minmax(0, 1fr); }
+  main.integracao { padding: 36px 16px 72px; }
+  .integracao section { margin-top: 48px; }
+  .passos > li { grid-template-columns: 32px minmax(0, 1fr); gap: 12px; padding: 16px 12px; }
+  .passos > li::before { width: 32px; height: 32px; font-size: 13px; }
+  .tabela-ref > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
