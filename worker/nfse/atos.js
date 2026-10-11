@@ -82,7 +82,9 @@ export function emissorDe(env) {
 export function faltaDoEmissor(env) {
   if (!env.CONTAS) return "falta o KV CONTAS";
   if (!env.EMISSOR_NFSE) return "falta o Durable Object EMISSOR_NFSE";
-  if (!env.NFSE_CHAVE_MESTRA) return "falta o segredo NFSE_CHAVE_MESTRA (npx wrangler secret put NFSE_CHAVE_MESTRA; gere com openssl rand -base64 32)";
+  if (!env.NFSE_CHAVE_MESTRA) {
+    return "falta o segredo NFSE_CHAVE_MESTRA (npx wrangler secret put NFSE_CHAVE_MESTRA" + (ehAmbienteDeTeste(env) ? " --env teste" : "") + "; gere com openssl rand -base64 32)";
+  }
   return "";
 }
 
@@ -437,20 +439,34 @@ export async function mandarNotaPorEmail(env, meta, pdfB64, xmlB64) {
 }
 
 /* Manda o e-mail da nota ao e-mail do tomador ajustado no painel ou, sem ele, ao dos dados fiscais do cliente.
-   Devolve "enviado" | "sem RESEND_API_KEY" | "sem e-mail do cliente" | "falhou: <motivo>"; nunca lanca. */
+   Devolve "enviado" | "sem RESEND_API_KEY" | "sem e-mail do cliente" | "falhou: <motivo>"; nunca lanca.
+   No Worker de teste (AMBIENTE "teste") NADA sai: o e-mail so fica anotado (registrarEmailDeTeste) e a nota diz
+   "registrado no teste (não saiu)" - os clientes de la sao de exemplo ou de teste, e o Resend nao e chamado. */
 export async function mandarEmail(env, clienteId, { assunto, titulo, texto, anexos }) {
-  if (!env.RESEND_API_KEY) return "sem RESEND_API_KEY";
+  const teste = ehAmbienteDeTeste(env);
+  if (!teste && !env.RESEND_API_KEY) return "sem RESEND_API_KEY";
   try {
     const ajuste = (await kvJSON(env, K(env).tomador + clienteId)) || {};
     let para = ajuste.email || "";
     if (!para) para = ((await perfilDe(env, clienteId)) || {}).email || "";
     if (!para) para = ((await kvJSON(env, K(env).clientes + clienteId, null)) || {}).email || "";
     if (!para) return "sem e-mail do cliente";
+    if (teste) return await registrarEmailDeTeste(env, { para, assunto, anexos });
     const r = await enviarEmail(env, { para, assunto, titulo, texto, anexos });
     return r.ok ? "enviado" : "falhou: " + (r.erro || "o provedor de e-mail recusou");
   } catch (e) {
     return "falhou: " + String((e && e.message) || e).slice(0, 200);
   }
+}
+
+/* O e-mail que sairia, anotado (os ultimos 30) em atos-teste:nfse:emails: so no Worker de teste. */
+export const MARCA_EMAIL_DE_TESTE = "registrado no teste (não saiu)";
+async function registrarEmailDeTeste(env, { para, assunto, anexos }) {
+  const chave = K(env).prefixo + "emails";
+  const lista = (await kvJSON(env, chave, [])) || [];
+  lista.push({ para: String(para).slice(0, 120), assunto: String(assunto || "").slice(0, 200), anexos: (anexos || []).map((a) => a.nome), quando: new Date().toISOString() });
+  await env.CONTAS.put(chave, JSON.stringify(lista.slice(-30)));
+  return MARCA_EMAIL_DE_TESTE;
 }
 
 /* A nota cancelada (ou substituida) para o cliente. Usada pelo emissor. d: {conta, email?, substituta?: {numero}}.

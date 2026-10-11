@@ -7,6 +7,10 @@
 // Atende como o Worker auxiliar do mTLS: recebe o pedido com o destino em
 // x-nfse-url (env.SEFIN_MTLS = { fetch: sim.fetch }).
 // A NFS-e devolvida não é assinada (o Python só assina com pfx_sefin).
+//
+// No Worker de teste (AMBIENTE "teste", sem o SEFIN_MTLS), o emissor usa a SefinSimuladaGuardada (abaixo): a
+// mesma Sefin, com o que ela "gerou" guardado no storage do Durable Object (o DO pode ser despejado e voltar), e
+// "segurar" uma DPS (a nota fica na fila até alguém pedir "Tentar de novo"). Em produção, nunca (emissor.js).
 
 import { deGzipB64, gzipB64 } from "./gzip.js";
 import { anexar, lerXml, novo, serializar } from "./xml.js";
@@ -38,6 +42,10 @@ export class SefinSimulada {
     this.pedidosEvento = new Map();
     this.numero = 0;
     this.pedidos = [];
+    // As DPS "seguradas": todo pedido delas responde como servidor fora (a nota fica na fila). segurarProxima: a
+    // próxima DPS que chegar entra aqui.
+    this.seguradas = new Set();
+    this.segurarProxima = false;
     this.convenio = { situacaoConvenio: "Ativo", permiteEmissorNacional: true, prazoCancelamentoDias: 30 };
     this.fetch = (req, init) => this.atender(req instanceof Request ? req : new Request(req, init));
   }
@@ -134,6 +142,11 @@ export class SefinSimulada {
       const { raiz } = lerXml(dpsXml);
       const ident = (filho(raiz, "infDPS").attrs.find(([n]) => n === "Id") || [])[1];
       this.recebidas.set(ident, (this.recebidas.get(ident) || 0) + 1);
+      if (this.segurarProxima) {
+        this.segurarProxima = false;
+        this.seguradas.add(ident);
+      }
+      if (this.seguradas.has(ident)) return new Response("destino fora do ar (DPS segurada na Sefin simulada)", { status: 502, headers: { "x-nfse-nao-chegou": "1" } });
       if (modo === "timeout_antes") throw Object.assign(new Error("tempo esgotado (simulado, antes de gerar)"), { name: "TimeoutError" });
       if (modo === "rejeicao") return this.resposta(400, { erros: [{ Codigo: "E0595", Descricao: "Não é permitido informar alíquota superior a 5%." }] });
       if (this.geradas.has(ident)) return this.resposta(400, { erros: [{ Codigo: "E0014", Descricao: "Conjunto de Série, Número, ... já existe" }] });
@@ -156,6 +169,7 @@ export class SefinSimulada {
     }
     if (caminho.startsWith("/dps/")) {
       const ident = caminho.split("/").pop();
+      if (this.seguradas.has(ident)) return new Response("destino fora do ar (DPS segurada na Sefin simulada)", { status: 502, headers: { "x-nfse-nao-chegou": "1" } });
       // "nao_acha": a consulta ainda não enxerga a nota gerada (índice atrasado).
       const g = modo === "nao_acha" ? null : this.geradas.get(ident);
       if (metodo === "HEAD") return new Response(null, { status: g ? 200 : 404 });
@@ -193,5 +207,106 @@ export class SefinSimulada {
     }
     if (caminho.includes("/parametros_municipais/") && caminho.endsWith("/convenio")) return this.resposta(200, this.convenio);
     return new Response("rota não simulada", { status: 404 });
+  }
+}
+
+/**
+ * A Sefin simulada do Worker de teste: a mesma, com o estado no storage do Durable Object do emissor (chaves
+ * "sim:*"), para o cancelamento e a substituição de uma nota emitida ontem ainda acharem a NFS-e depois que o DO
+ * foi despejado. storage: o ctx.storage do DO (get, put, list, delete).
+ */
+export class SefinSimuladaGuardada extends SefinSimulada {
+  constructor(storage) {
+    super("sucesso");
+    this.storage = storage;
+    this.carregada = null;
+    this.salvas = new Set();
+    this.eventosSalvos = new Map();
+    this.fetch = (req, init) => this.atenderGuardado(req instanceof Request ? req : new Request(req, init));
+  }
+
+  carregar() {
+    if (!this.carregada) {
+      this.carregada = (async () => {
+        const e = (await this.storage.get("sim:estado")) || {};
+        this.numero = Number(e.numero || 0);
+        this.modos = Array.isArray(e.modos) && e.modos.length ? e.modos : ["sucesso"];
+        this.seguradas = new Set(e.seguradas || []);
+        this.segurarProxima = Boolean(e.segurarProxima);
+        for (const [k, v] of await this.storage.list({ prefix: "sim:g:" })) {
+          this.geradas.set(k.slice(6), v);
+          this.salvas.add(k.slice(6));
+        }
+        for (const [k, v] of await this.storage.list({ prefix: "sim:e:" })) {
+          this.eventos.set(k.slice(6), v);
+          this.eventosSalvos.set(k.slice(6), v.length);
+        }
+      })().catch((e) => {
+        this.carregada = null;
+        throw e;
+      });
+    }
+    return this.carregada;
+  }
+
+  async guardar() {
+    await this.storage.put("sim:estado", { numero: this.numero, modos: this.modos, seguradas: [...this.seguradas], segurarProxima: this.segurarProxima });
+    for (const [ident, g] of this.geradas) {
+      if (this.salvas.has(ident)) continue;
+      await this.storage.put("sim:g:" + ident, g);
+      this.salvas.add(ident);
+    }
+    for (const [chave, lista] of this.eventos) {
+      if (this.eventosSalvos.get(chave) === lista.length) continue;
+      await this.storage.put("sim:e:" + chave, lista);
+      this.eventosSalvos.set(chave, lista.length);
+    }
+    // Nada disto serve fora do teste unitario; num DO que vive dias, nao cresce.
+    this.pedidos = this.pedidos.slice(-50);
+    if (this.recebidas.size > 500) this.recebidas.clear();
+    if (this.pedidosEvento.size > 500) this.pedidosEvento.clear();
+  }
+
+  async atenderGuardado(req) {
+    await this.carregar();
+    try {
+      return await this.atender(req);
+    } finally {
+      await this.guardar();
+    }
+  }
+
+  /** Os modos dos próximos pedidos (["rejeicao", "sucesso"]...) e/ou segurar a próxima DPS. */
+  async configurar({ modos, segurar } = {}) {
+    await this.carregar();
+    if (modos !== undefined) this.usar(modos);
+    if (segurar !== undefined) this.segurarProxima = Boolean(segurar);
+    await this.guardar();
+    return { modos: this.modos, segurar: this.segurarProxima, seguradas: this.seguradas.size };
+  }
+
+  /** Solta uma DPS segurada (a pessoa pediu "Tentar de novo"). */
+  async soltar(ident) {
+    await this.carregar();
+    if (!this.seguradas.delete(ident)) return false;
+    await this.guardar();
+    return true;
+  }
+
+  /** Apaga tudo o que a Sefin simulada guardou (recomeçar o teste). */
+  async zerar() {
+    const chaves = [...(await this.storage.list({ prefix: "sim:" })).keys()];
+    for (let i = 0; i < chaves.length; i += 100) await this.storage.delete(chaves.slice(i, i + 100));
+    this.geradas.clear();
+    this.eventos.clear();
+    this.recebidas.clear();
+    this.pedidosEvento.clear();
+    this.salvas.clear();
+    this.eventosSalvos.clear();
+    this.seguradas.clear();
+    this.segurarProxima = false;
+    this.numero = 0;
+    this.modos = ["sucesso"];
+    this.carregada = Promise.resolve();
   }
 }

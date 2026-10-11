@@ -49,6 +49,8 @@ import { calcular } from "./tributos.js";
 import { juntarEspacos, soDigitos, strip, tamanho } from "./texto.js";
 import { lerXml } from "./xml.js";
 import { avisarNotaCancelada, guardarNotaDoCliente, K, kvJSON, marcarPagamento, RE_CLIENTE } from "./atos.js";
+import { SefinSimuladaGuardada } from "./sefin-simulada.js";
+import { ehAmbienteDeTeste } from "../cobranca/eventos.js";
 
 export const VER_APLIC = "Atos-nuvem";
 export const ORIGEM = "atos";
@@ -237,8 +239,10 @@ export class EmissorNFSe {
     this.ocupadas = new Set();
     this.chaveAberta = null;
     this.agora = () => new Date();
-    // Os testes trocam (Sefin simulada); em produção é o service binding SEFIN_MTLS.
+    // Os testes trocam (Sefin simulada); em produção é o service binding SEFIN_MTLS. No Worker de teste (AMBIENTE
+    // "teste") SEM o SEFIN_MTLS, a Sefin simulada guardada no storage deste DO (simulada(), abaixo).
     this.fetchSefin = null;
+    this.sefinDeTeste = null;
     this.criarTabelas();
   }
 
@@ -415,8 +419,48 @@ export class EmissorNFSe {
   }
 
   cliente(ambiente) {
-    const fetch = this.fetchSefin || fetchPeloMtls(this.env);
+    const sim = this.simulada();
+    const fetch = this.fetchSefin || fetchPeloMtls(this.env) || (sim && sim.fetch);
     return new ClienteSefin({ ambiente, fetch, producaoLiberada: this.producaoLiberada() });
+  }
+
+  /**
+   * A Sefin simulada, SÓ no Worker de teste: AMBIENTE "teste" e nenhum SEFIN_MTLS (nem fetchSefin dos testes).
+   * Em produção (sem AMBIENTE "teste") devolve sempre null: sem o binding, a nota vai para a fila, como antes.
+   */
+  simulada() {
+    if (this.fetchSefin || fetchPeloMtls(this.env) || !ehAmbienteDeTeste(this.env)) return null;
+    if (!this.sefinDeTeste) this.sefinDeTeste = new SefinSimuladaGuardada(this.ctx.storage);
+    return this.sefinDeTeste;
+  }
+
+  /** Por onde a nota vai: "simulada" (o Worker de teste), "mtls" (o auxiliar) ou "" (sem conexão). */
+  modoSefin() {
+    if (this.fetchSefin || fetchPeloMtls(this.env)) return "mtls";
+    return this.simulada() ? "simulada" : "";
+  }
+
+  exigirSimulada() {
+    const sim = this.simulada();
+    if (!sim) throw new ErroEmissor("só no Worker de teste, com a Sefin simulada", 404);
+    return sim;
+  }
+
+  /** Recomeçar o Worker de teste: apaga as notas, o prestador, o certificado, a numeração e a Sefin simulada. */
+  async zerarTeste() {
+    const sim = this.exigirSimulada();
+    for (const t of ["notas", "passos", "eventos", "prestador", "certificado", "numeracao", "numeros_livres", "municipio", "liberacao"]) {
+      this.rodar(`DELETE FROM ${t}`);
+    }
+    try {
+      this.rodar("DELETE FROM sqlite_sequence");
+    } catch {
+      // sem AUTOINCREMENT usado ainda: nada a zerar
+    }
+    if (this.ctx.storage.deleteAlarm) await this.ctx.storage.deleteAlarm();
+    this.chaveAberta = null;
+    await sim.zerar();
+    return { ok: true };
   }
 
   /** Testar comunicação: pergunta o convênio do município à Sefin e guarda. */
@@ -473,7 +517,7 @@ export class EmissorNFSe {
       ambiente, ambiente_rotulo: AMBIENTES[ambiente] || "", producao_liberada: this.producaoLiberada(),
       prestador: { versao: p.id, dados: p.dados, faltas: this.faltas() }, certificado: this.certificadoParaTela(),
       municipio: this.situacaoMunicipio(), pode_emitir: pode, motivos, proximo_numero: this.proximoNumero(ambiente, serie),
-      tabelas: tabelas.versoes(), opcoes: opcoesDaTela(),
+      tabelas: tabelas.versoes(), opcoes: opcoesDaTela(), sefin: this.modoSefin(),
     };
   }
 
@@ -1258,7 +1302,15 @@ export class EmissorNFSe {
       case "listar": return { notas: this.listar(d) };
       case "nota": return this.detalhe(d.id);
       case "xml": return this.xml(d.id, d.tipo);
-      case "tentar": return this.paraTela(await this.tentar(d.id, d.quem));
+      case "tentar": {
+        // Na Sefin simulada, a DPS "segurada" (a nota de exemplo na fila) solta quando uma pessoa pede.
+        const sim = this.simulada();
+        if (sim) {
+          const n = this.exigir(d.id);
+          if (n.id_dps) await sim.soltar(n.id_dps);
+        }
+        return this.paraTela(await this.tentar(d.id, d.quem));
+      }
       case "descartar": return this.paraTela(this.descartar(d.id, d.quem));
       case "fila": return { feitas: await this.processarFila(d.quem || "fila") };
       case "cancelar": return this.cancelar(d);
@@ -1277,6 +1329,9 @@ export class EmissorNFSe {
       case "enviar_cliente": return this.enviarAoCliente(d);
       case "anotar_email": return this.anotarEmail(d);
       case "par_para_mtls": return this.parParaMtls();
+      // Só no Worker de teste (a Sefin simulada): os modos da próxima resposta e o recomeçar (nfse/semente.js).
+      case "simular": return this.exigirSimulada().configurar({ modos: d.modos, segurar: d.segurar });
+      case "zerar_teste": return this.zerarTeste();
       default: throw new ErroEmissor("ação desconhecida", 404);
     }
   }

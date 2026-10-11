@@ -52,6 +52,8 @@
     pfx: null, senha: "", instalando: false, certAviso: null,
     teste: null, testando: false, cfgMudando: false,
     mun: {},
+    // Os dados de exemplo (so no Worker de teste: resumo.teste; POST teste/semear e teste/limpar, so o dono).
+    semente: { ocupado: false, msg: "", erro: "", feito: null, confirmaLimpar: false },
   };
   var NOMES_MUN = {}, pedidosMun = {};
 
@@ -251,13 +253,82 @@
     var d = S.resumo;
     if (d.emissor && d.emissor.ligado === false) h += faixa("O emissor ainda não está ligado: " + esc(d.emissor.falta) + ".");
     if (d.erro) h += faixa(esc(d.erro));
+    if (d.teste) {
+      h += faixa("<strong>Endereço de teste.</strong> " + (d.situacao && d.situacao.sefin === "simulada"
+        ? "A Sefin é simulada: nenhuma nota vai ao Sistema Nacional. " : "") + "Nenhum e-mail de nota sai daqui (fica só anotado).");
+    }
     return h + { notas: abaNotas, emitir: abaEmitir, clientes: abaClientes, parametros: abaParametros }[S.aba]();
   }
 
   function seloAmbiente(s) {
     if (!s) return "";
-    return s.ambiente === "producao" ? '<span class="selo aviso">Produção · as notas valem de verdade</span>'
-      : '<span class="selo neutro">Ambiente de testes · produção restrita, sem valor fiscal</span>';
+    return (s.ambiente === "producao" ? '<span class="selo aviso">Produção · as notas valem de verdade</span>'
+      : '<span class="selo neutro">Ambiente de testes · produção restrita, sem valor fiscal</span>') +
+      (s.sefin === "simulada" ? ' <span class="selo aviso">Sefin simulada (teste)</span>' : "");
+  }
+
+  // ---------- Dados de exemplo (so no Worker de teste)
+
+  function dono() { return Boolean(S.ctx && S.ctx.quem && S.ctx.quem.papel === "dono"); }
+  function botaoSemear() {
+    var X = S.semente;
+    return '<button type="button" class="btn p primario" data-nf="semear"' + (dono() ? "" : ' disabled title="só o dono carrega os dados de exemplo"') + (X.ocupado ? " disabled" : "") + ">" +
+      (X.ocupado && !X.confirmaLimpar ? "Carregando…" : "Carregar dados de exemplo") + "</button>";
+  }
+  function dadosDeExemplo() {
+    var X = S.semente, h = h2("Dados de exemplo · só no teste");
+    h += '<div class="card"><p class="vazio">Carrega um prestador e um certificado A1 de teste, seis clientes fictícios (e-mails @exemplo.test, um com dados faltando), ' +
+      "pagamentos sem nota e notas em todos os estados (emitidas com PDF, uma cancelada, uma substituída, uma rejeitada e uma na fila), tudo contra a Sefin simulada. " +
+      "Carregar de novo não duplica. Apagar zera o emissor deste endereço de teste (notas, prestador, certificado e numeração) e tira os exemplos.</p>" +
+      '<div class="botoes">' + botaoSemear() +
+      (X.confirmaLimpar
+        ? '<span class="dica">Apagar tudo o que o emissor de teste tem?</span><button type="button" class="btn" data-nf="limpar-sim"' + (X.ocupado ? " disabled" : "") + ">" +
+          (X.ocupado ? "Apagando…" : "Sim, apagar") + '</button><button type="button" class="link" data-nf="limpar-nao"' + (X.ocupado ? " disabled" : "") + ">Não</button>"
+        : '<button type="button" class="btn" data-nf="limpar"' + (dono() ? "" : " disabled") + (X.ocupado ? " disabled" : "") + ">Apagar os dados de exemplo</button>") +
+      "</div>" +
+      (X.msg ? '<p class="nota" role="status">' + esc(X.msg) + "</p>" : "") +
+      (X.erro ? '<p class="erro nf-dentro" role="alert">' + esc(X.erro) + "</p>" : "") +
+      (X.feito && X.feito.length ? '<ul class="nota">' + X.feito.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>" : "") + "</div>";
+    return h;
+  }
+
+  function semear() {
+    var X = S.semente;
+    if (X.ocupado) return;
+    X.ocupado = true; X.erro = ""; X.feito = []; X.msg = "Carregando os dados de exemplo…";
+    pintar();
+    var passo = function (n) {
+      api("POST", "teste/semear", {}).then(function (r) {
+        if (!ok(r)) { X.ocupado = false; X.msg = ""; X.erro = erroDe(r); pintar(); return; }
+        var d = r.dados || {};
+        X.feito = X.feito.concat(d.feito || []);
+        if (!d.pronto && n < 8) { X.msg = "Carregando: " + (d.proxima_rotulo || "a próxima etapa") + "…"; pintar(); passo(n + 1); return; }
+        // O PDF de cada nota emitida, um pedido por nota (o Cron de cada minuto faz o que sobrar).
+        (d.pdf || []).forEach(function (id) { depois(id); });
+        X.ocupado = false;
+        X.msg = d.ja ? "Os dados de exemplo já estavam carregados." : "Dados de exemplo carregados. Os PDFs saem em instantes.";
+        S.clientes = null;
+        S.par = null;
+        carregar();
+      });
+    };
+    passo(0);
+  }
+
+  function limparExemplo() {
+    var X = S.semente;
+    if (X.ocupado) return;
+    X.ocupado = true; X.erro = ""; X.msg = ""; X.feito = null;
+    pintar();
+    api("POST", "teste/limpar", {}).then(function (r) {
+      X.ocupado = false; X.confirmaLimpar = false;
+      if (!ok(r)) X.erro = erroDe(r);
+      else { X.msg = "Os dados de exemplo foram apagados."; X.feito = (r.dados || {}).feito || null; }
+      S.clientes = null;
+      S.par = null;
+      S.aberta = null;
+      carregar();
+    });
   }
 
   // ---------- Notas
@@ -293,6 +364,8 @@
     h += h2("Notas", '<span class="opcoes" role="group" aria-label="Filtrar as notas">' + [["", "Todas"], ["pendentes", "Pendentes"], ["emitidas", "Emitidas"]].map(function (o) {
       return '<button type="button" data-nf="filtro" data-v="' + o[0] + '" aria-pressed="' + (S.filtro === o[0]) + '">' + o[1] + ' <span class="nf-n">' + cont[o[0]] + "</span></button>";
     }).join("") + "</span>");
+    if (!ns.length && d.teste) return h + '<div class="card"><p class="vazio">Nenhuma nota ainda. Neste endereço de teste dá para carregar notas, clientes e pagamentos de exemplo.</p><div class="botoes">' +
+      botaoSemear() + "</div>" + (S.semente.erro ? '<p class="erro nf-dentro" role="alert">' + esc(S.semente.erro) + "</p>" : "") + "</div>";
     if (!ns.length) return h + vazio("Nenhuma nota ainda. Comece por Emitir NFS-e.");
     if (!lista.length) return h + vazio("Nenhuma nota com esse filtro.");
     h += '<div class="card nf-tabela"><div><div class="nf-tr nf-th"><span>Nº</span><span>Cliente</span><span>Competência</span><span class="dir">Valor</span><span>Situação</span><span></span></div>' +
@@ -562,6 +635,7 @@
 
   function abaParametros() {
     var d = S.resumo, s = d.situacao, cf = d.cloudflare || {}, c = (d.config || {}), h = "";
+    if (d.teste) h += dadosDeExemplo();
     h += h2("Interruptores") + '<div class="card">' + INTERRUPTORES.map(function (o) {
       var on = Boolean(c[o[0]]);
       return '<button type="button" class="nf-chave" role="switch" aria-checked="' + on + '" data-nf="cfg" data-k="' + o[0] + '"' + trava() + (S.cfgMudando ? " disabled" : "") +
@@ -1054,6 +1128,10 @@
     else if (a === "prod-nao") { S.prodConfirma = false; pintar(); }
     else if (a === "prod-sim") mudarProducao("liberar");
     else if (a === "prod-voltar") mudarProducao("voltar");
+    else if (a === "semear") semear();
+    else if (a === "limpar") { S.semente.confirmaLimpar = true; S.semente.erro = ""; pintar(); }
+    else if (a === "limpar-nao") { S.semente.confirmaLimpar = false; pintar(); }
+    else if (a === "limpar-sim") limparExemplo();
   });
 
   function aoDigitar(e) {

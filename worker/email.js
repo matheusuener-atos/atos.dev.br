@@ -24,7 +24,15 @@ export function htmlDoEmail({ titulo, texto, pre }) {
 }
 
 /* anexos (opcional): [{nome, b64}] - a NFS-e manda o PDF e o XML (nfse/atos.js). */
+/* Os dominios reservados para teste e exemplo (RFC 2606 e 6761): os clientes de exemplo do Worker de teste
+   (nfse/semente.js) usam @exemplo.test. Para eles nada sai, em nenhum ambiente. */
+export function enderecoDeTeste(para) {
+  const dominio = String(para || "").trim().toLowerCase().split("@").pop().replace(/\.$/, "");
+  return /(^|\.)(test|example|invalid|localhost)$/.test(dominio) || /(^|\.)example\.(com|net|org)$/.test(dominio);
+}
+
 export async function enviarEmail(env, { para, assunto, titulo, texto, pre, anexos }) {
+  if (enderecoDeTeste(para)) return { ok: false, status: 400, erro: "endereço reservado para testes: nada sai" };
   if (!env.RESEND_API_KEY) return { ok: false, status: 503, erro: "o envio de e-mail ainda não está ligado" };
   try {
     const r = await fetch("https://api.resend.com/emails", {

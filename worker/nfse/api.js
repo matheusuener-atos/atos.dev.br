@@ -35,6 +35,9 @@
 //   POST notas/:id/depois               PDF + e-mail em segundo plano (ctx.waitUntil), 202
 //   POST fila                           processa a fila agora (o alarme do DO faz sozinho)
 //   POST producao/liberar  /  POST producao/voltar
+//   POST teste/semear {tudo?}  /  POST teste/limpar
+//                                       SÓ no Worker de teste (AMBIENTE "teste"; em produção, 404) e só o papel
+//                                       dono: os dados de exemplo (nfse/semente.js) com a Sefin simulada
 //
 // O PDF e o e-mail ficam FORA do pedido que emite (o DANFSe com pdf-lib somado à emissão passaria dos 10 ms de
 // CPU do plano grátis). A tela chama POST notas/:id/depois logo depois de receber a nota emitida; o que sobrar
@@ -50,6 +53,8 @@ import { gerarDanfse } from "./danfse.js";
 import { idNoCliente, K_DEPOIS } from "./emissor.js";
 import { buscarMunicipios } from "./tabelas.js";
 import { guardarTokenCf, instalarMtls, K_CADEIA, mtlsEhDeste, situacaoCf } from "./mtls.js";
+import { limparSemente, semear } from "./semente.js";
+import { ehAmbienteDeTeste } from "../cobranca/eventos.js";
 
 export { chamar, emissorDe, emitirAutomatico, faltaDoEmissor, configNfse };
 
@@ -80,6 +85,15 @@ export async function atenderEmissor(request, env, url, quem, { ctx = null, pref
       return json({ erro: "pedido inválido" }, 400);
     }
     if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) return json({ erro: "pedido inválido" }, 400);
+  }
+  // Os dados de exemplo (nfse/semente.js): SÓ no Worker de teste (AMBIENTE "teste"); em produção a rota não existe.
+  if (p.startsWith("teste/")) {
+    if (!ehAmbienteDeTeste(env) || m !== "POST" || !["teste/semear", "teste/limpar"].includes(p)) return json({ erro: "rota não existe" }, 404);
+    if (!quem || quem.papel !== "dono") return json({ erro: "só o dono carrega ou apaga os dados de exemplo" }, 403);
+    const faltaTeste = faltaDoEmissor(env);
+    if (faltaTeste) return json({ erro: "o emissor do Worker de teste ainda não está ligado: " + faltaTeste }, 503);
+    const r = p === "teste/semear" ? await semear(env, autor, { tudo: corpo.tudo === true }) : await limparSemente(env);
+    return json(r.corpo, r.status);
   }
   // O que nao precisa do emissor ligado.
   try {
@@ -373,7 +387,8 @@ export async function resumoParaPainel(env) {
   const config = await configNfse(env);
   const falta = faltaDoEmissor(env);
   const { pagamentos } = env.CONTAS ? await listarPagamentos(env) : { pagamentos: [] };
-  const base = { config, emissor: { ligado: !falta, falta }, situacao: null, notas: [], cloudflare: env.CONTAS ? await situacaoCf(env) : null, erro: "" };
+  // teste: o Worker de teste (o painel mostra a Sefin simulada e o "Carregar dados de exemplo").
+  const base = { config, teste: ehAmbienteDeTeste(env), emissor: { ligado: !falta, falta }, situacao: null, notas: [], cloudflare: env.CONTAS ? await situacaoCf(env) : null, erro: "" };
   if (falta) return { ...base, pagamentos: pagamentos.filter((x) => x.nota !== "emitida" && x.nota !== "cancelada") };
   const [s, l] = await Promise.all([chamar(env, "situacao", {}), chamar(env, "listar", { limite: 300 })]);
   const notas = l.status === 200 ? l.dados.notas : [];

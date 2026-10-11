@@ -79,11 +79,18 @@
   // outros (cada Worker tem os seus). Segredos proprios, com --env teste: MP_ACCESS_TOKEN (o de teste),
   // MP_WEBHOOK_SECRET e EVENTOS_SEGREDO_PAVLVS (um qualquer, diferente do de producao).
   // A NFS-e no teste: o proprio emissor (outro Durable Object, outra numeracao) e as chaves "atos-teste:nfse:*" no KV
-  // (worker/nfse/atos.js, K); SEM o SEFIN_MTLS (o service binding obrigaria um auxiliar so do teste a existir): a
-  // nota de teste fica na fila ("sem conexão com a Sefin configurada") - para emitir de verdade em produção
-  // restrita, crie um auxiliar proprio (ex.: atos-teste-nfse-mtls) e acrescente aqui o "services". Sem CF_ACCOUNT_ID
-  // de proposito: o painel de teste nao cadastra mTLS nem republica o auxiliar (que seria o de producao).
-  // Segredo proprio, com --env teste: NFSE_CHAVE_MESTRA.
+  // (worker/nfse/atos.js, K); SEM o SEFIN_MTLS (o service binding obrigaria um auxiliar so do teste a existir): com
+  // AMBIENTE "teste" e sem o binding, o emissor usa a Sefin SIMULADA (worker/nfse/sefin-simulada.js, guardada no
+  // proprio DO; o painel mostra "Sefin simulada (teste)") - nada vai ao Sistema Nacional. Em producao (sem AMBIENTE
+  // "teste") a simulada nunca entra. Para emitir de verdade em producao restrita, crie um auxiliar proprio (ex.:
+  // atos-teste-nfse-mtls) e acrescente aqui o "services" (com ele, a simulada sai). Sem CF_ACCOUNT_ID de proposito:
+  // o painel de teste nao cadastra mTLS nem republica o auxiliar (que seria o de producao).
+  // Os dados de exemplo do painel (Notas fiscais > Parametros > Dados de exemplo; POST /api/admin/nfse/teste/semear,
+  // worker/nfse/semente.js): so aqui, so o papel dono; clientes ficticios com e-mail @exemplo.test, e no teste
+  // nenhum e-mail de nota sai (fica anotado em atos-teste:nfse:emails).
+  // Segredo proprio, com --env teste: NFSE_CHAVE_MESTRA (sem ele o emissor de teste fica desligado).
+  // ATOS_EQUIPE (abaixo, SO no teste): quem entra no painel de teste (atos-teste.<conta>.workers.dev/admin/), as
+  // Contas Atos do dono. E texto JSON (worker/admin.js faz JSON.parse). A equipe da producao NAO vem daqui.
   "env": {
     "teste": {
       "name": "atos-teste",
@@ -98,7 +105,9 @@
         "MP_PUBLIC_KEY": "APP_USR-8eddac59-2852-455f-8b12-04f7761ff00b",
         "PRODUTOS_ABERTOS": "pavlvs",
         // O comprador de teste da conta (MLB, id 3701347744): o pagador de todo pagamento daqui.
-        "MP_PAGADOR_TESTE": "test_user_4004064182913175927@testuser.com"
+        "MP_PAGADOR_TESTE": "test_user_4004064182913175927@testuser.com",
+        // A equipe do painel de TESTE (veja a nota acima): as tres Contas Atos do dono, papel dono.
+        "ATOS_EQUIPE": "[{\"email\":\"matheusueners@hotmail.com\",\"nome\":\"Matheus\",\"papel\":\"dono\"},{\"email\":\"matheusuener.atos@gmail.com\",\"nome\":\"Matheus\",\"papel\":\"dono\"},{\"email\":\"arcaderetrorama@gmail.com\",\"nome\":\"Matheus\",\"papel\":\"dono\"}]"
       }
     }
   }
