@@ -1,4 +1,4 @@
-// A Atos de verdade numa porta desta maquina, para os testes do @atos/entrar e dos exemplos de cada linguagem
+// A Atos de verdade numa porta desta maquina, para os testes do @atos.dev.br/entrar e dos exemplos de cada linguagem
 // (exemplos/entrar-com-atos/testar.mjs): o Worker de C:\atos em `wrangler dev`, com o KV num diretorio temporario e,
 // nele, as contas, as sessoes e um aplicativo de terceiro fabricados como os testes do worker/ fazem. A chave que
 // assina os id_token e gerada aqui (os testes a usam para forjar tokens validos com campos errados).

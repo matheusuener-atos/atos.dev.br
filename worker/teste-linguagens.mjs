@@ -72,7 +72,7 @@ const lista = L.lista(v);
 checar(lista.map((l) => l.id).join(",") === "js,python,dotnet,php,java,go,ruby", "as sete linguagens, as testadas primeiro", lista.map((l) => l.id));
 checar(lista.filter((l) => l.testado).map((l) => l.id).join(",") === "js,python,dotnet", "testadas: JavaScript, Python e C#/.NET; as outras dizem que não", lista.map((l) => [l.id, l.testado]));
 checar(lista.filter((l) => !l.testado).every((l) => /Não testado aqui/.test(l.nota) && /Não testado aqui/.test(l.codigo)), "as não testadas dizem isso na nota e no próprio código");
-checar(lista.every((l) => !/npm install @atos\/entrar(?!\))/.test(l.instalar.replace(/em breve: npm install @atos\/entrar\)/, ""))), "ninguém manda npm install @atos/entrar como se já existisse");
+checar(lista.every((l) => !/npm install @atos\/entrar(?!\))/.test(l.instalar.replace(/em breve: npm install @atos\/entrar\)/, ""))), "ninguém manda npm install @atos.dev.br/entrar como se já existisse");
 checar(/em breve/.test(lista[0].instalar) && lista[0].instalar.includes(L.PACOTE), "o JavaScript diz 'em breve no npm' e onde baixar o arquivo", lista[0].instalar);
 const pub = L.lista({ clientId: 'u-x"y', volta: "https://a/b", confidencial: false })[0].codigos[0].texto;
 checar(pub.includes('clientId: "u-x\\"y"') && pub.includes("atos.entrar()"), "o de navegador põe o client_id com aspas seguras", pub);

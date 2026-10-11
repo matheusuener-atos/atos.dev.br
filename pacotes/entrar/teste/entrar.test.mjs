@@ -1,4 +1,4 @@
-// Os testes do @atos/entrar contra a Atos de verdade (o Worker de C:\atos em `wrangler dev`, teste/atos-local.mjs):
+// Os testes do @atos.dev.br/entrar contra a Atos de verdade (o Worker de C:\atos em `wrangler dev`, teste/atos-local.mjs):
 // o servidor (cliente confidencial, segredo pela variavel de ambiente), o navegador (cliente publico, sessionStorage),
 // quem nao tem acesso (access_denied), state e iss trocados, o codigo usado duas vezes e os id_token forjados
 // (assinatura de outra chave, corpo mexido, alg none e HS256, kid desconhecido, e assinados pela chave certa com

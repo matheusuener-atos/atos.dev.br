@@ -1,5 +1,5 @@
 {
-  "name": "@atos/entrar",
+  "name": "@atos.dev.br/entrar",
   "version": "0.1.0",
   "description": "Entrar com Atos (OpenID Connect com PKCE) no navegador e no Node, sem dependências.",
   "license": "MIT",

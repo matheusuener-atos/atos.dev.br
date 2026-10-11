@@ -6,7 +6,7 @@ export const EMISSOR = "https://atos.dev.br";
 /* O emissor do "Entrar com Atos" para este Worker: sempre EMISSOR, menos no `wrangler dev` em que a var
    ATOS_EMISSOR_LOCAL diz um endereco desta maquina (http://127.0.0.1:<porta> ou http://localhost:<porta>). O OpenID
    Connect exige que o issuer do discovery seja o endereco de onde ele foi lido, e as bibliotecas conferem: e assim
-   que o pacote @atos/entrar e os exemplos de cada linguagem rodam contra o Worker local. Outro valor e ignorado. */
+   que o pacote @atos.dev.br/entrar e os exemplos de cada linguagem rodam contra o Worker local. Outro valor e ignorado. */
 export function emissorDe(env) {
   const v = String((env && env.ATOS_EMISSOR_LOCAL) || "");
   return /^http:\/\/(127\.0\.0\.1|localhost):\d{2,5}$/.test(v) ? v : EMISSOR;

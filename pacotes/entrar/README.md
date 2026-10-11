@@ -1,4 +1,4 @@
-# @atos/entrar
+# @atos.dev.br/entrar
 
 O **Entrar com Atos** (OpenID Connect) em JavaScript, no navegador e no Node 18 ou mais novo. Sem dependências: o PKCE e a conferência do `id_token` (ES256, pela JWKS da Atos) usam o WebCrypto da própria plataforma.
 
