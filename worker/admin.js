@@ -38,7 +38,13 @@ export function equipe(env) {
 export async function quemNoPainel(request, env, agora = Date.now()) {
   const s = await sessaoDe(request, env);
   if (!s) return { recusa: json({ erro: "entre com a sua Conta Atos", entrar: true }, 401) };
-  const membro = equipe(env).find((x) => x.email === normal(s.email));
+  const lista = equipe(env);
+  // A lista que nao abre para ninguem e erro de configuracao, nao de quem entra: a tela diz (e nao manda para a conta).
+  if (!lista.length) {
+    return { recusa: json({ erro: "a equipe do painel (ATOS_EQUIPE) está vazia ou não é um JSON válido: " +
+      'o valor é uma lista como [{"email":"voce@atos.dev.br","nome":"Nome","papel":"dono"}]', config: true }, 403) };
+  }
+  const membro = lista.find((x) => x.email === normal(s.email));
   if (!membro) return { recusa: json({ erro: "esta Conta Atos não é da equipe do painel" }, 403) };
   if (!(agora / 1000 - Number(s.auth_time || 0) < RECENTE_S)) {
     return { recusa: json({ erro: "o painel pede um login de até 12 horas: entre de novo", reentrar: true }, 401) };

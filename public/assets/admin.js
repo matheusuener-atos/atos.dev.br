@@ -60,7 +60,7 @@
     if (r.dados.entrar) { location.replace("/entrar/?volta=" + encodeURIComponent("/admin/")); return; }
     if (r.dados.reentrar) { acesso(esc(r.dados.erro), '<div class="botoes"><button type="button" class="btn p primario" data-admin="reentrar">Entrar de novo</button></div>'); return; }
     // Conta Atos fora da equipe (chegou aqui por engano): vai para a Minha conta, sem ver nada do painel.
-    if (r.status === 403) { location.replace("/conta/"); return; }
+    if (r.status === 403 && !r.dados.config) { location.replace("/conta/"); return; }
     acesso(esc(r.dados.erro || "não deu para abrir o painel agora"));
   });
 })();
