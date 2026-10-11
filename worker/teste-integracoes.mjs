@@ -7,6 +7,7 @@ import worker from "./index.js";
 import { conferirIdToken } from "./oidc.js";
 import { nomeReservado } from "./integracoes.js";
 import { sha256 } from "./comum.js";
+import { ClienteCobranca } from "./cobranca/cliente.js";
 
 let falhas = 0;
 const checar = (ok, descricao, detalhe) => {
@@ -28,7 +29,24 @@ const env = {
   ATOS_EQUIPE: JSON.stringify([{ email: "dono@atos.dev.br", nome: "Dono", papel: "dono" }]),
   ASSETS: { fetch: async (req) => new Response("<p>pagina " + new URL(req.url).pathname + "</p>", { headers: { "content-type": "text/html" } }) },
 };
+// Os objetos dos clientes (o Atos Workspace e o direito:workspace deles), de verdade, com storage em memoria. O Worker
+// de teste tem os proprios (cada Worker tem os seus Durable Objects).
+function objetosDeClientes(e) {
+  const objetos = new Map();
+  const storage = () => {
+    const m = new Map();
+    return { async get(k) { return m.has(k) ? structuredClone(m.get(k)) : undefined; }, async put(k, v) { m.set(k, structuredClone(v)); },
+      async list({ prefix = "" } = {}) { return new Map([...m].filter(([k]) => k.startsWith(prefix))); }, async setAlarm() {} };
+  };
+  return { idFromName: (n) => n, get(id) {
+    if (!objetos.has(id)) objetos.set(id, new ClienteCobranca({ storage: storage() }, e));
+    return { fetch: (url, op) => objetos.get(id).fetch(new Request(url, op)) };
+  } };
+}
+env.CLIENTES = objetosDeClientes(env);
 const envT = { ...env, AMBIENTE: "teste" };
+envT.CLIENTES = objetosDeClientes(envT);
+const ativar = (cookie, e = env) => chamar("/api/workspace/ativar", { cookie, corpo: { aceito: true, versao: "2026-10-11" }, e });
 const A = "https://atos.dev.br";
 
 async function sessao(email, { idade = 0 } = {}) {
@@ -80,14 +98,23 @@ for (const n of ["Atos", "atos login", "Login Atos", "PAVLVS", "pAuLuS Jurídico
 }
 for (const n of ["Contatos", "Fatos do Dia", "Horta Viva", "Pagode", "Paulista Imóveis"]) checar(!nomeReservado(n), "\"" + n + "\" passa");
 
-console.log("a tela da Minha conta");
+console.log("a tela do Atos Workspace > Integrações");
 let r = await chamar("/api/integracoes", { metodo: "GET" });
 checar(r.status === 401 && r.d.entrar, "sem sessão: 401");
+r = await chamar("/api/integracoes", { metodo: "GET", cookie: ana });
+checar(r.status === 403 && r.d.workspace === false && r.d.erro.includes("ative o Atos Workspace"), "sem o Atos Workspace ativo: 403, pedindo a ativação", r.d);
+r = await chamar("/api/integracoes/apps", { cookie: ana, corpo: SITE });
+checar(r.status === 403 && r.d.workspace === false, "nem cria", r.d);
+r = await ativar(ana);
+checar(r.status === 200 && r.d.ativo === true, "a dona ativa o Workspace", r.d);
+checar((await ativar(bia)).d.ativo === true, "a Bia também (para as recusas de outra conta abaixo)");
 r = await chamar("/api/integracoes", { metodo: "GET", cookie: ana });
 checar(r.status === 200 && r.d.apps.length === 0 && r.d.limites.apps === 5 && r.d.limites.acessos === 5 && r.d.recente && r.d.descoberta === A + "/.well-known/openid-configuration",
   "com sessão: nenhum aplicativo, os limites e o que precisa para integrar", r.d);
 r = await chamar("/conta/integracoes", { metodo: "GET" });
-checar(r.status === 200 && (await r.r.text()).includes("/conta/") && r.r.headers.get("content-security-policy").includes("script-src 'self'"), "/conta/integracoes serve a página da conta, com a CSP da conta");
+checar(r.status === 301 && r.r.headers.get("location") === A + "/workspace/integracoes", "/conta/integracoes leva ao Atos Workspace", r.r.headers.get("location"));
+r = await chamar("/workspace/integracoes", { metodo: "GET" });
+checar(r.status === 200 && (await r.r.text()).includes("/workspace/") && r.r.headers.get("content-security-policy").includes("script-src 'self'"), "/workspace/integracoes serve a página do Workspace, com a CSP da conta");
 
 console.log("criar o aplicativo");
 r = await chamar("/api/integracoes/apps", { cookie: anaVelha, corpo: SITE });
@@ -273,6 +300,9 @@ r = await chamar("/api/integracoes/apps/" + outro.id, { cookie: ana, corpo: { ac
 checar(r.status === 200 && !guardados.has("atos:oidc:app:" + outro.id), "apagado na hora");
 
 console.log("o Worker de teste");
+r = await chamar("/api/integracoes/apps", { cookie: bia, corpo: SITE, e: envT });
+checar(r.status === 403 && r.d.workspace === false, "o Worker de teste tem as próprias ativações: lá a Bia ainda não ativou", r.d);
+checar((await ativar(bia, envT)).d.ativo === true, "ativa no teste");
 r = await chamar("/api/integracoes/apps", { cookie: bia, corpo: SITE, e: envT });
 checar(r.status === 200 && guardados.has("atos-teste:oidc:app:" + r.d.app.id) && !guardados.has("atos:oidc:app:" + r.d.app.id), "o teste guarda com o prefixo atos-teste:");
 r = await chamar("/api/integracoes", { metodo: "GET", cookie: bia });

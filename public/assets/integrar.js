@@ -3,12 +3,12 @@
    um pedido pronto para colar num assistente de codigo (Claude Code etc.) e os comandos que abrem o Claude Code com o
    pedido. O segredo nunca entra no pedido, no .env gravado nem nos comandos.
 
-   Usado pelo painel da equipe (admin-oauth.js, Login Atos) e pela Minha conta (conta-integracoes.js, Integracoes):
+   Usado pelo painel da equipe (admin-oauth.js, Login Atos) e pelo Atos Workspace (workspace-integracoes.js, Integracoes):
 
      IntegrarAtos.cartao(acesso, dados, nomeDoApp, onde)  -> html
        acesso: {id, tipo: "publico"|"confidencial", voltas, loopback, padrao?}
        dados:  {emissor, descoberta, autorizacao, token, userinfo, jwks, revogacao, escopos, token_s} (do servidor)
-       onde:   onde se muda quem pode entrar (ex.: "atos.dev.br/conta/integracoes")
+       onde:   onde se muda quem pode entrar (ex.: "atos.dev.br/workspace/integracoes")
      IntegrarAtos.voltas(acesso) -> [texto]
 
    Copiar (data-ig="copiar", os dados do topo) e tratado aqui; as abas e o copiar dos blocos (data-il), no

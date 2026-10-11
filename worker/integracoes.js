@@ -1,5 +1,7 @@
-// Minha conta > Integracoes (atos.dev.br/conta/integracoes; a tela e public/assets/conta-integracoes.js): qualquer
-// Conta Atos cadastra os proprios sistemas no "Entrar com Atos" e diz quem pode entrar neles. O aplicativo pertence a
+// Atos Workspace > Integracoes (atos.dev.br/workspace/integracoes; a tela e public/assets/workspace-integracoes.js): quem
+// tem o Atos Workspace ativo (worker/workspace.js) cadastra os proprios sistemas no "Entrar com Atos" (o Login Atos) e
+// diz quem pode entrar neles. Sem o Workspace ativo, toda rota daqui responde 403 (workspace: false); os aplicativos ja
+// cadastrados continuam funcionando para quem entra (worker/oidc.js nao olha o Workspace), so a gestao fica parada. O aplicativo pertence a
 // conta que o criou (dono: sub e e-mail). As mudancas do dono valem na hora (sem a fila da equipe), e cada uma fica
 // no registro do aplicativo (quem, quando, o que).
 //
@@ -33,6 +35,7 @@
 
 import { aleatorio, json, kv, lerJson, sha256 } from "./comum.js";
 import { sessaoDe } from "./contas.js";
+import { SEM_WORKSPACE, WORKSPACE_FORA, vistaDoWorkspace, workspaceAtivo, workspaceDe } from "./workspace.js";
 import { ID_APP_TERCEIRO, KO, appDoCliente, appTerceiro, dadosParaIntegrar, indiceDeTerceiros } from "./oidc.js";
 import { LIBERADOS_MAX, camposDoApp, camposDoCliente, emailsLimpos, modoDeAcesso } from "./oidc-campos.js";
 
@@ -158,6 +161,10 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
   const agora = (deps.agora || Date.now)();
   const sessao = await sessaoDe(request, env);
   if (!sessao) return json({ erro: "entre na sua conta", entrar: true }, 401);
+  // O Atos Workspace ativo, antes de tudo (ver e mudar): o registro forte do cliente, nao o KV.
+  let ativo;
+  try { ativo = await workspaceAtivo(env, sessao.sub); } catch { return WORKSPACE_FORA(); }
+  if (!ativo) return SEM_WORKSPACE();
   const p = url.pathname;
   if (p === "/api/integracoes" && request.method === "GET") return json(await telaDoDono(env, sessao, agora));
   if (request.method !== "POST") return json({ erro: "use POST" }, 405);
@@ -318,12 +325,17 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
 
 // ------------------------------------------------------------ a equipe (painel, Login Atos)
 
-/* Todos os aplicativos de terceiros, com o dono de cada um (o painel). */
+/* Todos os aplicativos de terceiros, com o dono de cada um (o painel) e se ele tem o Atos Workspace ativo
+   (dono_workspace: {ativo, ativado, desativado} ou null quando nao deu para conferir). */
 export async function terceirosParaPainel(env) {
   const l = [];
+  const doDono = new Map();
   for (const id of Object.keys(await indiceDeTerceiros(env))) {
     const a = await appTerceiro(env, id);
-    if (a) l.push(await vista(env, a, 10));
+    if (!a) continue;
+    if (!doDono.has(a.dono.sub)) doDono.set(a.dono.sub, await workspaceDe(env, a.dono.sub).then(vistaDoWorkspace, () => null));
+    const w = doDono.get(a.dono.sub);
+    l.push({ ...(await vista(env, a, 10)), dono_workspace: w ? { ativo: w.ativo, ativado: w.ativado, desativado: w.desativado } : null });
   }
   return l.sort((x, y) => String(y.criado || "").localeCompare(String(x.criado || "")));
 }

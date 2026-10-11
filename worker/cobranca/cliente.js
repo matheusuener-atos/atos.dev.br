@@ -9,8 +9,11 @@
 //   assinatura:<ref>    uma assinatura (a mensalidade no cartao) - ref e o external_reference
 //   compra:<ref>        uma compra (o ano, o mes no Pix, a recarga)
 //   cobranca:<ref>      uma cobranca mensal da assinatura (o authorized_payment), para o Faturamento
-//   direito:<produto>   ate quando o produto esta pago, o plano, o periodo que pagou, os creditos e a `versao`
-//   evento:<seq>        a fila de saida para o produto (eventos.js), entregue pelo alarme deste objeto
+//   direito:<produto>   ate quando o produto esta pago, o plano, o periodo que pagou, os creditos e a `versao`;
+//                       num produto gratuito (o Atos Workspace; catalogo.js, gratuito), a ativacao: {ativo, ativado,
+//                       desativado, termos: {versao, aceito}, historico: [{quando, oque, termos?}]} (ops ativar e
+//                       desativar; o mesmo direito que um plano pago, depois, estende)
+//   evento:<seq>       a fila de saida para o produto (eventos.js), entregue pelo alarme deste objeto
 //
 // Pedidos: POST com {op, ...}; a resposta e JSON. Quem chama e so o Worker (api.js e o aviso).
 
@@ -159,6 +162,31 @@ export class ClienteCobranca {
       }
       case "direitos":
         return { ok: true, direitos: [...(await s.list({ prefix: "direito:" })).values()] };
+      case "direito":
+        return { ok: true, direito: (await s.get("direito:" + d.produto)) || null };
+      case "ativar": {
+        // Um produto gratuito (o Atos Workspace): a pessoa aceitou os termos (a versao vai junto). Quem chama
+        // (worker/workspace.js) confere que o produto e gratuito e que o login e recente. Sem evento: o produto e
+        // da propria Atos. Ativo com a mesma versao: nada muda.
+        const chave = "direito:" + d.produto;
+        const versao = String((d.termos && d.termos.versao) || "");
+        if (!d.produto || !versao) return { ok: false, erro: "falta o produto ou a versão dos termos" };
+        const antes = (await s.get(chave)) || { produto: d.produto, versao: 0 };
+        if (antes.ativo && antes.termos && antes.termos.versao === versao) return { ok: true, direito: antes, repetido: true };
+        const r = { ...antes, produto: d.produto, gratuito: true, ativo: true, ativado: antes.ativo ? antes.ativado : agora, desativado: null,
+          termos: { versao, aceito: agora }, historico: [...(antes.historico || []), { quando: agora, oque: antes.ativo ? "aceitou os termos" : "ativou", termos: versao }].slice(-50),
+          atualizado: agora };
+        await s.put(chave, r);
+        return { ok: true, direito: r };
+      }
+      case "desativar": {
+        const chave = "direito:" + d.produto;
+        const antes = await s.get(chave);
+        if (!antes || !antes.ativo) return { ok: true, direito: antes || null, repetido: true };
+        const r = { ...antes, ativo: false, desativado: agora, historico: [...(antes.historico || []), { quando: agora, oque: "desativou" }].slice(-50), atualizado: agora };
+        await s.put(chave, r);
+        return { ok: true, direito: r };
+      }
       case "retrato":
         return { ok: true, retrato: await this.retrato(d.produto) };
       case "eventos":

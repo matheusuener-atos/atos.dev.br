@@ -56,6 +56,7 @@ Decisão do dono, 09/10/2026: "criar tudo no Mercado Pago exclusivo Atos, e os s
    - Responde o que vale agora: o plano, o ciclo pago, os metadados e as compras avulsas.
    - É a resposta de reserva quando um evento se perde, e o que o produto consulta ao abrir.
 9. **Painel da Atos**: clientes, assinaturas, faturas, devoluções, notas, eventos que falharam, catálogo e campanhas. É um painel só, para todos os produtos.
+10. **Produtos gratuitos** (11/10/2026): o Atos Workspace (`workspace` no `catalogo.js`, `gratuito: true`, sem preços e sem eventos) é o primeiro. Ativar não passa pelo Mercado Pago: é a pessoa, com login recente, aceitando os termos dele (`POST /api/workspace/ativar`, `worker/workspace.js`). A ativação é o mesmo `direito:workspace` no objeto do cliente (ops `ativar` e `desativar`, com a versão dos termos, as datas e o histórico); um plano pago, depois, entra como preços do produto e estende esse direito. A Minha conta mostra os gratuitos à parte das assinaturas (`gratuitos` em `GET /api/cobranca/v1/conta`).
 
 ## O PAVLVS como cliente da Atos
 

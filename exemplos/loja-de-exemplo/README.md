@@ -26,7 +26,7 @@ npm install @atos.dev.br/entrar@^0.2.0
 
 Precisa do Node 20.6 ou mais novo (por causa do `--env-file`).
 
-1. Em [atos.dev.br/conta/integracoes](https://atos.dev.br/conta/integracoes), cadastre um aplicativo (o nome, o site, a política de privacidade e os termos) e crie um **acesso confidencial** com o endereço de volta `http://127.0.0.1:3000/auth/atos/retorno`. Guarde o segredo, que aparece uma vez só.
+1. Ative o [Atos Workspace](https://atos.dev.br/workspace/) (gratuito) e, em [atos.dev.br/workspace/integracoes](https://atos.dev.br/workspace/integracoes), cadastre um aplicativo (o nome, o site, a política de privacidade e os termos) e crie um **acesso confidencial** com o endereço de volta `http://127.0.0.1:3000/auth/atos/retorno`. Guarde o segredo, que aparece uma vez só.
 2. Em "Quem pode entrar", escolha o modo (veja acima): "Qualquer Conta Atos" para a loja aberta. Para ver o "sem acesso", deixe "Só as pessoas liberadas", libere um e-mail seu e entre com outra Conta Atos que não está na lista.
 3. Nesta pasta, rode o comando do cartão **Como integrar** daquele acesso (PowerShell ou Linux/macOS). Ele grava no `.env` o `ATOS_ISSUER`, o `ATOS_CLIENT_ID` e o `ATOS_REDIRECT_URI`.
 4. Complete o `.env` com o segredo e uma chave para a sessão (veja `.env.exemplo`):

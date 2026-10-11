@@ -389,6 +389,9 @@ main.texto { flex: 1; width: 100%; max-width: 820px; margin: 0 auto; padding: 48
 .texto .guias { margin: 20px 0 8px; }
 .texto .corpo { max-width: 640px; display: flex; flex-direction: column; gap: 14px; }
 .texto h2 { font-family: var(--sans); font-size: 12px; font-weight: 600; color: var(--silver); margin-top: 26px; }
+.texto h2[id] { scroll-margin-top: 72px; }
+.texto h3 { font-size: 14px; font-weight: 600; color: var(--text); margin-top: 6px; }
+.texto .corpo a { color: var(--text); }
 .texto p, .texto li { font-size: 15px; line-height: 1.65; color: var(--text-soft); }
 .texto strong { color: var(--text); font-weight: 600; }
 .texto ul { padding-left: 20px; margin: 0; }

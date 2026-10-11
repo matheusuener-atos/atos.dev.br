@@ -10,7 +10,7 @@
 //   GET  /api/admin/oauth                          {emissor, descoberta, endpoints, escopos, token_s, apps, clientes,
 //                                                   terceiros}
 //   POST /api/admin/oauth/clientes/:id/segredo     {confirmar: true} -> {segredo, quando} (uma vez so)
-//   POST /api/admin/oauth/terceiros/:id/desligar   {motivo} um aplicativo de terceiro (Minha conta > Integracoes), por
+//   POST /api/admin/oauth/terceiros/:id/desligar   {motivo} um aplicativo de terceiro (Atos Workspace > Integracoes), por
 //   POST /api/admin/oauth/terceiros/:id/ligar      abuso: na hora, sem a fila, com registro (worker/integracoes.js)
 //   POST /api/admin/oauth/terceiros/:id/apagar     {confirmar: true, motivo?}
 //
@@ -32,7 +32,7 @@ const temChave = (o, k) => Boolean(o) && Object.prototype.hasOwnProperty.call(o,
 const iso = (ms) => new Date(ms).toISOString();
 const ID_APP = /^[a-z0-9][a-z0-9-]{1,30}$/;
 const ID_CLIENTE = /^[a-z0-9][a-z0-9-]{2,62}$/;
-// "u-..." e dos aplicativos cadastrados na Minha conta (worker/integracoes.js).
+// "u-..." e dos aplicativos cadastrados no Atos Workspace (worker/integracoes.js).
 const DE_TERCEIRO = /^u-/;
 
 /* Os campos de um aplicativo da equipe: os de todo aplicativo e quem pode entrar (sem dizer, "liberados": so quem o
@@ -53,7 +53,7 @@ export async function conferirOAuth(env, tipo, d, reg) {
   if (tipo === "oauth.app") {
     if (!["criar", "editar", "apagar"].includes(acao)) return "o que fazer com o aplicativo? (criar, editar ou apagar)";
     if (!ID_APP.test(id)) return "o id do aplicativo: 2 a 31 letras minúsculas, números e hífen";
-    if (DE_TERCEIRO.test(id)) return "ids que começam com u- são dos aplicativos cadastrados na Minha conta: escolha outro";
+    if (DE_TERCEIRO.test(id)) return "ids que começam com u- são dos aplicativos cadastrados no Atos Workspace: escolha outro";
     if (temChave(APPS, id)) return "o aplicativo " + id + " é do código: não muda por aqui";
     if (acao === "criar" && temChave(reg.apps, id)) return "já existe um aplicativo " + id;
     if (acao !== "criar" && !temChave(reg.apps, id)) return "o aplicativo " + id + " não existe";
@@ -65,7 +65,7 @@ export async function conferirOAuth(env, tipo, d, reg) {
   if (tipo === "oauth.cliente") {
     if (!["criar", "editar", "ligar", "desligar", "apagar"].includes(acao)) return "o que fazer com o cliente? (criar, editar, ligar, desligar ou apagar)";
     if (!ID_CLIENTE.test(id)) return "o client_id: 3 a 63 letras minúsculas, números e hífen";
-    if (DE_TERCEIRO.test(id)) return "client_ids que começam com u- são dos aplicativos cadastrados na Minha conta: escolha outro";
+    if (DE_TERCEIRO.test(id)) return "client_ids que começam com u- são dos aplicativos cadastrados no Atos Workspace: escolha outro";
     if (temChave(CLIENTES, id)) return "o cliente " + id + " é do código: não muda por aqui";
     if (acao === "criar") {
       if (temChave(reg.clientes, id)) return "já existe um cliente " + id;
@@ -159,7 +159,7 @@ async function tela(env) {
       criado: c.criado || null, por: c.por || "", mudado: c.mudado || null, codigo: false, segredo: s ? { quando: s.quando, por: s.por } : null,
     });
   }
-  // Os de terceiros (Minha conta > Integracoes), com o dono de cada um: a equipe desliga ou apaga por abuso.
+  // Os de terceiros (Atos Workspace > Integracoes), com o dono de cada um e o Workspace dele: a equipe desliga ou apaga por abuso.
   return { ...dadosParaIntegrar(env), apps, clientes, terceiros: await terceirosParaPainel(env) };
 }
 

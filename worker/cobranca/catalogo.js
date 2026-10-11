@@ -41,7 +41,26 @@ export const PRODUTOS = {
     eventos: "https://paulus.ia.br/api/atos/eventos",
     precos: precosDoPavlvs(),
   },
+  // O Atos Workspace (worker/workspace.js): o produto de quem constroi sistemas com a Conta Atos. Hoje inclui o Login
+  // Atos para os sistemas da pessoa (worker/integracoes.js). Gratuito por enquanto: nao tem preco, nao passa pelo
+  // Mercado Pago, e ativar e aceitar os termos dele (`termos`, a versao que a ativacao registra). O direito e o mesmo
+  // registro dos produtos pagos (direito:workspace no objeto do cliente, cliente.js); um plano pago, depois, entra
+  // aqui como precos e estende esse mesmo direito. Sem `eventos`: nao ha produto fora da Atos para avisar.
+  workspace: {
+    nome: "Atos Workspace",
+    site: "https://atos.dev.br/workspace/",
+    voltas: ["https://atos.dev.br/workspace/"],
+    gratuito: true,
+    termos: { versao: "2026-10-11", endereco: "/termos/#workspace" },
+    precos: [],
+  },
 };
+
+/* Um produto gratuito (ativar = aceitar os termos dele; worker/workspace.js), ou null. */
+export function produtoGratuito(produto) {
+  const p = PRODUTOS[produto];
+  return p && p.gratuito ? p : null;
+}
 
 /* O produto vende pela Atos? Liga por var (PRODUTOS_ABERTOS="pavlvs,..."), quando ele ja recebe os eventos. */
 export function produtoAberto(env, produto) {
@@ -51,7 +70,7 @@ export function produtoAberto(env, produto) {
 export function catalogoPublico(produto) {
   const p = PRODUTOS[produto];
   if (!p) return null;
-  return { produto, nome: p.nome, moeda: MOEDA, precos: p.precos };
+  return { produto, nome: p.nome, moeda: MOEDA, precos: p.precos, ...(p.gratuito ? { gratuito: true } : {}) };
 }
 
 /* A oferta confiavel de um preco (resolveOffer): o que o servidor cobra, nunca o que o navegador disse. */

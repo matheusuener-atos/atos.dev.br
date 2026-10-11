@@ -8,7 +8,7 @@ npm install @atos.dev.br/entrar
 
 Sem npm (uma página sem empacotador): o mesmo código num arquivo só, servido pela Atos, `https://atos.dev.br/pacotes/entrar/0.2.0/entrar.js`; importe de `"./entrar.js"`.
 
-Antes, cadastre o seu sistema em [atos.dev.br/conta/integracoes](https://atos.dev.br/conta/integracoes): o aplicativo, o acesso (o `client_id`) e o endereço de volta. Veja também [atos.dev.br/integracao](https://atos.dev.br/integracao/).
+Antes, ative o [Atos Workspace](https://atos.dev.br/workspace/) (gratuito) e cadastre o seu sistema em [atos.dev.br/workspace/integracoes](https://atos.dev.br/workspace/integracoes): o aplicativo, o acesso (o `client_id`) e o endereço de volta. Veja também [atos.dev.br/integracao](https://atos.dev.br/integracao/).
 
 ## Navegador (acesso público, sem segredo)
 

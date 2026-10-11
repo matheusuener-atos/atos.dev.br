@@ -2,7 +2,7 @@
 // (contas.js) e o "Entrar com Atos" (oidc.js).
 //
 // matheusuener.com.br e www.* voltam para https://atos.dev.br com 301.
-// Toda pagina sai com cabecalhos de seguranca; as da conta (/entrar, /conta)
+// Toda pagina sai com cabecalhos de seguranca; as da conta (/entrar, /conta, /workspace, /admin)
 // com uma CSP sem nada de fora - nelas a pessoa digita a senha e permite
 // aplicativos, entao nada de outro site roda nem as emoldura.
 
@@ -15,6 +15,7 @@ import { ehAmbienteDeTeste } from "./cobranca/eventos.js";
 import { atenderEmissor, depoisPendentes } from "./nfse/api.js";
 import { atenderAdmin, ehRotaDoAdmin } from "./admin.js";
 import { atenderIntegracoes, ehRotaDasIntegracoes } from "./integracoes.js";
+import { atenderWorkspace, ehRotaDoWorkspace } from "./workspace.js";
 
 // O registro de cada cliente da Atos Cobranca (docs/COBRANCA.md): o Durable Object precisa sair do modulo principal.
 export { ClienteCobranca } from "./cobranca/cliente.js";
@@ -128,7 +129,12 @@ export default {
         const emissor = (req, e, u, quem) => atenderEmissor(req, e, u, quem, { ctx });
         return comCabecalhos(await atenderAdmin(request, env, url, { emissor }), true);
       }
-      // Minha conta > Integracoes: os sistemas que a pessoa cadastra no Entrar com Atos (worker/integracoes.js).
+      // O Atos Workspace (worker/workspace.js): ativar e desativar; e as Integracoes dele, os sistemas que a pessoa
+      // cadastra no Entrar com Atos (worker/integracoes.js; so com o Workspace ativo).
+      if (ehRotaDoWorkspace(url)) {
+        if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
+        return comCabecalhos(await atenderWorkspace(request, env, url));
+      }
       if (ehRotaDasIntegracoes(url)) {
         if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
         return comCabecalhos(await atenderIntegracoes(request, env, url, { dentroDoLimite }));
@@ -150,11 +156,16 @@ export default {
       const r = await env.ASSETS.fetch(new Request(request.url, { method: request.method, headers: semCondicao }));
       return (r.headers.get("content-type") || "").includes("text/html") ? comCspDoCheckout(r) : comCabecalhos(r);
     }
-    // O painel (/admin) tem a CSP da conta: so scripts da propria Atos.
-    const conta = /^\/(entrar|conta|admin)(\/|$)/.test(url.pathname);
-    // Cada secao da Minha conta tem o proprio endereco; a pagina e uma so.
-    if (/^\/conta\/(dados|assinaturas|faturamento|carteira|integracoes)\/?$/.test(url.pathname)) {
+    // O painel (/admin) e o Workspace tem a CSP da conta: so scripts da propria Atos.
+    const conta = /^\/(entrar|conta|admin|workspace)(\/|$)/.test(url.pathname);
+    // As Integracoes sairam da Minha conta para o Atos Workspace: o endereco antigo leva ao novo.
+    if (/^\/conta\/integracoes\/?$/.test(url.pathname)) return Response.redirect(new URL("/workspace/integracoes" + url.search, url).toString(), 301);
+    // Cada secao da Minha conta tem o proprio endereco; a pagina e uma so. O mesmo no Workspace.
+    if (/^\/conta\/(dados|assinaturas|faturamento|carteira)\/?$/.test(url.pathname)) {
       return comCabecalhos(await env.ASSETS.fetch(new Request(new URL("/conta/", url), request)), true);
+    }
+    if (/^\/workspace\/integracoes\/?$/.test(url.pathname)) {
+      return comCabecalhos(await env.ASSETS.fetch(new Request(new URL("/workspace/", url), request)), true);
     }
     return comCabecalhos(await env.ASSETS.fetch(request), conta);
   },

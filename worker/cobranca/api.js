@@ -518,16 +518,23 @@ function publicaAssinatura(a) {
     bandeira: a.bandeira || "" };
 }
 
-/* A Minha conta da Atos (public/assets/conta.js): por produto, o direito, a assinatura que importa e o nome do
-   plano; e as faturas (as compras e as cobrancas do mes), da mais nova para a mais velha. */
+/* A Minha conta da Atos (public/assets/conta.js): por produto pago, o direito, a assinatura que importa e o nome do
+   plano; os gratuitos (o Atos Workspace: ativo ou nao); e as faturas (as compras e as cobrancas do mes), da mais nova para a mais velha. */
 async function minhaConta(meu) {
   const l = await meu.pedir("listar");
   const direitos = (await meu.pedir("direitos")).direitos;
   const perfil = (await meu.pedir("perfil_ler")).perfil;
   const nomeDoPreco = (id) => (resolveOffer(id) || {}).nome || id;
   const produtos = [];
+  // Os gratuitos (o Atos Workspace): ativo ou nao, com os termos aceitos; sempre na lista (a tela oferece "Ativar").
+  const gratuitos = [];
   for (const [produto, p] of Object.entries(PRODUTOS)) {
     const dir = direitos.find((x) => x.produto === produto) || null;
+    if (p.gratuito) {
+      gratuitos.push({ produto, nome: p.nome, endereco: new URL(p.site).pathname, ativo: Boolean(dir && dir.ativo), ativado: (dir && dir.ativo && dir.ativado) || null,
+        desativado: (dir && !dir.ativo && dir.desativado) || null, termos: dir && dir.termos ? { versao: dir.termos.versao, aceito: dir.termos.aceito } : null });
+      continue;
+    }
     const minhas = l.assinatura.filter((a) => a.produto === produto && !["criando", "recusada"].includes(a.status))
       .sort((a, b) => String(b.criada).localeCompare(String(a.criada)));
     const a = minhas.find((x) => VIVAS.includes(x.status)) || minhas[0] || null;
@@ -544,7 +551,7 @@ async function minhaConta(meu) {
       .map((c) => ({ id: c.ref, data: c.paga_em || c.criada, descricao: nomeDoPreco(c.preco), centavos: c.centavos, status: c.status, forma: c.forma })),
     ...l.cobranca.map((c) => ({ id: c.ref, data: c.quando || c.criada, descricao: nomeDoPreco(c.preco) + " · mensalidade", centavos: c.centavos, status: c.status, forma: "cartao" })),
   ].sort((x, y) => String(y.data).localeCompare(String(x.data)));
-  return { perfil, produtos, faturas };
+  return { perfil, produtos, gratuitos, faturas };
 }
 
 function publicaCompra(c) {

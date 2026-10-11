@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Integração: Entrar com Atos · Atos</title>
-<meta name="description" content="Use o Entrar com Atos no seu sistema: login por OpenID Connect com a Conta Atos, como o Entrar com o Google. Como cadastrar o aplicativo, escolher quem pode entrar e integrar.">
+<title>Atos Workspace: o Login Atos nos seus sistemas · Atos</title>
+<meta name="description" content="O Atos Workspace é o produto da Atos para quem constrói sistemas com a Conta Atos. Hoje inclui o Login Atos (Entrar com Atos) para os seus sistemas: login por OpenID Connect, como o Entrar com o Google. Gratuito.">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#080707">
-<meta property="og:title" content="Entrar com Atos no seu sistema">
-<meta property="og:description" content="Login por OpenID Connect com a Conta Atos: o que o sistema recebe, como cadastrar e como integrar.">
+<meta property="og:title" content="Atos Workspace: o Login Atos nos seus sistemas">
+<meta property="og:description" content="Ative o Atos Workspace (gratuito) e use o Entrar com Atos nos seus sistemas: login por OpenID Connect com a Conta Atos.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://atos.dev.br/integracao/">
 <link rel="canonical" href="https://atos.dev.br/integracao/">
@@ -32,15 +32,41 @@
 </header>
 
 <main class="integracao">
-  <h1>Entrar com Atos no seu sistema</h1>
-  <p class="lead">O “Entrar com Atos” é um login pronto para o seu site, aplicativo ou servidor: a pessoa entra com a Conta Atos dela, do mesmo jeito que entra com o Google. Por baixo é OpenID Connect, o padrão aberto que as bibliotecas de login já conhecem.</p>
+  <h1>Atos Workspace</h1>
+  <p class="lead">O produto da Atos para quem constrói sistemas com a Conta Atos. Hoje ele traz o Login Atos para os seus sistemas: o “Entrar com Atos”, um login pronto para o seu site, aplicativo ou servidor, em que a pessoa entra com a Conta Atos dela, do mesmo jeito que entra com o Google. Gratuito: ativar é aceitar os termos do Workspace.</p>
   <div class="chamadas">
-    <a class="btn primario" href="/entrar/?volta=/conta/integracoes">Criar conta ou entrar<span class="seta" aria-hidden="true">→</span></a>
+    <a class="btn primario" href="/entrar/?volta=/workspace/">Ativar o Atos Workspace<span class="seta" aria-hidden="true">→</span></a>
+    <a class="btn" href="/workspace/">Já tenho, ir ao Workspace</a>
     <a class="btn" href="#passo-a-passo">Ver o passo a passo</a>
   </div>
 
+  <section id="workspace" aria-labelledby="workspace-titulo">
+    <h2 id="workspace-titulo">O que é o Atos Workspace</h2>
+    <div class="pontos">
+      <div>
+        <h3>Conta Atos e Workspace</h3>
+        <p>A Conta Atos é a identidade e a carteira de cada pessoa: com ela, ela entra, assina e paga. Quem só usa um sistema precisa só da conta. O Workspace é o que você ativa, na mesma conta, para construir.</p>
+      </div>
+      <div>
+        <h3>O que inclui hoje</h3>
+        <p>O Login Atos para os seus sistemas: até 5 aplicativos por conta, 5 acessos por aplicativo e 500 pessoas liberadas por aplicativo, em Atos Workspace › Integrações.</p>
+      </div>
+      <div>
+        <h3>Preço</h3>
+        <p>Gratuito. Ativar é aceitar os <a href="/termos/#workspace">termos do Atos Workspace</a>: não pede cartão nem pagamento.</p>
+      </div>
+      <div>
+        <h3>Desativar</h3>
+        <p>Quando quiser, na área do Workspace. Os aplicativos que você cadastrou continuam funcionando para quem entra neles; para vê-los e mudá-los, você ativa de novo.</p>
+      </div>
+    </div>
+  </section>
+
   <section id="o-que-e" aria-labelledby="o-que-e-titulo">
-    <h2 id="o-que-e-titulo">O que é</h2>
+    <h2 id="o-que-e-titulo">O Login Atos</h2>
+    <div class="corpo">
+      <p>O “Entrar com Atos” nos seus sistemas. Por baixo é OpenID Connect, o padrão aberto que as bibliotecas de login já conhecem.</p>
+    </div>
     <div class="pontos">
       <div>
         <h3>O que o sistema recebe</h3>
@@ -91,14 +117,14 @@
     <ol class="passos">
       <li>
         <div>
-          <h3>Crie sua Conta Atos (ou entre)</h3>
-          <p>É a mesma conta com que as pessoas vão entrar no seu sistema. <a href="/entrar/?volta=/conta/integracoes">Criar conta ou entrar</a>.</p>
+          <h3>Crie sua Conta Atos e ative o Atos Workspace</h3>
+          <p>É a mesma conta com que as pessoas vão entrar no seu sistema. Entre (ou crie a conta) e, em atos.dev.br/workspace, aceite os termos do Workspace e ative: é gratuito. <a href="/entrar/?volta=/workspace/">Ativar o Atos Workspace</a>.</p>
         </div>
       </li>
       <li>
         <div>
           <h3>Cadastre o aplicativo</h3>
-          <p>Em Minha conta › Integrações, cadastre o aplicativo e o acesso:</p>
+          <p>Em Atos Workspace › Integrações, cadastre o aplicativo e o acesso:</p>
           <ul>
             <li><strong>O aplicativo:</strong> o nome que a pessoa verá, o site, a política de privacidade e os termos.</li>
             <li><strong>O acesso:</strong> página ou aplicativo (cliente público, sem segredo) ou servidor (cliente confidencial, com um segredo mostrado uma vez só: guarde-o na hora).</li>
@@ -119,7 +145,7 @@
       <li>
         <div>
           <h3>Integre</h3>
-          <p>O bloco “Como integrar” da Integrações traz o seu <code>client_id</code> e os endereços, um comando (PowerShell ou Linux/macOS) que grava no <code>.env</code> do seu projeto o emissor, o <code>client_id</code> e a volta (o segredo, você cola; ele nunca vai no comando), o código <a href="#linguagens">na sua linguagem</a> e um pedido pronto para colar no Claude Code. Ou siga a <a href="#referencia">referência técnica</a> abaixo com a biblioteca OpenID Connect da sua linguagem.</p>
+          <p>O bloco “Como integrar”, em Integrações, traz o seu <code>client_id</code> e os endereços, um comando (PowerShell ou Linux/macOS) que grava no <code>.env</code> do seu projeto o emissor, o <code>client_id</code> e a volta (o segredo, você cola; ele nunca vai no comando), o código <a href="#linguagens">na sua linguagem</a> e um pedido pronto para colar no Claude Code. Ou siga a <a href="#referencia">referência técnica</a> abaixo com a biblioteca OpenID Connect da sua linguagem.</p>
         </div>
       </li>
       <li>
@@ -623,10 +649,10 @@ end
     <ol class="pratica">
       <li>
         <h4>A Maria cadastra a loja na Atos</h4>
-        <p>Em Minha conta › Integrações, ela cria o aplicativo “Loja da Maria” e, em “Quem pode entrar”, escolhe “Qualquer Conta Atos”. Depois cria um acesso confidencial, porque a loja tem servidor, com o endereço de volta da loja. A Atos mostra o segredo do acesso uma vez só, e ela o guarda.</p>
+        <p>Ela ativa o Atos Workspace e, em Atos Workspace › Integrações, cria o aplicativo “Loja da Maria” e, em “Quem pode entrar”, escolhe “Qualquer Conta Atos”. Depois cria um acesso confidencial, porque a loja tem servidor, com o endereço de volta da loja. A Atos mostra o segredo do acesso uma vez só, e ela o guarda.</p>
         <figure class="captura">
-          <img src="/assets/integracao/pratica-integracoes-aberta.webp" width="796" height="793" loading="lazy" decoding="async"
-            alt="Minha conta › Integrações da Maria: o aplicativo Loja da Maria com “Quem pode entrar” em “Qualquer Conta Atos” (qualquer pessoa com Conta Atos entra, cadastro aberto), a lista de liberados vazia e um acesso confidencial ligado com o endereço de volta da loja.">
+          <img src="/assets/integracao/pratica-integracoes-aberta.webp" width="796" height="919" loading="lazy" decoding="async"
+            alt="Atos Workspace › Integrações da Maria: o aplicativo Loja da Maria com “Quem pode entrar” em “Qualquer Conta Atos” (qualquer pessoa com Conta Atos entra, cadastro aberto), a lista de liberados vazia e um acesso confidencial ligado com o endereço de volta da loja.">
           <figcaption>O aplicativo, quem pode entrar e o acesso. O endereço de volta é <code>127.0.0.1</code> porque é o ambiente de teste; num site publicado, é o endereço <code>https</code> dele.</figcaption>
         </figure>
       </li>
@@ -737,8 +763,8 @@ app.get(new URL(atos.voltaPara).pathname, async (req, res) =&gt; {
         <h4>A Maria escolhe “Só as pessoas liberadas”</h4>
         <p>Em “Quem pode entrar”, ela escolhe “Só as pessoas liberadas” (o modo padrão) e libera o e-mail do João. Ela, que cadastrou, sempre entra.</p>
         <figure class="captura">
-          <img src="/assets/integracao/pratica-integracoes.webp" width="796" height="745" loading="lazy" decoding="async"
-            alt="Minha conta › Integrações da Maria: o aplicativo Loja da Maria, “Quem pode entrar” em “Só as pessoas liberadas” com joao@exemplo.test na lista, e um acesso confidencial ligado com o endereço de volta da loja.">
+          <img src="/assets/integracao/pratica-integracoes.webp" width="796" height="936" loading="lazy" decoding="async"
+            alt="Atos Workspace › Integrações da Maria: o aplicativo Loja da Maria, “Quem pode entrar” em “Só as pessoas liberadas” com joao@exemplo.test na lista, e um acesso confidencial ligado com o endereço de volta da loja.">
           <figcaption>A lista de quem pode entrar. Um e-mail liberado que ainda não tem Conta Atos entra quando a pessoa cria a conta com ele.</figcaption>
         </figure>
       </li>
@@ -857,7 +883,7 @@ grant_type=authorization_code
         <a href="https://wa.me/5594992417837" target="_blank" rel="noopener">+55 (94) 99241-7837</a>
       </div>
     </details>
-    <a href="/integracao/" aria-current="page">Integração</a>
+    <a href="/integracao/" aria-current="page">Workspace</a>
     <a href="/privacidade/">Privacidade</a>
     <a href="/termos/">Termos</a>
   </div>

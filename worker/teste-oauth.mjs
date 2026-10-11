@@ -94,7 +94,7 @@ await recusa("oauth.app", { ...APP, icone: "https://plantare.example/icone.png" 
 await recusa("oauth.app", { ...APP, icone: "data:image/svg+xml;base64,PHN2Zz4=" }, "ícone", "ícone SVG: recusado");
 await recusa("oauth.app", { ...APP, acao: "editar" }, "não existe", "editar o que não existe: recusado");
 await recusa("oauth.cliente", { acao: "criar", id: "plantare-web", app: "plantare", tipo: "publico", voltas: [WEB] }, "não existe", "cliente de aplicativo que ainda não existe (na fila não conta): recusado");
-await recusa("oauth.app", { ...APP, id: "u-abcdefghij" }, "Minha conta", "id com u- (dos aplicativos da Minha conta): recusado");
+await recusa("oauth.app", { ...APP, id: "u-abcdefghij" }, "Atos Workspace", "id com u- (dos aplicativos do Atos Workspace): recusado");
 await recusa("oauth.app", { ...APP, liberados: ["não é e-mail"] }, "e-mail", "lista de liberados com e-mail inválido: recusada");
 r = await fila("oauth.app", APP);
 checar(r.status === 200 && !guardados.has("atos:oidc:registro"), "o aplicativo entra na fila; nada muda antes de publicar");

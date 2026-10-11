@@ -1,5 +1,6 @@
-/* Minha conta > Integracoes (/conta/integracoes): os sistemas que a pessoa cadastra no Entrar com Atos. O servidor e
-   worker/integracoes.js; o cartao "Como integrar" e o integrar.js (o mesmo do painel).
+/* Atos Workspace > Integracoes (/workspace/integracoes): os sistemas que a pessoa cadastra no Entrar com Atos (o Login
+   Atos). O servidor e worker/integracoes.js (so com o Workspace ativo: sem ele, 403 com workspace: false); o cartao
+   "Como integrar" e o integrar.js (o mesmo do painel).
 
      GET  /api/integracoes                       os aplicativos da conta, os limites e o que precisa para integrar
      POST /api/integracoes/apps                  criar um aplicativo
@@ -7,14 +8,14 @@
      POST /api/integracoes/apps/:id/acessos      criar um acesso
      POST /api/integracoes/acessos/:cid          {acao: editar|ligar|desligar|apagar|segredo}
 
-   A conta.js desenha o titulo e as guias e chama ContaIntegracoes.montar(raiz) a cada desenho; o estado fica aqui.
-   Os atributos sao data-ic* (a conta.js escuta data-acao, data-app, data-fechar e data-form). */
+   A workspace.js desenha o titulo e as guias e chama WorkspaceIntegracoes.montar(raiz) a cada desenho; o estado fica
+   aqui. Os atributos sao data-ic* (a workspace.js escuta data-ws*). */
 (function () {
   "use strict";
   var S = { raiz: null, dados: null, erro: "", carregando: false, aberto: "", modal: null, aviso: "" };
   var ICONE_MAX = 30 * 1024;
-  var ONDE = "atos.dev.br/conta/integracoes";
-  var VOLTA_ENTRAR = "/entrar/?modo=entrar&volta=" + encodeURIComponent("/conta/integracoes");
+  var ONDE = "atos.dev.br/workspace/integracoes";
+  var VOLTA_ENTRAR = "/entrar/?modo=entrar&volta=" + encodeURIComponent("/workspace/integracoes");
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
@@ -50,7 +51,9 @@
     S.carregando = true;
     api("/api/integracoes").then(function (d) {
       S.carregando = false;
-      if (d._status === 401) { location.replace("/entrar/?volta=" + encodeURIComponent("/conta/integracoes")); return; }
+      if (d._status === 401) { location.replace("/entrar/?volta=" + encodeURIComponent("/workspace/integracoes")); return; }
+      // O Workspace foi desativado (noutra aba): a workspace.js volta a mostrar a ativacao.
+      if (d._status === 403 && d.workspace === false) { S.dados = null; document.dispatchEvent(new CustomEvent("workspace-inativo")); return; }
       if (d.erro || !d.apps) { S.erro = d.erro || "não deu para carregar as integrações agora"; pintar(); return; }
       S.erro = ""; S.dados = d; pintar();
     });
@@ -59,6 +62,7 @@
   function mudar(caminho, corpo, depois) {
     return api(caminho, corpo).then(function (d) {
       if (d._status === 401 && d.reentrar) { S.dados.recente = false; S.aviso = ""; pintar(); return d; }
+      if (d._status === 403 && d.workspace === false) { S.dados = null; S.modal = null; pintarModal(); document.dispatchEvent(new CustomEvent("workspace-inativo")); return d; }
       if (d.erro) return d;
       if (d.app) S.dados.apps = S.dados.apps.map(function (a) { return a.id === d.app.id ? d.app : a; });
       if (d.apagado) S.dados.apps = S.dados.apps.filter(function (a) { return a.id !== d.apagado; });
@@ -154,7 +158,7 @@
     } else h += D.apps.map(cartaoDoApp).join("");
     h += '<p class="nota">O aplicativo é seu e você responde por ele: a Atos só confirma quem é a pessoa e, com a permissão dela, passa ao seu sistema o identificador da conta, o nome e o e-mail. ' +
       "Na tela de permitir, quem entra vê que o aplicativo foi cadastrado por " + esc(D.conta.email) + " e não é da Atos. A Atos pode desligar um aplicativo usado para abuso. " +
-      'Limites: ' + D.limites.apps + " aplicativos por conta, " + D.limites.acessos + " acessos por aplicativo e " + D.limites.liberados + ' pessoas liberadas por aplicativo. Veja os <a href="/termos/">termos</a> e a <a href="/privacidade/">política de privacidade</a>.</p>';
+      'Limites: ' + D.limites.apps + " aplicativos por conta, " + D.limites.acessos + " acessos por aplicativo e " + D.limites.liberados + ' pessoas liberadas por aplicativo. Veja os <a href="/termos/#workspace">termos do Atos Workspace</a> e a <a href="/privacidade/">política de privacidade</a>.</p>';
     return h;
   }
 
@@ -369,7 +373,7 @@
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && S.modal) fechar(); });
   document.addEventListener("integrar-atos", pintar);
 
-  window.ContaIntegracoes = {
+  window.WorkspaceIntegracoes = {
     montar: function (raiz) {
       S.raiz = raiz;
       pintar();

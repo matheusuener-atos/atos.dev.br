@@ -9,11 +9,11 @@
                                                     com confirmacao aqui; o valor aparece uma vez so
 
      POST /api/admin/oauth/terceiros/:id/(desligar|ligar|apagar)
-                                                    os aplicativos que as pessoas cadastram na Minha conta
+                                                    os aplicativos que as pessoas cadastram no Atos Workspace
                                                     (Integracoes): desligar por abuso (com o motivo, que o dono ve),
                                                     ligar de novo e apagar, na hora, com registro
 
-   Para cada cliente, "Como integrar" (o cartao do integrar.js, o mesmo da Minha conta): os dados do provedor, o fluxo,
+   Para cada cliente, "Como integrar" (o cartao do integrar.js, o mesmo do Atos Workspace): os dados do provedor, o fluxo,
    um pedido pronto para um assistente de codigo e os comandos. O segredo nunca entra no pedido nem nos comandos. */
 (function () {
   "use strict";
@@ -68,18 +68,32 @@
     return "só liberados (" + n + (n === 1 ? " pessoa" : " pessoas") + (a.dono ? " e o dono" : a.por ? " e quem criou" : "") + ")";
   }
 
-  /* Os aplicativos que as pessoas cadastram na Minha conta > Integracoes: ver, desligar por abuso, ligar e apagar. */
+  /* O Atos Workspace do dono (worker/workspace.js): ativo, desativado ou nao conferido. Sem ele, o aplicativo continua
+     funcionando para quem entra, mas o dono nao o muda ate ativar de novo. */
+  function workspaceDoDono(a) {
+    var w = a.dono_workspace;
+    if (!w) return "não deu para conferir";
+    if (w.ativo) return "ativo" + (w.ativado ? " desde " + U.quando(w.ativado) : "");
+    return w.desativado ? "desativado em " + U.quando(w.desativado) + " (o dono não muda o aplicativo até ativar de novo)" : "nunca ativado (o dono não muda o aplicativo até ativar)";
+  }
+  /* Os aplicativos que as pessoas cadastram no Atos Workspace > Integracoes: ver, desligar por abuso, ligar e apagar. */
   function terceiros(D) {
     var l = D.terceiros || [];
-    var h = '<h2 class="titulo-secao pv-h2"><span>Cadastrados pelas pessoas (Minha conta)</span></h2>';
+    var h = '<h2 class="titulo-secao pv-h2"><span>Cadastrados pelas pessoas (Atos Workspace)</span></h2>';
     if (!l.length) return h + '<div class="card"><p class="vazio">Ninguém cadastrou um aplicativo ainda.</p></div>';
+    var donos = {}, ativos = 0;
+    l.forEach(function (a) { if (!(a.dono in donos)) { donos[a.dono] = 1; if (a.dono_workspace && a.dono_workspace.ativo) ativos++; } });
+    var nDonos = Object.keys(donos).length;
+    h += '<p class="nota">' + nDonos + (nDonos === 1 ? " dono" : " donos") + " de aplicativo, " + ativos + " com o Atos Workspace ativo.</p>";
     return h + '<div class="card">' + l.map(function (a) {
       var aberto = S.tercAberto === a.id;
       var sit = a.bloqueado ? '<span class="pv-sit perigo">desligado pela Atos</span>' : '<span class="pv-sit ok">no ar</span>';
+      var ws = a.dono_workspace && a.dono_workspace.ativo ? "" : ' <span class="pv-sit">dono sem Workspace</span>';
       var det = "";
       if (aberto) {
         det = '<div class="nf-det"><dl class="nf-info">' +
           "<dt>Dono</dt><dd>" + esc(a.dono) + "</dd>" +
+          "<dt>Workspace do dono</dt><dd>" + esc(workspaceDoDono(a)) + "</dd>" +
           "<dt>Site</dt><dd>" + esc(a.site) + "</dd>" +
           "<dt>Privacidade</dt><dd>" + esc(a.privacidade) + "</dd>" +
           "<dt>Termos</dt><dd>" + esc(a.termos) + "</dd>" +
@@ -91,7 +105,7 @@
           "<dt>Registro</dt><dd>" + (a.registro || []).map(function (x) { return esc(U.quando(x.quando)) + " · " + esc(x.por) + ": " + esc(x.oque); }).join("<br>") + "</dd>" +
           "</dl></div>";
       }
-      return '<div class="oa-cliente"><div class="item oa-item">' + icone(a) + '<span class="nome"><strong>' + esc(a.nome) + ' <span class="nf-tag">' + esc(a.id) + "</span> " + sit + "</strong>" +
+      return '<div class="oa-cliente"><div class="item oa-item">' + icone(a) + '<span class="nome"><strong>' + esc(a.nome) + ' <span class="nf-tag">' + esc(a.id) + "</span> " + sit + ws + "</strong>" +
         "<small>" + esc(a.descricao) + " · de " + esc(a.dono) + " · " + a.acessos.length + (a.acessos.length === 1 ? " acesso" : " acessos") + " · " + esc(quemEntra(a)) + "</small></span>" +
         '<span class="pv-par"><button type="button" class="btn mini" data-oa="terc-ver" data-id="' + esc(a.id) + '" aria-expanded="' + aberto + '">Detalhes</button>' +
         (a.bloqueado ? '<button type="button" class="btn mini" data-oa="terc-ligar" data-id="' + esc(a.id) + '">Ligar de novo</button>'
@@ -118,7 +132,7 @@
   /* ------------------------------------------------------------ a tela */
   function tela() {
     var h = "<h1>Login Atos</h1>" +
-      '<p class="descricao">Os sistemas que usam o Entrar com Atos. Os do código (o PAVLVS) só aparecem aqui. Nos da equipe, criar, editar, desligar e apagar entram na fila da Atos e valem quando você confirmar as alterações; gerar ou trocar o segredo de um cliente vale na hora. Os cadastrados pelas pessoas na Minha conta aparecem no fim, com o dono de cada um.</p>';
+      '<p class="descricao">Os sistemas que usam o Entrar com Atos. Os do código (o PAVLVS) só aparecem aqui. Nos da equipe, criar, editar, desligar e apagar entram na fila da Atos e valem quando você confirmar as alterações; gerar ou trocar o segredo de um cliente vale na hora. Os cadastrados pelas pessoas no Atos Workspace aparecem no fim, com o dono de cada um e se ele tem o Workspace ativo.</p>';
     if (!S.dados) return h + '<div class="card pv-topo"><p class="vazio">' + (S.erro ? "Não consegui ler o Login Atos agora: " + esc(S.erro) + ' <button type="button" class="link" data-oa="recarregar">Tentar de novo</button>' : "Carregando…") + "</p></div>";
     if (S.erro) h += '<p class="nf-aviso"><span>Não consegui atualizar agora: ' + esc(S.erro) + ". Mostrando a última leitura.</span></p>";
     var D = S.dados, pend = pendentesOAuth();

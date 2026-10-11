@@ -1,6 +1,7 @@
 /* A Minha conta (/conta/ e /conta/<secao>): Resumo e Dados da conta Atos;
-   Assinaturas, Faturamento e Carteira do que a pessoa assina com a Atos;
-   Integracoes, os sistemas que ela cadastra no Entrar com Atos (conta-integracoes.js).
+   Assinaturas, Faturamento e Carteira do que a pessoa assina com a Atos; o
+   Atos Workspace como produto (ativo ou "Ativar"), com o atalho para /workspace/,
+   onde ficam as Integracoes (workspace.js). /conta/integracoes leva para la.
 
    A conta (nome, e-mail, aplicativos) vem da Atos (/api/eu, /api/apps). A
    cobranca tambem: a Atos e quem cobra (docs/COBRANCA.md), e a tela le
@@ -11,7 +12,7 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var SECOES = ["resumo", "dados", "assinaturas", "faturamento", "carteira", "integracoes"];
+  var SECOES = ["resumo", "dados", "assinaturas", "faturamento", "carteira"];
   var S = {
     conta: null, apps: null, appsErro: "", editando: false, nomeErro: "",
     atos: null, atosErro: "",
@@ -51,7 +52,7 @@
     return m && SECOES.indexOf(m[1]) > 0 ? m[1] : "resumo";
   }
   var GUIAS = [["resumo", "Resumo", "/conta/"], ["dados", "Dados", "/conta/dados"], null, ["assinaturas", "Assinaturas", "/conta/assinaturas"],
-    ["faturamento", "Faturamento", "/conta/faturamento"], ["carteira", "Carteira", "/conta/carteira"], null, ["integracoes", "Integrações", "/conta/integracoes"]];
+    ["faturamento", "Faturamento", "/conta/faturamento"], ["carteira", "Carteira", "/conta/carteira"]];
   function guias() {
     var sec = secaoAtual();
     return '<nav class="guias" aria-label="Minha conta">' + GUIAS.map(function (g) {
@@ -66,7 +67,7 @@
 
   var SITUACAO = {
     ativa: ["Ativa", ""], cortesia: ["Cortesia", ""], pendente: ["Pendente", "neutro"], pausada: ["Pausada", "neutro"],
-    cancelada: ["Cancelada", "perigo"], vencida: ["Vencida", "perigo"],
+    cancelada: ["Cancelada", "perigo"], vencida: ["Vencida", "perigo"], ativo: ["Ativo", ""], inativo: ["Inativo", "neutro"],
   };
   function selo(sit) { var x = SITUACAO[sit] || [sit || "—", "neutro"]; return '<span class="selo' + (x[1] ? " " + x[1] : "") + '">' + esc(x[0]) + "</span>"; }
   var BANDEIRAS = { visa: ["VISA", "Visa"], master: ["MC", "Mastercard"], mastercard: ["MC", "Mastercard"], amex: ["AMEX", "American Express"], elo: ["ELO", "Elo"], hipercard: ["HIPER", "Hipercard"], diners: ["DINERS", "Diners"] };
@@ -94,6 +95,31 @@
     if (ate && dir.pago_por === "assinatura") return { sit: "cancelada", linha: "Assinatura cancelada · vale até " + data(ate), forma: "Cartão (cancelado)" };
     if (ate) return { sit: "ativa", linha: "Pago até " + data(ate), forma: dir.periodo === "ano" ? "O ano pago de uma vez" : "Um mês pago no Pix", renovar: true };
     return { sit: a && a.status === "canceled" ? "cancelada" : "vencida", linha: dir.ate ? "Venceu em " + data(dir.ate) : "Encerrada", forma: "—", assinarDeNovo: true };
+  }
+
+  /* O Atos Workspace (e outros gratuitos): ativo, ou o convite para ativar. Leva ao /workspace/. */
+  function gratuitos() { return (S.atos && S.atos.gratuitos) || []; }
+  var LOGO_WS = '<span class="logo inicial" aria-hidden="true">W</span>';
+  function linhaDoGratuito(x) {
+    if (x.ativo) return "Gratuito · ativo desde " + data(x.ativado) + " · o Login Atos para os seus sistemas";
+    return "Para quem constrói sistemas: o Login Atos para os seus sistemas. Gratuito" + (x.desativado ? " · desativado em " + data(x.desativado) : "");
+  }
+  function itemDoGratuito(x) {
+    return '<a class="item" href="' + esc(x.endereco) + '">' + LOGO_WS +
+      '<span class="nome"><strong>' + esc(x.nome) + "</strong><small>" + esc(linhaDoGratuito(x)) + "</small></span>" +
+      (x.ativo ? selo("ativo") + '<span class="seta" aria-hidden="true">→</span>' : '<span class="btn p">Ativar</span>') + "</a>";
+  }
+  function cartaoDoGratuito(x) {
+    var h = '<div class="card">' +
+      '<div class="assinatura-topo">' + LOGO_WS + '<span class="nome"><strong>' + esc(x.nome) + "</strong><small>Gratuito</small></span>" +
+      selo(x.ativo ? "ativo" : "inativo") + "</div>" +
+      '<div class="colunas">' +
+      '<div><span class="rotulo">Situação</span><span>' + esc(x.ativo ? "Ativo desde " + data(x.ativado) : x.desativado ? "Desativado em " + data(x.desativado) : "Não ativado") + "</span></div>" +
+      '<div><span class="rotulo">Inclui</span><span>O Login Atos para os seus sistemas</span></div>' +
+      (x.termos ? '<div><span class="rotulo">Termos aceitos</span><span>' + esc("Versão de " + data(x.termos.versao + "T12:00:00Z") + ", em " + data(x.termos.aceito)) + "</span></div>" : "") +
+      "</div>" +
+      '<div class="botoes"><a class="btn p' + (x.ativo ? "" : " primario") + '" href="' + esc(x.endereco) + '">' + (x.ativo ? "Ir ao Workspace" : "Ativar o " + esc(x.nome)) + "</a></div>";
+    return h + "</div>";
   }
 
   function itemDoResumo(x) {
@@ -154,10 +180,13 @@
       '<div class="dado"><span class="rotulo">Senha</span><span class="apagado">••••••••••</span><a class="btn p" href="/entrar/?modo=esqueci">Trocar a senha</a></div>' +
       "</div>" + (S.nomeErro ? '<p class="erro" role="alert">' + esc(S.nomeErro) + "</p>" : "");
 
-    h += h2("Assinaturas");
+    h += h2("Assinaturas e produtos");
     if (esperandoAtos()) h += esperandoAtos();
-    else if (temAtos() && S.atos.produtos.length) h += '<div class="card">' + S.atos.produtos.map(itemDoResumo).join("") + "</div>";
-    else h += vazio('Nenhuma assinatura. <a href="' + assinarDe("pavlvs") + '">Assinar o PAVLVS</a>');
+    else {
+      h += '<div class="card">' + (S.atos.produtos.length ? S.atos.produtos.map(itemDoResumo).join("")
+        : '<a class="item" href="' + assinarDe("pavlvs") + '">' + LOGO + '<span class="nome"><strong>PAVLVS</strong><small>Nenhuma assinatura</small></span><span class="btn p">Assinar</span></a>') +
+        gratuitos().map(itemDoGratuito).join("") + "</div>";
+    }
 
     h += h2("Aplicativos com acesso");
     if (S.appsErro) h += vazio(esc(S.appsErro));
@@ -214,10 +243,11 @@
   }
 
   function assinaturas() {
-    var h = titulo("Assinaturas", "Os planos que você assina com a Atos.");
+    var h = titulo("Assinaturas", "Os planos que você assina com a Atos e os produtos que você ativou.");
     if (esperandoAtos()) return h + esperandoAtos();
-    if (!S.atos.produtos.length) return h + vazio('Nenhuma assinatura. <a href="' + assinarDe("pavlvs") + '">Assinar o PAVLVS</a>');
-    h += S.atos.produtos.map(cartaoDoProduto).join("");
+    var ws = gratuitos().map(cartaoDoGratuito).join("");
+    if (!S.atos.produtos.length) return h + vazio('Nenhuma assinatura. <a href="' + assinarDe("pavlvs") + '">Assinar o PAVLVS</a>') + ws;
+    h += S.atos.produtos.map(cartaoDoProduto).join("") + ws;
     if (S.acaoErro) h += '<p class="erro" role="alert">' + esc(S.acaoErro) + "</p>";
     var viva = S.atos.produtos.some(function (x) { return x.assinatura && (x.assinatura.status === "authorized" || x.assinatura.status === "paused"); });
     return h + '<p class="nota">' + (viva ? "Pausar para as cobranças até você reativar; o que já foi pago continua valendo até o fim. " : "") +
@@ -342,28 +372,7 @@
       'escreva para <a href="mailto:contato@atos.dev.br">contato@atos.dev.br</a>.</p>';
   }
 
-  /* Integracoes: os sistemas que a pessoa cadastra no Entrar com Atos. A tela mora em conta-integracoes.js (com o
-     cartao "Como integrar" do integrar.js, o mesmo do painel), carregados so quando a guia abre. */
-  function integracoes() {
-    return titulo("Integrações", "Os seus sistemas que usam o Entrar com Atos, e quem pode entrar em cada um.") + '<div id="ig-raiz"><div class="card"><p class="vazio">Carregando…</p></div></div>';
-  }
-  var scripts = {};
-  function script(src, cb) {
-    if (scripts[src] === true) { cb(); return; }
-    if (scripts[src]) { scripts[src].push(cb); return; }
-    scripts[src] = [cb];
-    var s = document.createElement("script");
-    s.src = src;
-    s.onload = function () { var l = scripts[src]; scripts[src] = true; l.forEach(function (f) { f(); }); };
-    document.head.appendChild(s);
-  }
-  function montarIntegracoes() {
-    script("/assets/integrar.js", function () {
-      script("/assets/conta-integracoes.js", function () { var r = $("ig-raiz"); if (r && window.ContaIntegracoes) window.ContaIntegracoes.montar(r); });
-    });
-  }
-
-  var DESENHO = { resumo: resumo, dados: dados, assinaturas: assinaturas, faturamento: faturamento, carteira: carteira, integracoes: integracoes };
+  var DESENHO = { resumo: resumo, dados: dados, assinaturas: assinaturas, faturamento: faturamento, carteira: carteira };
 
   function desenhar() {
     var sec = secaoAtual();
@@ -371,7 +380,6 @@
     var foco = ativo && (ativo.name || (ativo.getAttribute && ativo.getAttribute("data-filtro")));
     var pos = ativo && ativo.selectionStart;
     $("secao").innerHTML = DESENHO[sec]();
-    if (sec === "integracoes") { montarIntegracoes(); return; }
     if (S.editando) { var i = $("secao").querySelector("input[name=nome]"); if (i) i.focus(); }
     else if (foco) {
       var j = $("secao").querySelector('input[name="' + foco + '"], [data-filtro="' + foco + '"]');
