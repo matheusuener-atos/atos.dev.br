@@ -106,7 +106,8 @@
       var nome = esc(p.app.nome);
       h = cabeca("O " + nome + " quer entrar com a sua conta Atos", "Confira antes de permitir") +
         '<div class="card">' +
-        '<div class="linha app"><img class="logo" src="' + esc(p.app.icone) + '" alt="" width="36" height="36"><span class="nome"><strong>' + nome + "</strong><small>" + esc(maiuscula(p.app.descricao)) + "</small></span></div>" +
+        '<div class="linha app">' + (p.app.icone ? '<img class="logo" src="' + esc(p.app.icone) + '" alt="" width="36" height="36">'
+          : '<span class="logo inicial" aria-hidden="true">' + esc(String(p.app.nome || "?").trim().charAt(0).toUpperCase()) + "</span>") + '<span class="nome"><strong>' + nome + "</strong><small>" + esc(maiuscula(p.app.descricao)) + "</small></span></div>" +
         '<div class="linha"><span class="nome"><strong>' + esc(p.conta.nome || p.conta.email) + "</strong>" + (p.conta.nome ? "<small>" + esc(p.conta.email) + "</small>" : "") + "</span>" + link("trocar", "Trocar de conta") + "</div>" +
         '<div class="escopos"><span class="titulo-secao">O ' + nome + " poderá</span>" +
         p.escopos.map(function (e) { return '<div><span aria-hidden="true">✓</span><span>' + esc(e.texto) + "</span></div>"; }).join("") + "</div></div>" +

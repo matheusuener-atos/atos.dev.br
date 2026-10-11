@@ -1184,6 +1184,7 @@
   A.secoes.push({
     id: "notas",
     nome: "Notas fiscais",
+    area: "atos",
     desenhar: function (raiz, ctx) {
       S.raiz = raiz;
       S.ctx = ctx;

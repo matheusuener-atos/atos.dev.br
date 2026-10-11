@@ -2,9 +2,18 @@
 // mesmo jeito que o Google e para o "Entrar com o Google". O primeiro
 // aplicativo e o PAVLVS (o site paulus.ia.br e o PAULUS instalado).
 //
-// O fluxo e o do codigo de autorizacao com PKCE (S256, obrigatorio), sem
-// segredo de cliente - os dois clientes sao publicos (uma pagina e um
-// programa instalado), como manda a RFC 8252:
+// Os aplicativos e clientes: os fixos do codigo (APPS, CLIENTES: os do PAVLVS)
+// e os cadastrados no painel (Login Atos, worker/oidc-painel.js), no KV em
+// "atos:oidc:registro" ("atos-teste:oidc:registro" no Worker de teste). O fixo
+// vale sobre o do KV com o mesmo id. Um cliente e publico (pagina ou programa:
+// PKCE, sem segredo) ou confidencial (um servidor: PKCE e o client_secret, por
+// client_secret_basic ou client_secret_post; o segredo fica so como hash, em
+// "atos:oidc:segredo:<client_id>"). Desligado ou apagado, o cliente nao comeca
+// login, nao troca codigo e o access_token dele deixa de valer no userinfo; o
+// id_token ja emitido vale ate vencer (1 hora), porque e assinado e o
+// aplicativo o confere sozinho.
+//
+// O fluxo e o do codigo de autorizacao com PKCE (S256, obrigatorio para todos):
 //
 //   1. o aplicativo abre  https://atos.dev.br/entrar?client_id=...&redirect_uri=...
 //      &response_type=code&scope=openid email profile&state=...&nonce=...
@@ -30,12 +39,12 @@
 // do mesmo codigo no mesmo instante, em dois lugares do mundo, poderiam passar
 // as duas - o PKCE garante que so quem comecou o pedido tem o verifier.
 
-import { EMISSOR, aleatorio, b64url, b64urlTexto, deB64url, json, kv, lerJson, sha256 } from "./comum.js";
+import { EMISSOR, aleatorio, b64url, b64urlTexto, deB64url, iguais, json, kv, lerJson, sha256 } from "./comum.js";
 import { sessaoDe } from "./contas.js";
 import { googleLigado } from "./google.js";
 
 const CODIGO_S = 120;
-const TOKEN_S = 3600;
+export const TOKEN_S = 3600;
 const RECENTE_S = 300;
 
 /* Os aplicativos que podem pedir "Entrar com Atos". Um aplicativo pode ter mais
@@ -60,7 +69,7 @@ export const CLIENTES = {
   "pavlvs-app": { app: "pavlvs", loopback: true, origens: [] },
   // A equipe que entra de fora, pelo endereco do escritorio (<escritorio>.paulus.ia.br, o tunel ate o PAULUS
   // dele): volta direto ao escritorio, que troca o codigo do proprio servidor (sem CORS).
-  "pavlvs-escritorio": { app: "pavlvs", padrao: /^https:\/\/(?!www\.|admin\.)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.paulus\.ia\.br\/api\/acesso\/atos\/retorno$/, origens: [] },
+  "pavlvs-escritorio": { app: "pavlvs", padraoTexto: "https://<escritório>.paulus.ia.br/api/acesso/atos/retorno", padrao: /^https:\/\/(?!www\.|admin\.)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.paulus\.ia\.br\/api\/acesso\/atos\/retorno$/, origens: [] },
 };
 
 export const ESCOPOS = {
@@ -70,6 +79,51 @@ export const ESCOPOS = {
 };
 
 const lista = (s) => String(s || "").split(/\s+/).filter(Boolean);
+const temChave = (o, k) => Boolean(o) && Object.prototype.hasOwnProperty.call(o, k);
+
+// ------------------------------------------------- o registro (codigo + KV)
+
+/* As chaves do registro no KV CONTAS (o mesmo KV do Worker de teste: prefixo proprio la). */
+export function KO(env) {
+  const p = env && env.AMBIENTE === "teste" ? "atos-teste:oidc:" : "atos:oidc:";
+  return { registro: p + "registro", segredo: (id) => p + "segredo:" + id, log: p + "log" };
+}
+
+/* O registro do KV como esta guardado: {apps: {id: {...}}, clientes: {id: {...}}}. */
+export async function registroDoKV(env) {
+  const r = await kv(env, KO(env).registro);
+  const ok = (x) => x && typeof x === "object" && !Array.isArray(x);
+  return { apps: ok(r) && ok(r.apps) ? r.apps : {}, clientes: ok(r) && ok(r.clientes) ? r.clientes : {} };
+}
+
+/* Os fixos mais os do KV, no formato que o fluxo usa. Cliente do KV: {app, voltas, loopback, origens, confidencial,
+   ativo, doKV}; aplicativo do KV: {nome, descricao, site, privacidade, termos, icone, criado, doKV}. */
+export async function registro(env) {
+  const doKV = await registroDoKV(env);
+  const apps = { ...APPS };
+  for (const [id, a] of Object.entries(doKV.apps)) {
+    if (temChave(APPS, id) || !a || typeof a !== "object") continue;
+    apps[id] = { nome: String(a.nome || id), descricao: String(a.descricao || ""), site: String(a.site || ""), privacidade: String(a.privacidade || ""),
+      termos: String(a.termos || ""), icone: String(a.icone || ""), criado: String(a.criado || ""), doKV: true };
+  }
+  const clientes = { ...CLIENTES };
+  for (const [id, c] of Object.entries(doKV.clientes)) {
+    if (temChave(CLIENTES, id) || !c || typeof c !== "object" || !temChave(apps, c.app)) continue;
+    clientes[id] = {
+      app: c.app, voltas: Array.isArray(c.voltas) ? c.voltas.map(String) : [], loopback: c.loopback === true,
+      origens: Array.isArray(c.origens) ? c.origens.map(String) : [], confidencial: c.tipo === "confidencial", ativo: c.ativo !== false, doKV: true,
+    };
+  }
+  return { apps, clientes };
+}
+
+const FIXOS = { apps: APPS, clientes: CLIENTES };
+
+/* O cliente que pode ser usado agora (existe e esta ligado), ou null. */
+function clienteAtivo(reg, id) {
+  const c = temChave(reg.clientes, id) ? reg.clientes[id] : null;
+  return c && c.ativo !== false ? c : null;
+}
 
 function voltaPermitida(cliente, volta) {
   if (!volta || volta.length > 500) return false;
@@ -95,11 +149,13 @@ function voltar(volta, campos) {
 /* O pedido de autorizacao, conferido. {fatal} quando nao da para voltar ao
    aplicativo (cliente ou endereco desconhecido); {ir} quando o erro volta a ele;
    senao {pedido}. */
-export function lerPedido(consulta) {
+export function lerPedido(consulta, reg = FIXOS) {
   const q = new URLSearchParams(String(consulta || "").replace(/^\?/, ""));
   const clienteId = q.get("client_id") || "";
-  const cliente = Object.prototype.hasOwnProperty.call(CLIENTES, clienteId) ? CLIENTES[clienteId] : null;
-  if (!cliente) return { fatal: "Este aplicativo não está registrado na Atos." };
+  const registrado = temChave(reg.clientes, clienteId) ? reg.clientes[clienteId] : null;
+  if (!registrado) return { fatal: "Este aplicativo não está registrado na Atos." };
+  const cliente = clienteAtivo(reg, clienteId);
+  if (!cliente) return { fatal: "Este aplicativo está desligado na Atos." };
   const volta = q.get("redirect_uri") || "";
   if (!voltaPermitida(cliente, volta)) return { fatal: "O endereço de volta não pertence a este aplicativo." };
   const state = (q.get("state") || "").slice(0, 500);
@@ -133,9 +189,16 @@ async function appsDe(env, sub) {
   return (await kv(env, "atos:apps:" + sub)) || {};
 }
 
-function jaPermitiu(apps, pedido) {
-  const a = apps[pedido.app];
-  return Boolean(a && pedido.escopos.every((s) => (a.escopos || []).includes(s)));
+/* A permissao guardada vale para o aplicativo de agora: um aplicativo do KV apagado e criado de novo com o mesmo id
+   nao herda as permissoes de antes (a de antes e mais velha que ele). */
+function permissaoVale(a, app) {
+  if (!a || !app) return false;
+  return !app.criado || Boolean(a.quando && String(a.quando) >= app.criado);
+}
+
+function jaPermitiu(apps, pedido, reg = FIXOS) {
+  const a = temChave(apps, pedido.app) ? apps[pedido.app] : null;
+  return permissaoVale(a, reg.apps[pedido.app]) && pedido.escopos.every((s) => (a.escopos || []).includes(s));
 }
 
 async function emitirCodigo(env, pedido, sessao) {
@@ -147,9 +210,10 @@ async function emitirCodigo(env, pedido, sessao) {
   return voltar(pedido.volta, { code: codigo, state: pedido.state, iss: EMISSOR });
 }
 
-function publicoDoApp(id) {
-  const a = APPS[id];
-  return { id, nome: a.nome, descricao: a.descricao, site: a.site, privacidade: a.privacidade, termos: a.termos, icone: a.icone, daAtos: Boolean(a.daAtos) };
+/* O que a pagina /entrar e a /conta mostram do aplicativo. Sem icone (""), elas mostram a inicial do nome. */
+function publicoDoApp(id, reg = FIXOS) {
+  const a = reg.apps[id];
+  return { id, nome: a.nome, descricao: a.descricao, site: a.site, privacidade: a.privacidade, termos: a.termos, icone: a.icone || "", daAtos: Boolean(a.daAtos) };
 }
 
 // ---------------------------------------------------------- a assinatura
@@ -202,9 +266,11 @@ export function ehRotaDoOIDC(url) {
     ["/api/pedido", "/api/autorizar", "/api/apps", "/api/apps/revogar"].includes(url.pathname);
 }
 
-function cors(request, clienteId) {
+function cors(request, reg, clienteId) {
   const origem = request.headers.get("origin") || "";
-  const permitidas = clienteId ? (CLIENTES[clienteId] || {}).origens || [] : Object.values(CLIENTES).flatMap((c) => c.origens || []);
+  if (!origem) return {};
+  const ativos = Object.keys(reg.clientes).map((id) => clienteAtivo(reg, id)).filter(Boolean);
+  const permitidas = clienteId ? (clienteAtivo(reg, clienteId) || {}).origens || [] : ativos.flatMap((c) => c.origens || []);
   if (!origem || !permitidas.includes(origem)) return {};
   return { "access-control-allow-origin": origem, "access-control-allow-methods": "GET, POST", "access-control-allow-headers": "authorization, content-type", "access-control-max-age": "600", vary: "origin" };
 }
@@ -231,7 +297,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
       scopes_supported: Object.keys(ESCOPOS),
       claims_supported: ["sub", "email", "email_verified", "name", "auth_time", "nonce"],
       code_challenge_methods_supported: ["S256"],
-      token_endpoint_auth_methods_supported: ["none"],
+      token_endpoint_auth_methods_supported: ["none", "client_secret_basic", "client_secret_post"],
       prompt_values_supported: ["none", "login", "consent"],
       authorization_response_iss_parameter_supported: true,
       ui_locales_supported: ["pt-BR"],
@@ -242,7 +308,9 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     return new Response(JSON.stringify(await jwks(env)), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=3600", "access-control-allow-origin": "*" } });
   }
 
-  if (request.method === "OPTIONS" && p.startsWith("/oauth/")) return new Response(null, { status: 204, headers: cors(request) });
+  const reg = await registro(env);
+
+  if (request.method === "OPTIONS" && p.startsWith("/oauth/")) return new Response(null, { status: 204, headers: cors(request, reg) });
 
   if (p === "/oauth/token") {
     if (request.method !== "POST") return erroOAuth("invalid_request", "use POST", 405);
@@ -253,10 +321,41 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     } catch {
       return erroOAuth("invalid_request", "corpo inválido");
     }
-    const clienteId = f.get("client_id") || "";
-    const extra = cors(request, clienteId);
+    // Quem pede: client_id no corpo, ou client_secret_basic (Authorization: Basic, id e segredo em
+    // form-urlencoded, RFC 6749 2.3.1). Um metodo so.
+    let clienteId = f.get("client_id") || "";
+    let segredoDado = f.has("client_secret") ? f.get("client_secret") : null;
+    const basico = /^Basic\s+([A-Za-z0-9+/=]+)\s*$/i.exec(request.headers.get("authorization") || "");
+    if (basico) {
+      let id = "", seg = "";
+      try {
+        const claro = atob(basico[1]);
+        const i = claro.indexOf(":");
+        if (i < 0) throw new Error("sem :");
+        const de = (s) => decodeURIComponent(s.replace(/\+/g, " "));
+        id = de(claro.slice(0, i));
+        seg = de(claro.slice(i + 1));
+      } catch {
+        return erroOAuth("invalid_client", "Authorization Basic inválido", 401, { "www-authenticate": 'Basic realm="atos"' });
+      }
+      if (segredoDado !== null) return erroOAuth("invalid_request", "o segredo foi mandado de dois jeitos: use só um", 400);
+      if (clienteId && clienteId !== id) return erroOAuth("invalid_request", "o client_id do corpo não é o do Authorization", 400);
+      clienteId = id;
+      segredoDado = seg;
+    }
+    const extra = cors(request, reg, clienteId);
     if (f.get("grant_type") !== "authorization_code") return erroOAuth("unsupported_grant_type", "só authorization_code", 400, extra);
-    if (!CLIENTES[clienteId]) return erroOAuth("invalid_client", "aplicativo desconhecido", 401, extra);
+    const cliente = clienteAtivo(reg, clienteId);
+    const recusaCliente = (texto) => erroOAuth("invalid_client", texto, 401, basico ? { ...extra, "www-authenticate": 'Basic realm="atos"' } : extra);
+    if (!cliente) return recusaCliente(temChave(reg.clientes, clienteId) ? "este aplicativo está desligado" : "aplicativo desconhecido");
+    if (cliente.confidencial) {
+      if (!segredoDado) return recusaCliente("este cliente é confidencial: mande o client_secret (client_secret_basic ou client_secret_post)");
+      const guardado = await kv(env, KO(env).segredo(clienteId));
+      if (!guardado || !guardado.hash) return recusaCliente("este cliente ainda não tem segredo: gere um no painel da Atos");
+      if (segredoDado.length > 200 || !iguais(await sha256(segredoDado), guardado.hash)) return recusaCliente("o client_secret não confere");
+    } else if (segredoDado) {
+      return recusaCliente("este cliente é público: não usa client_secret");
+    }
     if (!env.ATOS_CHAVE) return erroOAuth("temporarily_unavailable", "a assinatura de tokens ainda não está ligada", 503, extra);
     const codigo = f.get("code") || "";
     if (!codigo || codigo.length > 100) return erroOAuth("invalid_grant", "código inválido", 400, extra);
@@ -273,7 +372,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     const conta = await kv(env, "id:conta:" + c.email);
     if (!conta || conta.sub !== c.sub) return erroOAuth("invalid_grant", "a conta não existe mais", 400, extra);
     const apps = await appsDe(env, c.sub);
-    if (!jaPermitiu(apps, { app: CLIENTES[clienteId].app, escopos: c.escopos })) return erroOAuth("invalid_grant", "a permissão foi revogada", 400, extra);
+    if (!jaPermitiu(apps, { app: cliente.app, escopos: c.escopos }, reg)) return erroOAuth("invalid_grant", "a permissão foi revogada", 400, extra);
     const dados = { sub: c.sub, email: c.email, nome: conta.nome || "" };
     const s = Math.floor(agora / 1000);
     const idToken = await assinarJWT(env, {
@@ -283,16 +382,17 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     const acesso = aleatorio(32);
     await env.CONTAS.put("atos:acesso:" + (await sha256(acesso)), JSON.stringify({ sub: c.sub, email: c.email, clienteId, escopos: c.escopos }), { expirationTtl: TOKEN_S });
     // Anota quando o aplicativo entrou pela ultima vez (a pagina /conta mostra).
-    apps[CLIENTES[clienteId].app] = { ...apps[CLIENTES[clienteId].app], ultimo: new Date(agora).toISOString() };
+    apps[cliente.app] = { ...apps[cliente.app], ultimo: new Date(agora).toISOString() };
     await env.CONTAS.put("atos:apps:" + c.sub, JSON.stringify(apps));
     return json({ access_token: acesso, token_type: "Bearer", expires_in: TOKEN_S, id_token: idToken, scope: c.escopos.join(" ") }, 200, { ...extra, pragma: "no-cache" });
   }
 
   if (p === "/oauth/userinfo") {
-    const extra = cors(request);
+    const extra = cors(request, reg);
     const m = /^Bearer\s+(\S+)$/i.exec(request.headers.get("authorization") || "");
     const a = m ? await kv(env, "atos:acesso:" + (await sha256(m[1]))) : null;
-    if (!a) return json({ error: "invalid_token" }, 401, { ...extra, "www-authenticate": 'Bearer error="invalid_token"' });
+    // O token de um cliente desligado ou apagado deixa de valer aqui na hora (o id_token vale ate vencer).
+    if (!a || !clienteAtivo(reg, a.clienteId)) return json({ error: "invalid_token" }, 401, { ...extra, "www-authenticate": 'Bearer error="invalid_token"' });
     const conta = await kv(env, "id:conta:" + a.email);
     if (!conta || conta.sub !== a.sub) return json({ error: "invalid_token" }, 401, extra);
     return json(reivindicacoes(a.escopos, { sub: a.sub, email: a.email, nome: conta.nome || "" }), 200, extra);
@@ -308,7 +408,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     }
     const token = f.get("token") || "";
     if (token && token.length <= 100) await env.CONTAS.delete("atos:acesso:" + (await sha256(token)));
-    return new Response(null, { status: 200, headers: cors(request) });
+    return new Response(null, { status: 200, headers: cors(request, reg) });
   }
 
   // ------------------------------------------- as da pagina /entrar e /conta
@@ -321,8 +421,8 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     if (!sessao) return json({ erro: "entre na sua conta" }, 401);
     const apps = await appsDe(env, sessao.sub);
     return json({
-      apps: Object.entries(apps).filter(([id]) => APPS[id]).map(([id, a]) => ({
-        ...publicoDoApp(id), escopos: (a.escopos || []).map((s) => ESCOPOS[s] || s), quando: a.quando || null, ultimo: a.ultimo || null,
+      apps: Object.entries(apps).filter(([id, a]) => temChave(reg.apps, id) && permissaoVale(a, reg.apps[id])).map(([id, a]) => ({
+        ...publicoDoApp(id, reg), escopos: (a.escopos || []).map((s) => ESCOPOS[s] || s), quando: a.quando || null, ultimo: a.ultimo || null,
       })),
     });
   }
@@ -337,13 +437,13 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     return json({ ok: true });
   }
 
-  const lido = lerPedido(d.consulta);
+  const lido = lerPedido(d.consulta, reg);
   if (lido.fatal) return json({ erro: lido.fatal }, 400);
   if (lido.ir) return json({ ir: lido.ir });
   const pedido = lido.pedido;
   const entrar = precisaEntrar(pedido, sessao, agora);
   const apps = sessao ? await appsDe(env, sessao.sub) : {};
-  const permitido = Boolean(sessao) && jaPermitiu(apps, pedido) && !pedido.prompt.includes("consent");
+  const permitido = Boolean(sessao) && jaPermitiu(apps, pedido, reg) && !pedido.prompt.includes("consent");
 
   if (p === "/api/pedido") {
     if (pedido.prompt.includes("none")) {
@@ -352,7 +452,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
       return json({ ir: await emitirCodigo(env, pedido, sessao) });
     }
     return json({
-      app: publicoDoApp(pedido.app),
+      app: publicoDoApp(pedido.app, reg),
       escopos: pedido.escopos.map((s) => ({ id: s, texto: ESCOPOS[s] })),
       conta: sessao ? { email: sessao.email, nome: sessao.nome } : null,
       entrar, permitido, dica: pedido.dica, google: googleLigado(env),
@@ -362,8 +462,10 @@ export async function atenderOIDC(request, env, url, deps = {}) {
   if (p === "/api/autorizar") {
     if (d.permitir !== true) return json({ ir: voltar(pedido.volta, { error: "access_denied", error_description: "a pessoa não permitiu", state: pedido.state, iss: EMISSOR }) });
     if (!sessao || entrar) return json({ erro: "entre na sua conta de novo" }, 401);
-    if (!jaPermitiu(apps, pedido) || pedido.prompt.includes("consent")) {
-      const antes = apps[pedido.app] || {};
+    if (!jaPermitiu(apps, pedido, reg) || pedido.prompt.includes("consent")) {
+      // A permissao de um aplicativo antigo com o mesmo id (apagado e criado de novo) nao soma: comeca do zero.
+      const guardada = temChave(apps, pedido.app) ? apps[pedido.app] : null;
+      const antes = permissaoVale(guardada, reg.apps[pedido.app]) ? guardada : {};
       apps[pedido.app] = { ...antes, escopos: [...new Set([...(antes.escopos || []), ...pedido.escopos])], quando: new Date(agora).toISOString() };
       await env.CONTAS.put("atos:apps:" + sessao.sub, JSON.stringify(apps));
     }

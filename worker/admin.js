@@ -7,36 +7,83 @@
 // antiga (elas duram 30 dias) pede para entrar de novo.
 //
 // A equipe: no KV, "atos:admin:equipe" ("atos-teste:admin:equipe" no Worker de teste) ([{email, nome, papel,
-// convidado?}]). Enquanto essa chave nao existe, vale
+// areas?, convidado?}]). Enquanto essa chave nao existe, vale
 // a semente ATOS_EQUIPE (segredo/var do Worker, o mesmo formato): e por ela que o dono entra na primeira vez, e e
 // dela que a primeira mudanca parte. Papeis: "dono", "financeiro" e "suporte".
 //
+// As areas: onde cada pessoa atua. "atos" (o que e da propria Atos: as notas fiscais) e cada produto do registro
+// PRODUTOS ("pavlvs", ...). O papel diz o que a pessoa faz; a area, onde. O dono atua em todas, sempre; o membro sem
+// a lista (os de antes dela) tambem. Quem nao tem a area recebe 403 sem que o produto seja chamado. A equipe em si
+// (convidar, papeis, areas) e so do dono, em qualquer area.
+//
 // Rotas (o contrato inteiro em C:\coryphaeus\worker\admin-api.md, "O painel na Atos"):
-//   GET  /api/admin/eu                       {email, nome, papel, github: login | null}; 401 {entrar} ou
-//                                            {reentrar}; 403 fora da equipe
-//   *    /api/admin/nfse/...                 o emissor da Atos (deps.emissor); suporte so GET
-//   *    /api/admin/pavlvs/...               encaminhado ao Worker do PAVLVS (binding PAVLVS), assinado
+//   GET  /api/admin/eu                       {email, nome, papel, areas, produtos: [{id, nome}], areas_do_painel,
+//                                            github: login | null}; 401 {entrar} ou {reentrar}; 403 fora da equipe
+//   *    /api/admin/nfse/...                 o emissor da Atos (deps.emissor); area "atos" (a tabela de municipios,
+//                                            GET .../municipios, e de consulta e serve a todos); suporte so GET
+//   *    /api/admin/<produto>/...            encaminhado ao Worker do produto (PRODUTOS: o binding e o segredo),
+//                                            assinado; so com a area do produto
+//   GET|POST /api/admin/oauth...             o "Entrar com Atos" (worker/oidc-painel.js); so o dono
 //   GET  /api/admin/github/entrar?volta=     302 para o GitHub (OAuth App do painel do PAVLVS)
 //   GET  /api/admin/github/retorno           volta do GitHub: confere a escrita no repositorio e guarda o token
 //   POST /api/admin/github/sair              esquece o GitHub desta sessao
 //   GET  /api/admin/equipe                   {membros, matriz, liberacao}
 //   POST /api/admin/equipe/convite/:email/reenviar   (so o dono) o e-mail de aviso de novo
 //   GET|POST /api/admin/alteracoes, DELETE /api/admin/alteracoes/:id, POST /api/admin/publicar,
-//   POST /api/admin/retroagir                a fila da equipe (equipe.papel, equipe.membro), como a do PAVLVS
+//   POST /api/admin/retroagir                a fila da Atos (equipe.papel, equipe.membro, equipe.areas, oauth.app,
+//                                            oauth.cliente), como a do PAVLVS
 //
 // Os POST so da propria pagina (a origem e conferida em worker/index.js).
 
 import { aleatorio, b64url, deB64url, b64urlTexto, emailValido, json, kv, limparNome, normal, sha256 } from "./comum.js";
 import { COOKIE, sessaoDe } from "./contas.js";
 import { enviarEmail as enviarEmailPadrao } from "./email.js";
+import { TIPOS_OAUTH, aplicarOAuth, atenderOAuthPainel, chaveDoRegistro, conferirOAuth } from "./oidc-painel.js";
 
 export const RECENTE_S = 12 * 3600;
 export const PAPEIS = ["dono", "financeiro", "suporte"];
 const NOME_DO_PAPEL = { dono: "Dono", financeiro: "Financeiro", suporte: "Suporte" };
 
-// O painel do PAVLVS: o prefixo aqui e la (o Worker do PAVLVS atende o mesmo caminho) e a janela da assinatura.
+// Os produtos do painel: cada um mora no proprio Worker e chega aqui por service binding, com quem pede assinado
+// pelo segredo dele (o mesmo valor nos dois Workers). /api/admin/<id>/* vai ao Worker do produto com o mesmo
+// caminho. Um produto novo = uma linha aqui + o binding em wrangler.jsonc ("services") + o segredo
+// (npx wrangler secret put <segredo>) + a tela dele (public/assets/admin-<id>.js, grupo = o nome).
+export const PRODUTOS = {
+  // github: o token do GitHub da sessao vai junto na assinatura (o OAuth App "PAVLVS Admin" e do repositorio dele).
+  pavlvs: { nome: "PAVLVS", binding: "PAVLVS", segredo: "PAINEL_SEGREDO_PAVLVS", origem: "https://paulus.ia.br", github: true },
+};
+// Nomes que nao podem ser id de produto (sao rotas do proprio painel).
+export const RESERVADOS = ["eu", "nfse", "equipe", "alteracoes", "publicar", "retroagir", "github", "oauth", "atos"];
+export const AREA_ATOS = "atos";
+
+// O prefixo aqui e la (o Worker do PAVLVS atende o mesmo caminho) e a janela da assinatura.
 export const PREFIXO_PAVLVS = "/api/admin/pavlvs/";
 export const JANELA_PAVLVS_S = 60;
+
+const temChave = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+/* As areas do painel: a Atos e cada produto, na ordem do menu. */
+export function areasDoPainel() {
+  return [{ id: AREA_ATOS, nome: "Atos" }, ...Object.entries(PRODUTOS).map(([id, p]) => ({ id, nome: p.nome }))];
+}
+const idsDasAreas = () => areasDoPainel().map((a) => a.id);
+
+/* Onde a pessoa atua: o dono e quem nao tem a lista, em todas; os outros, nas da lista que existem. */
+export function areasDe(m) {
+  if (!m || m.papel === "dono" || !Array.isArray(m.areas)) return idsDasAreas();
+  return idsDasAreas().filter((a) => m.areas.includes(a));
+}
+const todasAsAreas = (m) => m.papel === "dono" || !Array.isArray(m.areas);
+
+/* A lista pedida para um membro que nao e dono: "" se vale; senao, o motivo. */
+function conferirAreas(areas) {
+  if (!Array.isArray(areas) || !areas.length) return "marque pelo menos uma área (Atos ou um produto)";
+  if (areas.length > 20) return "áreas demais";
+  const fora = areas.filter((a) => !idsDasAreas().includes(a));
+  if (fora.length) return "área desconhecida: " + String(fora[0]).slice(0, 40);
+  return "";
+}
+const areasLimpas = (areas) => idsDasAreas().filter((a) => areas.includes(a));
 
 // O GitHub (o OAuth App "PAVLVS Admin"): so para comitar e pushar ou retroagir no PAVLVS. A conta precisa de
 // escrita no repositorio. O token fica no KV cifrado com uma chave tirada do cookie da sessao (que so o navegador
@@ -47,7 +94,7 @@ const GITHUB_S = 24 * 3600;
 // A fila da equipe: a mesma regra do PAVLVS (mudar a equipe so na publicacao, com a frase).
 const CONFIRMACAO = "comitar e pushar";
 const RETRATO_S = 30 * 24 * 3600;
-const PODE = { "equipe.papel": ["dono"], "equipe.membro": ["dono"] };
+const PODE = { "equipe.papel": ["dono"], "equipe.membro": ["dono"], "equipe.areas": ["dono"], "oauth.app": ["dono"], "oauth.cliente": ["dono"] };
 
 // As chaves do painel no KV CONTAS (o mesmo namespace do PAVLVS e do Worker de teste): "atos:admin:*" na producao
 // e "atos-teste:admin:*" no Worker de teste (AMBIENTE "teste"), para a equipe de um nao valer no outro.
@@ -68,8 +115,9 @@ export function K(env) {
 export const MATRIZ = [
   ["Ver as notas fiscais e baixar PDF e XML", PAPEIS],
   ["Emitir, cancelar e substituir notas fiscais; certificado e parâmetros", ["dono", "financeiro"]],
-  ["Incluir, editar e tirar pessoas da equipe; mudar papéis", ["dono"]],
-  ["Retroagir uma alteração da equipe", ["dono"]],
+  ["Incluir, editar e tirar pessoas da equipe; mudar papéis e áreas", ["dono"]],
+  ["Cadastrar os aplicativos do Entrar com Atos (Login Atos) e gerar os segredos", ["dono"]],
+  ["Retroagir uma alteração da equipe ou do Login Atos", ["dono"]],
 ];
 
 const te = new TextEncoder();
@@ -87,6 +135,8 @@ function membroValido(x) {
 }
 function membroLimpo(x) {
   const m = { email: normal(x.email), nome: limparNome(x.nome), papel: x.papel };
+  // Sem a lista: todas as areas (os membros de antes dela). A lista guarda so ids no formato de area.
+  if (Array.isArray(x.areas)) m.areas = [...new Set(x.areas.filter((a) => typeof a === "string" && /^[a-z0-9-]{1,30}$/.test(a)))].slice(0, 20);
   if (x.convidado && typeof x.convidado === "object") {
     m.convidado = { criado: String(x.convidado.criado || ""), por: String(x.convidado.por || ""), por_nome: limparNome(x.convidado.por_nome) };
   }
@@ -98,7 +148,7 @@ export function equipeDaSemente(env) {
   try {
     const l = JSON.parse(env.ATOS_EQUIPE || "[]");
     return Array.isArray(l)
-      ? l.filter((x) => x && x.email && PAPEIS.includes(x.papel)).map((x) => ({ email: normal(x.email), nome: String(x.nome || ""), papel: x.papel }))
+      ? l.filter((x) => x && x.email && PAPEIS.includes(x.papel)).map((x) => membroLimpo({ email: x.email, nome: String(x.nome || ""), papel: x.papel, areas: x.areas }))
       : [];
   } catch {
     return [];
@@ -138,7 +188,7 @@ export async function quemNoPainel(request, env, agora = Date.now()) {
   if (!(agora / 1000 - Number(s.auth_time || 0) < RECENTE_S)) {
     return { recusa: json({ erro: "o painel pede um login de até 12 horas: entre de novo", reentrar: true }, 401) };
   }
-  return { email: membro.email, nome: membro.nome || s.nome || "", papel: membro.papel };
+  return { email: membro.email, nome: membro.nome || s.nome || "", papel: membro.papel, areas: areasDe(membro) };
 }
 
 // ------------------------------------------------------------------ o GitHub
@@ -256,18 +306,21 @@ export async function assinarPedidoDoPainel(segredo, metodo, caminho, corpo, que
   return "t=" + ts + ",v1=" + (await hmacHex(segredo, [ts, metodo, caminho, resumo, quem64].join(".")));
 }
 
-/* /api/admin/pavlvs/* -> o Worker do PAVLVS, o mesmo caminho e a mesma query, com quem pede assinado. A resposta
-   volta como veio. Quem pode o que no PAVLVS e decidido la (a tabela de papeis dele). */
-async function encaminharAoPavlvs(request, env, url, c) {
-  const servico = c.deps.pavlvs || env.PAVLVS;
-  const segredo = String(env.PAINEL_SEGREDO_PAVLVS || "");
+/* /api/admin/<produto>/* -> o Worker do produto, o mesmo caminho e a mesma query, com quem pede assinado. A resposta
+   volta como veio. Quem pode o que no produto e decidido la (a tabela de papeis dele); aqui, so a area.
+   (Nos testes, deps[<id>] faz as vezes do binding; null = sem binding.) */
+async function encaminharAoProduto(request, env, url, c, id) {
+  const prod = PRODUTOS[id];
+  const servico = temChave(c.deps, id) ? c.deps[id] : env[prod.binding];
+  const segredo = String(env[prod.segredo] || "");
   if (!servico || !segredo) {
-    if (servico) console.warn("painel: falta o segredo PAINEL_SEGREDO_PAVLVS");
-    return json({ erro: "o PAVLVS não está ligado a este painel" }, 503);
+    if (servico) console.warn("painel: falta o segredo " + prod.segredo);
+    return json({ erro: "o " + prod.nome + " não está ligado a este painel" }, 503);
   }
   const m = request.method;
   const corpo = m === "GET" || m === "HEAD" ? null : new Uint8Array(await request.arrayBuffer());
-  const gh = await githubDaSessao(request, env, c.quem.email);
+  // O token do GitHub (escrita no repositorio do PAVLVS) so vai ao produto que o usa.
+  const gh = prod.github ? await githubDaSessao(request, env, c.quem.email) : null;
   const quem64 = b64urlTexto(JSON.stringify({ email: c.quem.email, nome: c.quem.nome, papel: c.quem.papel, github: gh }));
   const caminho = url.pathname + url.search;
   const headers = new Headers({
@@ -276,10 +329,10 @@ async function encaminharAoPavlvs(request, env, url, c) {
   });
   for (const h of ["content-type", "accept"]) if (request.headers.get(h)) headers.set(h, request.headers.get(h));
   try {
-    const r = await servico.fetch(new Request("https://paulus.ia.br" + caminho, { method: m, headers, body: corpo }));
+    const r = await servico.fetch(new Request(prod.origem + caminho, { method: m, headers, body: corpo }));
     return new Response(r.body, r);
   } catch {
-    return json({ erro: "o PAVLVS não respondeu" }, 502);
+    return json({ erro: "o " + prod.nome + " não respondeu" }, 502);
   }
 }
 
@@ -304,13 +357,13 @@ async function telaDaEquipe(c) {
   const membros = [];
   for (const m of await listaDaEquipe(c.env)) {
     const a = await acessoDe(c.env, m.email);
-    const x = { email: m.email, nome: m.nome, papel: m.papel, ultimo: a ? a.ultimo : null };
+    const x = { email: m.email, nome: m.nome, papel: m.papel, areas: areasDe(m), todas: todasAsAreas(m), ultimo: a ? a.ultimo : null };
     // Incluida e ainda sem entrar: a tela mostra reenviar o aviso e cancelar.
     if (m.convidado && !a) x.convite = { criado: m.convidado.criado, vence: null, por: m.convidado.por, vencido: false };
     membros.push(x);
   }
   return {
-    membros, matriz: MATRIZ.map(([acao, papeis]) => ({ acao, dono: papeis.includes("dono"), financeiro: papeis.includes("financeiro"), suporte: papeis.includes("suporte") })),
+    membros, areas_do_painel: areasDoPainel(), matriz: MATRIZ.map(([acao, papeis]) => ({ acao, dono: papeis.includes("dono"), financeiro: papeis.includes("financeiro"), suporte: papeis.includes("suporte") })),
     // Sem passo a mao: a pessoa entra com a Conta Atos do e-mail incluido.
     liberacao: { ligado: true, falta: "" },
   };
@@ -320,11 +373,13 @@ function avisoDeEntrada(c, m) {
   const mandar = c.deps.enviarEmail || enviarEmailPadrao;
   const quem = (m.convidado && (m.convidado.por_nome || m.convidado.por)) || "A equipe da Atos";
   const primeiro = String(m.nome || "").trim().split(/\s+/)[0];
+  const nomes = areasDoPainel().filter((a) => areasDe(m).includes(a.id)).map((a) => a.nome);
+  const onde = todasAsAreas(m) ? "" : " Você atua em: " + nomes.join(", ") + ".";
   return mandar(c.env, {
     para: m.email, assunto: "Você entrou na equipe do painel da Atos", titulo: "Você está na equipe do painel",
     pre: "Entre com a sua Conta Atos deste e-mail",
     texto: (primeiro ? "Olá, " + primeiro + ".\n\n" : "") +
-      quem + " incluiu você na equipe do painel da Atos, com o papel " + (NOME_DO_PAPEL[m.papel] || m.papel) + ".\n\n" +
+      quem + " incluiu você na equipe do painel da Atos, com o papel " + (NOME_DO_PAPEL[m.papel] || m.papel) + "." + onde + "\n\n" +
       "Para entrar, abra atos.dev.br/admin e entre com a Conta Atos deste e-mail (" + m.email + "). Se ainda não tem, crie a conta com este mesmo e-mail em atos.dev.br/entrar. " +
       "O painel pede um login de até 12 horas. A conta do GitHub (com escrita no repositório do PAVLVS) só é pedida para comitar e pushar ou retroagir no PAVLVS." +
       "\n\nSe não esperava por isso, ignore este e-mail e avise contato@atos.dev.br.",
@@ -368,6 +423,11 @@ async function conferirMembro(c, d) {
   if (acao === "criar" || acao === "editar") {
     if (limparNome(d.nome).length < 2) return "diga o nome da pessoa";
     if (!PAPEIS.includes(d.papel)) return "papel inválido";
+    // As areas: obrigatorias ao incluir quem nao e dono; ao editar, so se vierem (sem elas, ficam as de antes).
+    if (d.papel !== "dono" && (acao === "criar" || d.areas !== undefined)) {
+      const e = conferirAreas(d.areas);
+      if (e) return e;
+    }
   }
   if (acao === "criar" && naEquipe(email)) return email + " já está na equipe";
   if (acao === "editar") {
@@ -394,6 +454,13 @@ async function conferirAlteracao(c, tipo, d) {
     return "";
   }
   if (tipo === "equipe.membro") return conferirMembro(c, d);
+  if (tipo === "equipe.areas") {
+    const m = (await listaDaEquipe(c.env)).find((x) => x.email === normal(d.email));
+    if (!m) return "essa pessoa não está na equipe";
+    if (m.papel === "dono") return "o dono atua em todas as áreas";
+    return conferirAreas(d.areas);
+  }
+  if (TIPOS_OAUTH.includes(tipo)) return conferirOAuth(c.env, tipo, d);
   return "";
 }
 
@@ -426,7 +493,10 @@ async function aplicarMembro(c, d) {
   const email = normal(d.email);
   const nome = limparNome(d.nome);
   const lista = await listaDaEquipe(env);
-  const novo = () => ({ email, nome, papel: d.papel, convidado: { criado: iso(c.agora), por: c.quem.email, por_nome: limparNome(c.quem.nome) } });
+  const antigo = lista.find((x) => x.email === normal(d.de));
+  // As areas: as pedidas; sem elas (editar), as de antes. O dono nao guarda lista (atua em todas).
+  const areas = d.papel === "dono" ? undefined : Array.isArray(d.areas) ? areasLimpas(d.areas) : antigo && Array.isArray(antigo.areas) ? antigo.areas : undefined;
+  const novo = () => ({ email, nome, papel: d.papel, ...(areas ? { areas } : {}), convidado: { criado: iso(c.agora), por: c.quem.email, por_nome: limparNome(c.quem.nome) } });
   const avisar = async (m) => {
     const e = await avisoDeEntrada(c, m);
     return e.ok ? {} : { aviso: email + " entrou na equipe, mas o e-mail de aviso não saiu (" + e.erro + "): avise a pessoa" };
@@ -443,7 +513,13 @@ async function aplicarMembro(c, d) {
   }
   const de = normal(d.de);
   if (de === email) {
-    await guardarEquipe(env, lista.map((x) => (x.email === de ? { ...x, nome, papel: d.papel } : x)));
+    await guardarEquipe(env, lista.map((x) => {
+      if (x.email !== de) return x;
+      const y = { ...x, nome, papel: d.papel };
+      if (areas) y.areas = areas;
+      else delete y.areas;
+      return y;
+    }));
     return {};
   }
   // O e-mail mudou: o novo entra (e recebe o aviso) e o antigo sai.
@@ -465,7 +541,23 @@ async function aplicar(c, alt) {
     return {};
   }
   if (alt.tipo === "equipe.membro") return aplicarMembro(c, d);
+  if (alt.tipo === "equipe.areas") {
+    const erro = await conferirAlteracao(c, alt.tipo, d);
+    if (erro) throw new Error(erro);
+    const lista = await listaDaEquipe(c.env);
+    lista.find((x) => x.email === normal(d.email)).areas = areasLimpas(d.areas);
+    await guardarEquipe(c.env, lista);
+    return {};
+  }
+  if (TIPOS_OAUTH.includes(alt.tipo)) return aplicarOAuth(c.env, alt.tipo, d, c.quem.email, c.agora);
   throw new Error("alteração desconhecida");
+}
+
+/* A chave do KV que cada tipo muda (para o retrato de antes e depois, e o retroagir); null = nao volta assim. */
+function chaveDoTipo(env, tipo) {
+  if (tipo === "equipe.papel" || tipo === "equipe.areas") return K(env).equipe;
+  if (TIPOS_OAUTH.includes(tipo)) return chaveDoRegistro(env);
+  return null;
 }
 
 async function publicar(c, d) {
@@ -483,10 +575,12 @@ async function publicar(c, d) {
     try {
       const item = { id: alt.id, tipo: alt.tipo, texto: alt.texto };
       let r;
-      if (alt.tipo === "equipe.papel") {
-        const antes = await c.env.CONTAS.get(K(c.env).equipe);
+      const chaveKv = chaveDoTipo(c.env, alt.tipo);
+      if (chaveKv) {
+        const antes = await c.env.CONTAS.get(chaveKv);
         r = await aplicar(c, alt);
-        item.kv = [{ chave: K(c.env).equipe, antes, depois: await c.env.CONTAS.get(K(c.env).equipe) }];
+        item.kv = [{ chave: chaveKv, antes, depois: await c.env.CONTAS.get(chaveKv) }];
+        if (r && r.nao_volta) item.aviso_volta = String(r.nao_volta).slice(0, 300);
       } else {
         r = await aplicar(c, alt);
         item.nao_volta = "a equipe volta pela própria tela (incluir ou tirar a pessoa de novo)";
@@ -517,7 +611,8 @@ async function publicar(c, d) {
 }
 
 /* POST /api/admin/retroagir {publicacao | commit, confirmacao: "retroagir"} - so o dono. Tudo ou nada: volta o
-   equipe.papel (se a equipe nao mudou depois); o equipe.membro nao volta por aqui. */
+   equipe.papel, o equipe.areas e o Login Atos (oauth.app, oauth.cliente) ao que eram, se a chave nao mudou depois;
+   o equipe.membro nao volta por aqui. O segredo de um cliente apagado nao volta (o aviso diz). */
 async function retroagir(c, d) {
   if (c.quem.papel !== "dono") return json({ erro: "só o papel dono retroage uma publicação" }, 403);
   if (String(d.confirmacao || "").trim().toLowerCase() !== "retroagir") return json({ erro: "digite exatamente: retroagir" }, 400);
@@ -530,11 +625,15 @@ async function retroagir(c, d) {
   if (!retrato) return json({ erro: "o retrato dessa publicação venceu (vale 30 dias): não dá para retroagir; desfaça à mão" }, 409);
   const itens = retrato.itens || [];
   const motivos = [];
-  const agoraNaEquipe = await c.env.CONTAS.get(K(c.env).equipe);
-  for (const x of itens) {
-    if (x.desfeito) continue;
-    if (x.nao_volta) motivos.push("“" + x.texto + "”: " + x.nao_volta);
-    else if (x.kv && agoraNaEquipe !== x.kv[0].depois) motivos.push("“" + x.texto + "”: a equipe mudou depois dessa publicação: retroaja a mais nova antes");
+  // Cada chave tem de estar como a publicacao a deixou (o "depois" do ultimo item que a mudou).
+  const ultimoDepois = new Map();
+  for (const x of itens) if (!x.desfeito && x.kv) for (const k of x.kv) ultimoDepois.set(k.chave, { depois: k.depois, texto: x.texto });
+  for (const x of itens) if (!x.desfeito && x.nao_volta) motivos.push("“" + x.texto + "”: " + x.nao_volta);
+  for (const [chave, u] of ultimoDepois) {
+    if ((await c.env.CONTAS.get(chave)) !== u.depois) {
+      const oque = chave === K(c.env).equipe ? "a equipe" : "o Login Atos";
+      motivos.push("“" + u.texto + "”: " + oque + " mudou depois dessa publicação: retroaja a mais nova antes");
+    }
   }
   if (motivos.length) return json({ erro: "não dá para retroagir esta publicação: " + motivos.join("; "), itens: motivos }, 409);
   for (const x of [...itens].reverse()) {
@@ -550,7 +649,8 @@ async function retroagir(c, d) {
   pub.revertida = { quando: iso(c.agora), por: c.quem.email, commit: "kv-" + novoId().slice(0, 5) };
   pubs[i] = pub;
   await c.env.CONTAS.put(K(c.env).publicacoes, JSON.stringify(pubs));
-  return json({ ok: true, commit: pub.revertida.commit, publicacao: publicacaoParaTela(pub), avisos: [] });
+  const avisos = itens.filter((x) => x.aviso_volta).map((x) => x.aviso_volta);
+  return json({ ok: true, commit: pub.revertida.commit, publicacao: publicacaoParaTela(pub), avisos });
 }
 
 // ------------------------------------------------------------------ a entrada
@@ -567,13 +667,28 @@ export async function atenderAdmin(request, env, url, deps = {}) {
   if (p === "/api/admin/eu" && m === "GET") {
     await anotarAcesso(env, quem.email, agora);
     const gh = await githubDaSessao(request, env, quem.email);
-    return json({ email: quem.email, nome: quem.nome, papel: quem.papel, github: gh ? gh.login : null });
+    return json({
+      email: quem.email, nome: quem.nome, papel: quem.papel, areas: quem.areas, github: gh ? gh.login : null,
+      produtos: Object.entries(PRODUTOS).map(([id, x]) => ({ id, nome: x.nome })), areas_do_painel: areasDoPainel(),
+    });
   }
-  if (p.startsWith(PREFIXO_PAVLVS)) return encaminharAoPavlvs(request, env, url, c);
+  const doProduto = p.match(/^\/api\/admin\/([a-z0-9-]{1,30})\//);
+  if (doProduto && temChave(PRODUTOS, doProduto[1])) {
+    const id = doProduto[1];
+    if (!quem.areas.includes(id)) return json({ erro: "você não atua no " + PRODUTOS[id].nome + ": peça ao dono para incluir a área" }, 403);
+    return encaminharAoProduto(request, env, url, c, id);
+  }
   if (p.startsWith("/api/admin/nfse/")) {
+    // A tabela de municipios (IBGE) e de consulta: serve tambem as telas dos produtos.
+    const consulta = m === "GET" && p === "/api/admin/nfse/municipios";
+    if (!consulta && !quem.areas.includes(AREA_ATOS)) return json({ erro: "você não atua na Atos (notas fiscais): peça ao dono para incluir a área" }, 403);
     if (quem.papel === "suporte" && m !== "GET") return json({ erro: "o suporte só consulta as notas" }, 403);
     if (!deps.emissor) return json({ erro: "o emissor de notas ainda não está ligado" }, 503);
     return deps.emissor(request, env, url, quem);
+  }
+  if (p === "/api/admin/oauth" || p.startsWith("/api/admin/oauth/")) {
+    if (quem.papel !== "dono") return json({ erro: "o Login Atos é só do dono" }, 403);
+    return atenderOAuthPainel(request, env, url, c);
   }
   if (p === "/api/admin/github/entrar" && m === "GET") return githubEntrar(c, url);
   if (p === "/api/admin/github/retorno" && m === "GET") return githubRetorno(c, request, url);

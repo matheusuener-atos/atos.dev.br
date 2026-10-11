@@ -1,7 +1,7 @@
 // Teste do painel da Atos (worker/admin.js): quem entra, o login recente, os papeis, a equipe no KV (com a semente
 // ATOS_EQUIPE), a fila da equipe, o GitHub e o encaminhamento ao PAVLVS (a assinatura). Sem rede.
 //   node worker/teste-admin.mjs
-import { atenderAdmin, equipeDaSemente, K, RECENTE_S, JANELA_PAVLVS_S } from "./admin.js";
+import { atenderAdmin, equipeDaSemente, K, RECENTE_S, JANELA_PAVLVS_S, PRODUTOS, RESERVADOS } from "./admin.js";
 import { sha256 } from "./comum.js";
 
 let falhas = 0;
@@ -181,11 +181,11 @@ const pedirFila = (cookie, tipo, dados, texto = tipo) => pedir("POST", "/api/adm
 const publicar = (cookie = dono, confirmacao = "comitar e pushar") => pedir("POST", "/api/admin/publicar", cookie, { corpo: { confirmacao } });
 r = await pedirFila(sup, "equipe.membro", { acao: "criar", nome: "Xavier", email: "x@atos.dev.br", papel: "dono" });
 checar(r.status === 403, "o suporte não mexe na equipe");
-r = await pedirFila(dono, "equipe.membro", { acao: "criar", nome: "Ana", email: "sup@atos.dev.br", papel: "suporte" });
+r = await pedirFila(dono, "equipe.membro", { acao: "criar", nome: "Ana", email: "sup@atos.dev.br", papel: "suporte", areas: ["atos"] });
 checar(r.status === 400, "incluir quem já está: recusado");
 r = await pedirFila(dono, "coisa.estranha", {});
 checar(r.status === 400, "tipo desconhecido: recusado");
-r = await pedirFila(dono, "equipe.membro", { acao: "criar", nome: "Bia Souza", email: "Bia@atos.dev.br", papel: "financeiro" }, "Incluí a Bia");
+r = await pedirFila(dono, "equipe.membro", { acao: "criar", nome: "Bia Souza", email: "Bia@atos.dev.br", papel: "financeiro", areas: ["atos", "pavlvs"] }, "Incluí a Bia");
 checar(r.status === 200 && r.d.pendentes.length === 1 && !guardados.has("atos:admin:equipe"), "entra na fila; a equipe não muda antes de publicar");
 r = await publicar(dono, "publicar");
 checar(r.status === 400, "a frase errada não publica");
@@ -206,7 +206,7 @@ r = await pedir("POST", "/api/admin/equipe/convite/" + encodeURIComponent("bia@a
 checar(r.status === 404, "reenviar para quem já entrou: 404");
 
 emailFalha = true;
-await pedirFila(dono, "equipe.membro", { acao: "criar", nome: "Caio", email: "caio@atos.dev.br", papel: "suporte" }, "Incluí o Caio");
+await pedirFila(dono, "equipe.membro", { acao: "criar", nome: "Caio", email: "caio@atos.dev.br", papel: "suporte", areas: ["atos"] }, "Incluí o Caio");
 r = await publicar();
 checar(r.d.ok && String(r.d.resultados[0].aviso).includes("avise a pessoa"), "sem o e-mail, o Caio entra e o aviso da publicação diz", r.d.resultados);
 emailFalha = false;
@@ -252,6 +252,99 @@ checar(r.d.ok && eqKV.some((x) => x.email === "beatriz@atos.dev.br") && !eqKV.so
 await pedirFila(dono, "equipe.membro", { acao: "excluir", email: "beatriz@atos.dev.br" }, "Tirei a Beatriz");
 r = await publicar();
 checar(r.d.ok && !JSON.parse(guardados.get("atos:admin:equipe")).some((x) => x.email === "beatriz@atos.dev.br"), "excluir");
+
+// ------------------------------------------------------------ as areas
+console.log("as áreas (onde cada um atua)");
+checar(Object.keys(PRODUTOS).every((id) => !RESERVADOS.includes(id) && /^[a-z0-9-]{1,30}$/.test(id)), "nenhum produto tem id de rota do painel");
+r = await pedir("GET", "/api/admin/eu", dono);
+checar(r.d.areas.join() === "atos,pavlvs" && r.d.produtos.length === 1 && r.d.produtos[0].id === "pavlvs" && r.d.produtos[0].nome === "PAVLVS" && r.d.areas_do_painel[0].id === "atos",
+  "o /eu traz as áreas da pessoa e o registro de produtos (id e nome)", r.d);
+r = await pedir("GET", "/api/admin/eu", sup);
+checar(r.d.areas.join() === "atos,pavlvs", "membro antigo, sem a lista: todas as áreas", r.d.areas);
+chamadas.length = 0;
+const nPv = pavlvs.pedidos.length;
+r = await pedir("POST", "/api/admin/nfse/notas/1/cancelar", sup, { deps: { emissor } });
+checar(r.status === 403 && chamadas.length === 0, "(o papel continua valendo: o suporte com a área Atos não cancela)");
+checar((await pedir("GET", "/api/admin/nfse/notas", sup, { deps: { emissor } })).status === 200 && (await pedir("GET", "/api/admin/pavlvs/visao", sup)).status === 200,
+  "membro antigo chega à Atos e ao PAVLVS");
+r = await pedirFila(dono, "equipe.membro", { acao: "criar", nome: "Duda", email: "duda@atos.dev.br", papel: "financeiro" });
+checar(r.status === 400 && r.d.erro.includes("área"), "convidar quem não é dono sem marcar área: recusado", r.d);
+r = await pedirFila(dono, "equipe.membro", { acao: "criar", nome: "Duda", email: "duda@atos.dev.br", papel: "financeiro", areas: ["plantare"] });
+checar(r.status === 400 && r.d.erro.includes("desconhecida"), "área que não existe: recusada", r.d);
+await pedirFila(dono, "equipe.membro", { acao: "criar", nome: "Duda", email: "duda@atos.dev.br", papel: "financeiro", areas: ["pavlvs"] }, "Incluí a Duda (PAVLVS)");
+await pedirFila(dono, "equipe.membro", { acao: "criar", nome: "Eva", email: "eva@atos.dev.br", papel: "financeiro", areas: ["atos"] }, "Incluí a Eva (Atos)");
+emails.length = 0;
+r = await publicar();
+checar(r.d.ok && emails.some((e) => e.para === "duda@atos.dev.br" && e.texto.includes("Você atua em: PAVLVS")), "publicado; o aviso diz onde a pessoa atua", emails.map((e) => e.texto));
+const duda = await sessao("duda@atos.dev.br", 1);
+const eva = await sessao("eva@atos.dev.br", 1);
+checar((await pedir("GET", "/api/admin/eu", duda)).d.areas.join() === "pavlvs", "a Duda atua só no PAVLVS");
+chamadas.length = 0;
+r = await pedir("GET", "/api/admin/nfse/notas", duda, { deps: { emissor } });
+checar(r.status === 403 && chamadas.length === 0 && r.d.erro.includes("Atos"), "só com o PAVLVS: as notas da Atos dão 403, e o emissor nem é chamado", r.d);
+r = await pedir("POST", "/api/admin/nfse/notas", duda, { deps: { emissor } });
+checar(r.status === 403 && chamadas.length === 0, "nem para emitir");
+r = await pedir("GET", "/api/admin/nfse/municipios?q=sao", duda, { deps: { emissor } });
+checar(r.status === 200 && chamadas.length === 1, "a tabela de municípios (consulta, usada no cadastro do PAVLVS) serve a ela");
+r = await pedir("GET", "/api/admin/pavlvs/visao", duda);
+checar(r.status === 200 && pavlvs.pedidos.length === nPv + 2 && (await conferir(pavlvs.pedidos.at(-1))).quem.email === "duda@atos.dev.br", "e chega ao PAVLVS");
+r = await pedir("GET", "/api/admin/pavlvs/visao", eva);
+checar(r.status === 403 && pavlvs.pedidos.length === nPv + 2 && r.d.erro.includes("PAVLVS"), "só com a Atos: o PAVLVS dá 403, e o binding nem é chamado", r.d);
+r = await pedir("POST", "/api/admin/pavlvs/alteracoes", eva, { corpo: corpoPost });
+checar(r.status === 403 && pavlvs.pedidos.length === nPv + 2, "nem um POST");
+checar((await pedir("POST", "/api/admin/nfse/notas", eva, { deps: { emissor } })).status === 200, "e a Eva (financeiro, Atos) emite");
+eq = (await pedir("GET", "/api/admin/equipe", eva)).d;
+const mDuda = eq.membros.find((x) => x.email === "duda@atos.dev.br"), mDono = eq.membros.find((x) => x.email === "dono@atos.dev.br");
+checar(mDuda.areas.join() === "pavlvs" && !mDuda.todas && mDono.todas && mDono.areas.length === 2 && eq.areas_do_painel.map((a) => a.nome).join() === "Atos,PAVLVS",
+  "a tela Equipe: as áreas de cada um e as do painel", eq);
+
+console.log("a fila das áreas");
+r = await pedirFila(eva, "equipe.areas", { email: "duda@atos.dev.br", areas: ["atos"] });
+checar(r.status === 403, "só o dono muda as áreas");
+r = await pedirFila(dono, "equipe.areas", { email: "dono@atos.dev.br", areas: ["atos"] });
+checar(r.status === 400 && r.d.erro.includes("todas"), "o dono atua em todas: não tem lista", r.d);
+r = await pedirFila(dono, "equipe.areas", { email: "duda@atos.dev.br", areas: [] });
+checar(r.status === 400, "sem nenhuma área: recusado");
+r = await pedirFila(dono, "equipe.areas", { email: "ninguem@atos.dev.br", areas: ["atos"] });
+checar(r.status === 400, "quem não está na equipe: recusado");
+const eqAntesAreas = guardados.get("atos:admin:equipe");
+await pedirFila(dono, "equipe.areas", { email: "duda@atos.dev.br", areas: ["atos", "pavlvs"] }, "Duda nas duas");
+r = await pedir("GET", "/api/admin/nfse/notas", duda, { deps: { emissor } });
+checar(r.status === 403, "na fila, ainda não vale");
+await pedirFila(dono, "equipe.areas", { email: "duda@atos.dev.br", areas: ["atos"] }, "Duda só na Atos");
+const pubAreas = (await publicar()).d.publicacao;
+checar(pubAreas.n === 2 && pubAreas.retroagivel, "publicado (duas mudanças da mesma pessoa numa publicação)", pubAreas);
+checar((await pedir("GET", "/api/admin/nfse/notas", duda, { deps: { emissor } })).status === 200 && (await pedir("GET", "/api/admin/pavlvs/visao", duda)).status === 403,
+  "vale na hora: a Duda vai para a Atos e sai do PAVLVS");
+r = await pedir("POST", "/api/admin/retroagir", dono, { corpo: { publicacao: pubAreas.id, confirmacao: "retroagir" } });
+checar(r.status === 200 && guardados.get("atos:admin:equipe") === eqAntesAreas && (await pedir("GET", "/api/admin/eu", duda)).d.areas.join() === "pavlvs",
+  "retroagir as áreas (as duas de uma vez): a Duda volta só ao PAVLVS", r.d);
+await pedirFila(dono, "equipe.papel", { email: "duda@atos.dev.br", papel: "suporte" }, "Duda suporte");
+await publicar();
+checar((await pedir("GET", "/api/admin/eu", duda)).d.areas.join() === "pavlvs", "mudar o papel não mexe nas áreas");
+await pedirFila(dono, "equipe.membro", { acao: "editar", de: "duda@atos.dev.br", email: "duda@atos.dev.br", nome: "Duda Lima", papel: "suporte" }, "Nome da Duda");
+await publicar();
+checar((await pedir("GET", "/api/admin/eu", duda)).d.areas.join() === "pavlvs", "editar sem mandar áreas mantém as de antes");
+
+console.log("um produto novo (uma linha no registro)");
+PRODUTOS.plantare = { nome: "Plantare Maps", binding: "PLANTARE", segredo: "PAINEL_SEGREDO_PLANTARE", origem: "https://plantare.example" };
+const plantare = { pedidos: [], fetch: async (req) => { plantare.pedidos.push(req); return new Response(JSON.stringify({ ok: "plantare" }), { headers: { "content-type": "application/json" } }); } };
+const envPl = { ...env, PAINEL_SEGREDO_PLANTARE: "outro-segredo" };
+r = await pedir("GET", "/api/admin/eu", dono, { envUsado: envPl });
+checar(r.d.produtos.map((x) => x.id).join() === "pavlvs,plantare" && r.d.areas.includes("plantare"), "o /eu já mostra o produto, e o dono já atua nele", r.d);
+r = await pedir("GET", "/api/admin/github/entrar?volta=alteracoes", dono);
+await pedir("GET", "/api/admin/github/retorno?code=bom&state=" + new URL(r.r.headers.get("location")).searchParams.get("state"), dono);
+checar((await pedir("GET", "/api/admin/eu", dono)).d.github === "matheus", "(o GitHub ligado de novo nesta sessão)");
+r = await pedir("GET", "/api/admin/plantare/mapas?x=1", dono, { envUsado: envPl, deps: { plantare } });
+checar(r.status === 200 && r.d.ok === "plantare" && new URL(plantare.pedidos[0].url).href === "https://plantare.example/api/admin/plantare/mapas?x=1", "o encaminhamento é o mesmo, com o binding e o segredo dele", r.d);
+const qPl = JSON.parse(Buffer.from(plantare.pedidos[0].headers.get("atos-painel-quem"), "base64url").toString("utf8"));
+checar(qPl.github === null, "o token do GitHub (do repositório do PAVLVS) não vai a outro produto");
+r = await pedir("GET", "/api/admin/plantare/mapas", duda, { envUsado: envPl, deps: { plantare } });
+checar(r.status === 403 && plantare.pedidos.length === 1, "a Duda (só PAVLVS) não chega a ele");
+r = await pedir("GET", "/api/admin/plantare/mapas", dono, { deps: { plantare } });
+checar(r.status === 503 && r.d.erro === "o Plantare Maps não está ligado a este painel", "sem o segredo dele: 503", r.d);
+delete PRODUTOS.plantare;
+await pedir("POST", "/api/admin/github/sair", dono);
 
 console.log("o Worker de teste");
 const envTeste = { ...env, AMBIENTE: "teste", ATOS_EQUIPE: JSON.stringify([{ email: "teste@atos.dev.br", nome: "T", papel: "dono" }]) };

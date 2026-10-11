@@ -144,6 +144,8 @@ h1, h2, h3, p { margin: 0; }
 .quadro figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-family: var(--serif); font-size: 15px; color: var(--text-soft); }
 .quadro figcaption span + span { font-style: italic; color: var(--silver); }
 .logo { width: 32px; height: 32px; flex-shrink: 0; display: block; border: 1px solid var(--line); }
+/* o aplicativo sem icone: a inicial do nome */
+.logo.inicial { display: flex; align-items: center; justify-content: center; background: var(--surface-2); color: var(--text); font-weight: 600; font-size: 15px; line-height: 1; }
 .nota { font-size: 12px; line-height: 1.55; color: var(--muted); text-wrap: pretty; }
 .nota a { color: var(--text-soft); }
 

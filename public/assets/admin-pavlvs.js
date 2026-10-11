@@ -992,7 +992,7 @@
     var inp = document.getElementById("pv-busca-q"); if (inp) inp.setAttribute("aria-activedescendant", "pv-bi-" + i);
     var at = document.getElementById("pv-bi-" + i); if (at && at.scrollIntoView) at.scrollIntoView({ block: "nearest" });
   }
-  A.buscador = { abrir: function () { abrirModal({ tipo: "busca", q: "", idx: 0, res: null, erro: "", carregando: false, seq: 0 }, "largo pv-busca"); } };
+  A.buscador = { area: "pavlvs", abrir: function () { abrirModal({ tipo: "busca", q: "", idx: 0, res: null, erro: "", carregando: false, seq: 0 }, "largo pv-busca"); } };
 
   /* ================================================================ acoes */
 
@@ -1422,6 +1422,8 @@
 
   A.aoEntrar(function () {
     // As contagens do menu e a configuracao (o e-mail, os tuneis, a nuvem) leem em segundo plano.
+    // So para quem atua no PAVLVS (os outros nem veem as secoes; o servidor recusaria).
+    if (!A.temArea("pavlvs")) return;
     ler("sessao", true); ler("tuneis"); ler("renovacoes");
     if (fila()) fila().ouvir(function () { if (TELA[A.secaoAtual()]) render(); });
   });
@@ -1431,7 +1433,7 @@
   };
   TELAS.forEach(function (t, i) {
     A.secoes.push({
-      id: t.id, nome: t.nome, grupo: "PAVLVS", ordem: i + 1, contagem: CONTAGEM[t.id],
+      id: t.id, nome: t.nome, grupo: "PAVLVS", area: "pavlvs", ordem: i + 1, contagem: CONTAGEM[t.id],
       desenhar: function (raiz) {
         if (t.id === "contas" && !R.abrindoConta) Q.contas.aberta = null;
         R.abrindoConta = false;

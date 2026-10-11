@@ -5,11 +5,14 @@
    que as secoes dividem (a API, os formatos, o aviso que some sozinho e a camada do pop-up). Cada secao se registra
    em AdminAtos.secoes a partir do seu proprio script (assets/admin-*.js), carregado depois deste:
 
-     { id, nome, grupo: "Atos" | "PAVLVS", ordem, desenhar(raiz, ctx), contagem() }
+     { id, nome, grupo: "Atos" | <nome do produto>, ordem, area, papeis, desenhar(raiz, ctx), contagem() }
 
-   `grupo` sem valor e "Atos"; `ordem` arruma dentro do grupo (sem ela, a ordem de registro); `contagem` (opcional)
-   e o numero ao lado do nome no menu (0 ou nada: sem numero). Hoje: Notas fiscais (admin-nfse.js), Equipe
-   (admin-equipe.js), Confirmar alteracoes (admin-fila.js) e as do PAVLVS (admin-pavlvs.js).
+   `grupo` sem valor e "Atos"; os outros grupos sao os produtos do registro (GET /api/admin/eu, produtos), na ordem
+   dele. `ordem` arruma dentro do grupo (sem ela, a ordem de registro); `contagem` (opcional) e o numero ao lado do
+   nome no menu (0 ou nada: sem numero). `area` ("atos" ou o id de um produto) mostra a secao so a quem atua nela
+   (A.temArea); `papeis` (ex.: ["dono"]), so a esses papeis. O servidor confere as duas coisas de novo. Hoje: Notas
+   fiscais (admin-nfse.js), Equipe (admin-equipe.js), Confirmar alteracoes (admin-fila.js), Login Atos
+   (admin-oauth.js) e as do PAVLVS (admin-pavlvs.js).
 
    A CSP do /admin e script-src 'self'; style-src 'self': nada de estilo nem evento no HTML; tudo por classe
    (admin.css) e por delegacao de eventos. */
@@ -95,7 +98,17 @@
       quandoCurto: quandoCurto, rel: rel, dec: dec, brl: brl, usd: usd, tok: tok, pct: pct, PAPEL_NOME: PAPEL_NOME },
   };
   var S = { secao: "", dentro: false, aoEntrar: [] };
-  var GRUPOS = ["Atos", "PAVLVS"];
+  /* Os grupos do menu: a Atos e os produtos do registro (do /eu). */
+  function grupos() { return ["Atos"].concat(((A.quem && A.quem.produtos) || []).map(function (p) { return p.nome; })); }
+  /* Onde a pessoa atua (o /eu): "atos" e os ids dos produtos. */
+  A.temArea = function (id) { return Boolean(A.quem && (A.quem.areas || []).indexOf(id) >= 0); };
+  /* A secao aparece para quem esta? (a area e o papel que ela pede) */
+  function visivel(x) {
+    if (!A.quem) return false;
+    if (x.area && !A.temArea(x.area)) return false;
+    if (x.papeis && x.papeis.indexOf(A.quem.papel) < 0) return false;
+    return grupos().indexOf(x.grupo || "Atos") >= 0;
+  }
 
   function acesso(texto, botao) {
     S.dentro = false;
@@ -114,17 +127,18 @@
 
   /* As secoes na ordem do menu: os grupos, e dentro de cada um a `ordem` (ou a de registro). */
   function ordenadas() {
-    return A.secoes.map(function (x, i) { return { s: x, g: GRUPOS.indexOf(x.grupo || "Atos"), o: x.ordem == null ? i : x.ordem, i: i }; })
-      .sort(function (a, b) { return (a.g < 0 ? 99 : a.g) - (b.g < 0 ? 99 : b.g) || a.o - b.o || a.i - b.i; })
+    var gs = grupos();
+    return A.secoes.filter(visivel).map(function (x, i) { return { s: x, g: gs.indexOf(x.grupo || "Atos"), o: x.ordem == null ? i : x.ordem, i: i }; })
+      .sort(function (a, b) { return a.g - b.g || a.o - b.o || a.i - b.i; })
       .map(function (x) { return x.s; });
   }
-  function secaoDe(id) { return A.secoes.filter(function (x) { return x.id === id; })[0] || null; }
+  function secaoDe(id) { return A.secoes.filter(function (x) { return x.id === id && visivel(x); })[0] || null; }
   A.secaoAtual = function () { return S.secao; };
   A.nomeDaSecao = function (id) { var s = secaoDe(id); return s ? s.nome : id; };
 
   function menuHtml() {
     var lista = ordenadas(), h = "", grupo = null;
-    if (A.buscador) h += '<button type="button" class="admin-buscar" data-admin="buscar"><span>Buscar em tudo</span><kbd>Ctrl K</kbd></button>';
+    if (temBuscador()) h += '<button type="button" class="admin-buscar" data-admin="buscar"><span>Buscar em tudo</span><kbd>Ctrl K</kbd></button>';
     lista.forEach(function (x) {
       var g = x.grupo || "Atos";
       if (g !== grupo) { h += (grupo ? "</nav>" : "") + '<nav aria-label="' + esc(g) + '"><span>' + esc(g) + "</span>"; grupo = g; }
@@ -135,12 +149,14 @@
     });
     return h + (grupo ? "</nav>" : "");
   }
+  /* A busca e de uma area (a do PAVLVS busca no PAVLVS): so para quem atua nela. */
+  function temBuscador() { return Boolean(A.buscador && (!A.buscador.area || A.temArea(A.buscador.area))); }
   /* So o menu (as contagens mudaram), sem redesenhar a secao. */
   A.atualizarNav = function () { var m = $("admin-menu"); if (m && S.dentro) m.innerHTML = menuHtml(); };
 
   function desenhar() {
     var q = A.quem;
-    if (!A.secoes.length) { acesso("Nenhuma seção ligada neste painel."); return; }
+    if (!ordenadas().length) { acesso("Nenhuma seção ligada neste painel."); return; }
     if (!secaoDe(S.secao)) S.secao = ordenadas()[0].id;
     S.dentro = true;
     $("secao").innerHTML = '<div class="admin-quem"><span>' + esc(q.nome || q.email) + " · " + esc(PAPEL_NOME[q.papel] || q.papel) + "</span>" +
@@ -228,14 +244,14 @@
     if (!b || b.disabled) return;
     var acao = b.getAttribute("data-admin");
     if (acao === "fechar-modal") { fecharModal(false); return; }
-    if (acao === "buscar") { if (A.buscador) A.buscador.abrir(); return; }
+    if (acao === "buscar") { if (temBuscador()) A.buscador.abrir(); return; }
     if (acao === "sair" || acao === "reentrar") {
       // Entrar de novo: sai desta sessao e volta ao painel pelo /entrar (o login novo vale 12 horas aqui).
       api("POST", "/api/sair", {}).then(function () { location.assign("/entrar/?volta=" + encodeURIComponent("/admin/")); });
     }
   });
   document.addEventListener("keydown", function (e) {
-    if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === "k" && S.dentro && A.buscador) {
+    if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === "k" && S.dentro && temBuscador()) {
       e.preventDefault();
       if (M && M.busca) fecharModal(false); else A.buscador.abrir();
       return;

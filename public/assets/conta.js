@@ -166,7 +166,9 @@
         var partes = [resumoEscopos(x.escopos)];
         if (x.quando) partes.push("Permitido em " + data(x.quando));
         if (x.ultimo) partes.push("Último acesso em " + data(x.ultimo));
-        return '<div class="item"><img class="logo" src="' + esc(x.icone) + '" alt="" width="32" height="32"><span class="nome"><strong>' + esc(x.nome) + "</strong><small>" + esc(partes.join(" · ")) + "</small></span>" +
+        var logo = x.icone ? '<img class="logo" src="' + esc(x.icone) + '" alt="" width="32" height="32">'
+          : '<span class="logo inicial" aria-hidden="true">' + esc(String(x.nome || "?").trim().charAt(0).toUpperCase()) + "</span>";
+        return '<div class="item">' + logo + '<span class="nome"><strong>' + esc(x.nome) + "</strong><small>" + esc(partes.join(" · ")) + "</small></span>" +
           '<button type="button" class="btn p" data-app="' + esc(x.id) + '">Tirar o acesso</button></div>';
       }).join("") + "</div>";
     }

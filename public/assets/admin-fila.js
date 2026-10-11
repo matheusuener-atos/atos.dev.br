@@ -2,8 +2,11 @@
    (site/assets/admin.js do coryphaeus), sobre o contrato worker/admin-api.md do coryphaeus. Duas filas, a mesma
    regra: o que muda o que esta no ar entra na fila de quem mexeu e so acontece em "Commitar e pushar".
 
-     a da Atos    /api/admin/alteracoes, /publicar, /retroagir          a equipe (equipe.papel, equipe.membro);
-                                                                        nada aqui vira commit: publica sem o GitHub
+     a da Atos    /api/admin/alteracoes, /publicar, /retroagir          a equipe (equipe.papel, equipe.membro,
+                                                                        equipe.areas) e o Login Atos (oauth.app,
+                                                                        oauth.cliente); nada aqui vira commit:
+                                                                        publica sem o GitHub
+     (a do PAVLVS so aparece para quem atua no PAVLVS)
      a do PAVLVS  /api/admin/pavlvs/alteracoes, /publicar, /retroagir   contas, tuneis, planos, campanhas; publicar
                                                                         e retroagir pedem o GitHub ligado
 
@@ -21,20 +24,22 @@
   var PAPEIS = {
     "retroagir": ["dono"], "conta.creditar": DF, "conta.instalacao.apagar": DS, "google.servicos": DS, "google.desvincular": DS,
     "tunel.apagar": DS, "tunel.endereco": DS, "tunel.ativo": DS, "plano.editar": DF, "plano.criar": DF, "planos.json": DF,
-    "equipe.papel": ["dono"], "equipe.membro": ["dono"],
+    "equipe.papel": ["dono"], "equipe.membro": ["dono"], "equipe.areas": ["dono"], "oauth.app": ["dono"], "oauth.cliente": ["dono"],
   };
   var FILAS = [
-    { id: "pavlvs", nome: "PAVLVS", base: "/api/admin/pavlvs/", github: true, pendentes: [], publicacoes: [], lido: false, erro: "", carregando: false,
+    { id: "pavlvs", nome: "PAVLVS", area: "pavlvs", base: "/api/admin/pavlvs/", github: true, pendentes: [], publicacoes: [], lido: false, erro: "", carregando: false,
       vazio: "Nada pendente. O PAVLVS está igual ao que está no ar." },
-    { id: "atos", nome: "Atos · equipe", base: "/api/admin/", github: false, pendentes: [], publicacoes: [], lido: false, erro: "", carregando: false,
-      vazio: "Nada pendente na equipe." },
+    { id: "atos", nome: "Atos", base: "/api/admin/", github: false, pendentes: [], publicacoes: [], lido: false, erro: "", carregando: false,
+      vazio: "Nada pendente na Atos (equipe e Login Atos)." },
   ];
   function filaDe(id) { return FILAS.filter(function (f) { return f.id === id; })[0]; }
-  function filaDoTipo(tipo) { return filaDe(/^equipe\./.test(tipo) ? "atos" : "pavlvs"); }
+  function filaDoTipo(tipo) { return filaDe(/^(equipe|oauth)\./.test(tipo) ? "atos" : "pavlvs"); }
+  /* As filas que esta pessoa ve: a da Atos (a equipe e o Login Atos) para todos; a de um produto, so com a area. */
+  function minhas() { return FILAS.filter(function (f) { return !f.area || A.temArea(f.area); }); }
 
   var F = A.fila = {
     filas: FILAS, ouvintes: [],
-    get pendentes() { return FILAS[0].pendentes.concat(FILAS[1].pendentes); },
+    get pendentes() { return minhas().reduce(function (l, f) { return l.concat(f.pendentes); }, []); },
     pode: function (tipo) { var p = PAPEIS[tipo]; return !p || Boolean(A.quem && p.indexOf(A.quem.papel) >= 0); },
     naFila: function (tipo, alvo) { return filaDoTipo(tipo).pendentes.some(function (p) { return p.tipo === tipo && String(p.alvo) === String(alvo); }); },
     ultima: function (tipo, alvo) {
@@ -59,7 +64,7 @@
     }, function (e) { if (e.status !== 401) f.erro = e.message; }).then(function () { f.carregando = false; mudou(); });
     return f.promessa;
   }
-  F.carregar = function () { return Promise.all(FILAS.map(carregarUma)); };
+  F.carregar = function () { return Promise.all(minhas().map(carregarUma)); };
   /* Poe na fila (a do tipo): {tela, tipo, alvo, dados, texto} -> true/false. `texto` e a frase no passado da lista. */
   F.enfileirar = function (tela, tipo, alvo, dados, texto, quieto) {
     var f = filaDoTipo(tipo);
@@ -119,10 +124,11 @@
     var gh = F.github();
     var h = "<h1>Confirmar alterações</h1>" +
       '<p class="descricao">Tudo o que muda o que está no ar fica aqui até publicar. Publicar aplica em ordem, uma depois da outra; a que falha não desfaz as outras e volta para a fila com o motivo.</p>';
+    if (!minhas().some(function (f) { return f.github; })) return h + minhas().map(blocoFila).join("");
     h += gh ? '<p class="nf-aviso ok fila-gh"><span>GitHub ligado nesta sessão: <strong>' + esc(A.quem.github) + "</strong>. Você pode publicar e retroagir o PAVLVS.</span></p>"
-      : '<p class="nf-aviso fila-gh"><span>Para publicar ou retroagir o PAVLVS, o painel precisa do seu GitHub. Sem ele, você prepara a fila do PAVLVS, mas não publica. A da equipe não precisa.</span>' +
+      : '<p class="nf-aviso fila-gh"><span>Para publicar ou retroagir o PAVLVS, o painel precisa do seu GitHub. Sem ele, você prepara a fila do PAVLVS, mas não publica. A da Atos não precisa.</span>' +
         '<button type="button" class="btn p primario" data-fila="github">Ligar o GitHub</button></p>';
-    return h + FILAS.map(blocoFila).join("");
+    return h + minhas().map(blocoFila).join("");
   }
 
   /* ------------------------------------------------------------ os pop-ups: publicar e retroagir */
@@ -232,7 +238,7 @@
     desenhar: function (raiz) {
       S.raiz = raiz;
       pintar();
-      if (FILAS.some(function (f) { return !f.lido && !f.carregando; })) F.carregar();
+      if (minhas().some(function (f) { return !f.lido && !f.carregando; })) F.carregar();
     },
   });
 })();
