@@ -23,6 +23,7 @@ const CONTAS = {
   async get(k, tipo) { const v = kv.get(k); return v === undefined ? null : tipo === "json" ? JSON.parse(v) : v; },
   async put(k, v) { if (k.startsWith("atos:nfse:pag:")) gravacoesDaFila.set(k, (gravacoesDaFila.get(k) || 0) + 1); kv.set(k, v); },
   async delete(k) { kv.delete(k); },
+  async list({ prefix = "" } = {}) { return { keys: [...kv.keys()].filter((k) => k.startsWith(prefix)).sort().map((name) => ({ name })), list_complete: true }; },
 };
 function storage() {
   const m = new Map();
@@ -248,6 +249,29 @@ checar(Math.abs((Date.parse(dir.ate) - Date.now()) / 86400000 - umMes) < 0.01, "
   checar(c.perfil && c.perfil.documento === "52998224725", "os dados fiscais vem junto", c.perfil);
   r = await chamar("/api/cobranca/v1/conta", { semCookie: true });
   checar(r.status === 401, "sem sessao, a Minha conta nao abre: 401", r.status);
+
+  // A NFS-e entregue a conta (o emissor grava com guardarNotaDoCliente): a Minha conta lista e baixa so as proprias.
+  const { guardarNotaDoCliente } = await import("../nfse/atos.js");
+  const g = await guardarNotaDoCliente(env, { id: "nfse-7", conta: cid, pagamento: "ap-ap-1", numero: "7", competencia: "2026-10", valor: 1290,
+    descricao: "PAVLVS Escritório", ambiente: "producao_restrita", pdf_b64: btoa("%PDF-1.7 de mentira"), xml_b64: btoa("<NFSe/>") });
+  checar(g.status === 200, "a nota guardada para a conta", g);
+  const c2 = (await chamar("/api/cobranca/v1/conta")).d;
+  const n = ((c2 && c2.notas) || [])[0];
+  checar(c2.notas.length === 1 && n.id === "nfse-7" && n.pagamento === "ap-ap-1" && n.tem_pdf && n.tem_xml && n.numero === "7" && !("conta" in n),
+    "GET /api/cobranca/v1/conta traz a nota, ligada a mensalidade, sem o id interno da conta", c2.notas);
+  r = await chamar("/api/cobranca/v1/notas/nfse-7/pdf");
+  checar(r.status === 200 && r.r.headers.get("content-type") === "application/pdf" && (await r.r.text()) === "%PDF-1.7 de mentira" && /inline/.test(r.r.headers.get("content-disposition")),
+    "o PDF da nota abre (inline)", r.status);
+  r = await chamar("/api/cobranca/v1/notas/nfse-7/xml");
+  checar(r.status === 200 && /attachment/.test(r.r.headers.get("content-disposition")) && (await r.r.text()) === "<NFSe/>", "o XML baixa", r.status);
+  r = await chamar("/api/cobranca/v1/notas/nfse-7/pdf", { semCookie: true });
+  checar(r.status === 401, "sem sessao, o PDF nao sai", r.status);
+  const outra = await contaComSessao("outra@x.br", "pv-outra");
+  r = await chamar("/api/cobranca/v1/notas/nfse-7/pdf", { semCookie: true, headers: { cookie: outra } });
+  checar(r.status === 404, "outra Conta Atos nao baixa a nota de quem nao e ela: 404", r.status);
+  const quebrado = { ...env, CONTAS: { ...CONTAS, list: async () => { throw new Error("KV fora"); } } };
+  const rq = await worker.fetch(new Request(A + "/api/cobranca/v1/conta", { headers: { cookie } }), quebrado, { waitUntil() {} });
+  checar(rq.status === 200 && (await rq.json()).notas.length === 0, "sem conseguir ler as notas, a Minha conta abre do mesmo jeito (sem notas)", rq.status);
 }
 
 console.log("a recarga e o ano no Pix");

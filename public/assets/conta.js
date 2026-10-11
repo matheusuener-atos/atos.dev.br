@@ -246,7 +246,7 @@
     var h = titulo("Faturamento", "Os pagamentos do que você assina com a Atos.");
     if (esperandoAtos()) return h + esperandoAtos();
     var todas = todasAsFaturas();
-    if (!todas.length) return h + '<div class="card filtros-vazio"><p class="vazio">Nenhum pagamento até agora.</p></div>';
+    if (!todas.length) return h + '<div class="card filtros-vazio"><p class="vazio">Nenhum pagamento até agora.</p></div>' + notasSoltas();
     var f = S.filtro;
     var base = filtrar(todas, f, true);
     var cont = { "": base.length, paga: base.filter(function (x) { return x.status === "paga"; }).length, pendente: base.filter(pendente).length };
@@ -268,7 +268,7 @@
         '<div class="fatura cab"><span>Emissão e fatura</span><span>Situação</span><span class="valor">Valor</span><span></span></div>' +
         lista.map(function (x) {
           var st = ST_FATURA[x.status] || [x.status, ""];
-          var docs = "";
+          var docs = docsDaFatura(x.id);
           var sub = [data(x.data), x.id ? "Fatura " + x.id : "", x.forma === "pix" ? "Pix" : "Cartão"].filter(Boolean).join(" · ");
           return '<div class="fatura"><span class="fatura-desc"><span>' + esc(x.descricao) + "</span><small>" + esc(sub) + "</small></span>" +
             '<span class="fatura-sit ' + st[1] + '">' + esc(st[0]) + '</span><span class="valor">' + reais(x.valor) + '</span><span class="docs">' + docs + "</span></div>";
@@ -278,7 +278,41 @@
     var pend = lista.filter(pendente).length;
     h += '<div class="card faturas-resumo"><span>' + lista.length + (lista.length === 1 ? " fatura" : " faturas") + ' · <strong>' + reais(total) + "</strong> pagos" +
       (pend ? ' · <span class="aviso">' + pend + (pend === 1 ? " pendente" : " pendentes") + "</span>" : "") + "</span></div>";
-    return h + '<p class="nota">A nota fiscal (NFS-e) dos pagamentos feitos na Atos ainda não sai sozinha. Se precisar dela, escreva para <a href="mailto:contato@atos.dev.br">contato@atos.dev.br</a>.</p>';
+    h += notasSoltas();
+    return h + '<p class="nota">A nota fiscal (NFS-e) de um pagamento aparece aqui, ao lado dele, quando a Atos a emite e envia; ela também vai para o e-mail da sua Conta Atos. Dúvidas sobre uma nota: <a href="mailto:contato@atos.dev.br">contato@atos.dev.br</a>.</p>';
+  }
+  /* As NFS-e entregues a esta conta (GET /api/cobranca/v1/conta, notas): as de um pagamento, ou (sem ele) as que
+     nao casam com nenhuma fatura da lista. */
+  function notasDe(pagamento) {
+    var faturas = S.atos.faturas || [];
+    return (S.atos.notas || []).filter(function (n) {
+      if (pagamento !== undefined) return n.pagamento === pagamento;
+      return !n.pagamento || !faturas.some(function (f) { return f.id === n.pagamento; });
+    });
+  }
+  function linksDaNota(n) {
+    var base = "/api/cobranca/v1/notas/" + encodeURIComponent(n.id) + "/";
+    var l = [];
+    if (n.tem_pdf) l.push('<a class="btn p" href="' + base + 'pdf" target="_blank" rel="noopener">NFS-e</a>');
+    if (n.tem_xml) l.push('<a class="btn p" href="' + base + 'xml">XML</a>');
+    if (!n.tem_pdf) l.push('<span class="sem">PDF em preparo</span>');
+    if (n.cancelada) l.push('<span class="sem">' + (n.substituta ? "substituída pela nº " + esc(n.substituta) : "cancelada") + "</span>");
+    if (n.ambiente === "producao_restrita") l.push('<span class="sem">teste, sem valor fiscal</span>');
+    return l.join("");
+  }
+  function docsDaFatura(id) {
+    return notasDe(id).map(linksDaNota).join("");
+  }
+  function notasSoltas() {
+    var l = notasDe();
+    if (!l.length) return "";
+    return '<div class="card faturas"><div>' +
+      '<div class="fatura cab"><span>Outras notas fiscais</span><span>Competência</span><span class="valor">Valor</span><span></span></div>' +
+      l.map(function (n) {
+        var comp = String(n.competencia || "").split("-").reverse().join("/");
+        return '<div class="fatura"><span class="fatura-desc"><span>' + esc(n.descricao || "NFS-e") + "</span><small>" + esc("NFS-e nº " + (n.numero || "—")) + "</small></span>" +
+          "<span>" + esc(comp) + '</span><span class="valor">' + reais(Number(n.valor) || 0) + '</span><span class="docs">' + linksDaNota(n) + "</span></div>";
+      }).join("") + "</div></div>";
   }
   function aplicarFiltro() {
     var f = S.filtro, q = new URLSearchParams();

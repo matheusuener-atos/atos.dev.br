@@ -34,7 +34,7 @@
     ["auto", "Emitir ao confirmar o pagamento",
       "assim que a cobrança da Atos confirma o pagamento, se os dados fiscais do cliente estiverem completos; senão o motivo aparece em Emitir NFS-e › Pagamentos sem nota"],
     ["email", "Guardar a nota com a conta do cliente logo depois de emitir",
-      "a nota (XML e PDF) fica guardada com a conta do cliente na Atos, e um cancelamento depois avisa o cliente; desligado, o botão Enviar ao cliente faz isso. A Minha conta ainda não mostra as notas ao cliente"],
+      "a nota (XML e PDF) fica guardada com a conta do cliente na Atos: o cliente a vê e baixa na Minha conta › Faturamento, ao lado do pagamento, e um cancelamento depois avisa o cliente; desligado, o botão Enviar ao cliente faz isso"],
     ["mail", "Mandar a nota por e-mail",
       "PDF e XML anexos, pelo e-mail da Atos, ao e-mail do tomador corrigido em Clientes ou, sem ele, ao dos dados fiscais do cliente; sai logo depois de emitir e no Enviar ao cliente. Precisa da RESEND_API_KEY"],
   ];

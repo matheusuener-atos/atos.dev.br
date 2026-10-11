@@ -409,3 +409,5 @@ main.texto { flex: 1; width: 100%; max-width: 820px; margin: 0 auto; padding: 48
   .grade .s1, .grade .s2 { grid-column: span 1; }
   .grade .s3, .grade .s4 { grid-column: 1 / -1; }
 }
+.fatura .docs { flex-wrap: wrap; align-items: center; }
+.fatura .docs .sem { font-size: 11px; color: var(--faint); }

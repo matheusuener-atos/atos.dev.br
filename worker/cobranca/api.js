@@ -25,7 +25,7 @@ import { catalogoPublico, MOEDA, PRODUTOS, produtoAberto, resolveOffer, voltaPer
 import { cliente, clienteDaRef, idDoCliente, novaRef } from "./cliente.js";
 import { ehAmbienteDeTeste, segredoDo } from "./eventos.js";
 import { criarPreapproval, ErroMP, fraseDaRecusa, mpFetch } from "./mp.js";
-import { indexarCliente, porNaFila } from "../nfse/atos.js";
+import { arquivoDaNota, indexarCliente, notasDoCliente, porNaFila } from "../nfse/atos.js";
 
 const ACOES = { pause: "paused", reactivate: "authorized", cancel: "cancelled" }; // cancel -> canceled (a API grafa "cancelled")
 const PIX_VALIDADE = "P1D";
@@ -104,7 +104,24 @@ export async function atenderCobrancaV1(request, env, url, deps = {}) {
       return json({ perfil: salvo });
     }
 
-    if (p === "/api/cobranca/v1/conta" && request.method === "GET") return json(await minhaConta(meu));
+    if (p === "/api/cobranca/v1/conta" && request.method === "GET") {
+      // As notas nao seguram a Minha conta: sem elas (o KV fora), a conta abre do mesmo jeito.
+      const notas = await notasDoCliente(env, cid).catch(() => []);
+      return json({ ...(await minhaConta(meu)), notas: notas.map(notaPublica) });
+    }
+    // O PDF ou o XML de uma NFS-e entregue a esta conta (nfse/atos.js, guardarNotaDoCliente): so a propria.
+    const arq = /^\/api\/cobranca\/v1\/notas\/([A-Za-z0-9_.-]{1,64})\/(pdf|xml)$/.exec(p);
+    if (arq && request.method === "GET") {
+      const b64 = await arquivoDaNota(env, cid, arq[1], arq[2]);
+      if (!b64) return erro(404, "essa nota não está na sua conta");
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const nome = "NFS-e " + arq[1].replace(/^nfse-/, "") + "." + arq[2];
+      return new Response(bytes, { headers: {
+        "content-type": arq[2] === "pdf" ? "application/pdf" : "application/xml; charset=utf-8",
+        "content-disposition": (url.searchParams.has("baixar") || arq[2] === "xml" ? "attachment" : "inline") + '; filename="' + nome + '"',
+        "cache-control": "private, no-store", "x-content-type-options": "nosniff",
+      } });
+    }
 
     if (p === "/api/cobranca/v1/minhas") {
       const l = await meu.pedir("listar");
@@ -320,6 +337,13 @@ async function pagar(request, env, s, cid, meu, op) {
 
 const ESTADO_DA_ORDER = { processed: "paga", action_required: "aguardando", processing: "processando", failed: "recusada",
   canceled: "cancelada", cancelled: "cancelada", expired: "vencida", refunded: "devolvida" };
+
+/* A NFS-e como a Minha conta mostra: sem o caminho interno dos arquivos. */
+function notaPublica(n) {
+  return { id: n.id, pagamento: n.pagamento || "", numero: n.numero || "", competencia: n.competencia, valor: n.valor, descricao: n.descricao || "",
+    ambiente: n.ambiente, emitida_em: n.emitida_em, tem_pdf: Boolean(n.tem_pdf), tem_xml: Boolean(n.tem_xml),
+    cancelada: Boolean(n.cancelada), substituta: n.substituta || "" };
+}
 
 /* Uma order buscada no Mercado Pago, aplicada a compra dela. Devolve a compra como ficou. op.ctx (se houver): a
    fila da NFS-e vai em segundo plano. */
