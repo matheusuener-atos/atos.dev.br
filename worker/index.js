@@ -7,7 +7,7 @@
 // aplicativos, entao nada de outro site roda nem as emoldura.
 
 import { EMISSOR, dentroDoLimite, json } from "./comum.js";
-import { atenderConta, ehRotaDaConta } from "./contas.js";
+import { atenderConta, ehRotaDaConta, sessaoDe } from "./contas.js";
 import { atenderOIDC, ehRotaDoOIDC } from "./oidc.js";
 import { atenderGoogle, ehRotaDoGoogle } from "./google.js";
 import { atenderCobrancaV1, ehRotaDaCobrancaV1 } from "./cobranca/api.js";
@@ -15,7 +15,7 @@ import { ehAmbienteDeTeste } from "./cobranca/eventos.js";
 import { atenderEmissor, depoisPendentes } from "./nfse/api.js";
 import { atenderAdmin, ehRotaDoAdmin } from "./admin.js";
 import { atenderIntegracoes, ehRotaDasIntegracoes } from "./integracoes.js";
-import { atenderWorkspace, ehRotaDoWorkspace } from "./workspace.js";
+import { VOLTA_DO_WORKSPACE, atenderWorkspace, ehRotaDoWorkspace } from "./workspace.js";
 import { atenderEmailAtos, ehRotaDoEmailAtos, receberEmail } from "./email-atos.js";
 
 // O registro de cada cliente da Atos Cobranca (docs/COBRANCA.md): o Durable Object precisa sair do modulo principal.
@@ -172,6 +172,18 @@ export default {
     if (/^\/conta\/(dados|assinaturas|faturamento|carteira)\/?$/.test(url.pathname)) {
       return comCabecalhos(await env.ASSETS.fetch(new Request(new URL("/conta/", url), request)), true);
     }
+    // A tela de entrar do Workspace (/workspace/entrar; public/assets/workspace-entrar.js): so o endereco Atos. Quem ja
+    // esta com a sessao pelo alias vai direto (ao ?volta=, so um caminho de /workspace/), menos com ?modo=entrar (o
+    // "Entrar de novo" de quem precisa de um login recente).
+    if (/^\/workspace\/entrar\/?$/.test(url.pathname) && request.method === "GET") {
+      const s = await sessaoDe(request, env);
+      if (s && s.via === "alias" && url.searchParams.get("modo") !== "entrar") return irPara(url, voltaDoWorkspace(url));
+    }
+    // A area do Workspace sem sessao: a tela de entrar do Workspace (que tem o caminho da Conta Atos para quem nao tem o
+    // alias), voltando a esta guia.
+    if (/^\/workspace(\/(integracoes|email))?\/?$/.test(url.pathname) && request.method === "GET" && !(await sessaoDe(request, env))) {
+      return irPara(url, "/workspace/entrar/?volta=" + encodeURIComponent(url.pathname));
+    }
     if (/^\/workspace\/(integracoes|email)\/?$/.test(url.pathname)) {
       return comCabecalhos(await env.ASSETS.fetch(new Request(new URL("/workspace/", url), request)), true);
     }
@@ -190,6 +202,20 @@ export default {
     ctx.waitUntil(depoisPendentes(env).catch(() => null));
   },
 };
+
+/* O ?volta= da tela do Workspace: so um caminho de /workspace/ (nunca a propria tela de entrar); senao, /workspace/. */
+function voltaDoWorkspace(url) {
+  const v = url.searchParams.get("volta") || "";
+  return VOLTA_DO_WORKSPACE.test(v) ? v : "/workspace/";
+}
+
+/* Um redirecionamento sem cache (depende da sessao), com os cabecalhos de sempre. */
+function irPara(url, caminho) {
+  const r = new Response(null, { status: 302, headers: { location: new URL(caminho, url).toString(), "cache-control": "no-store" } });
+  r.headers.set("x-content-type-options", "nosniff");
+  r.headers.set("strict-transport-security", "max-age=31536000");
+  return r;
+}
 
 /* POST so da propria pagina (o navegador sempre manda Origin num POST de fetch). */
 function mesmaOrigem(request, url) {

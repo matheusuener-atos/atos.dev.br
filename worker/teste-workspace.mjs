@@ -114,6 +114,8 @@ checar(r.status === 200 && r.d.ativo === false && r.d.aceito === null && r.d.ter
   r.d.produto.gratuito === true, "com sessão: não ativado, os termos atuais e nenhum aplicativo", r.d);
 for (const pagina of ["/workspace/", "/workspace/integracoes"]) {
   r = await chamar(pagina, { metodo: "GET" });
+  checar(r.status === 302 && r.r.headers.get("location") === A + "/workspace/entrar/?volta=" + encodeURIComponent(pagina), pagina + " sem sessão: a tela de entrar do Workspace", r.r.headers.get("location"));
+  r = await chamar(pagina, { metodo: "GET", cookie: maria });
   const csp = r.r.headers.get("content-security-policy") || "";
   checar(r.status === 200 && (await r.r.text()).includes("/workspace/") && csp.includes("script-src 'self'") && !csp.includes("cloudflareinsights") && r.r.headers.get("cache-control") === "no-store",
     pagina + " serve a página do Workspace, com a CSP da conta", csp);

@@ -438,6 +438,8 @@ console.log("a Cloudflare simulada do Worker de teste");
 
 console.log("as páginas");
 r = await GET("/workspace/email");
+checar(r.status === 302 && r.r.headers.get("location") === A + "/workspace/entrar/?volta=%2Fworkspace%2Femail", "/workspace/email sem sessão: a tela de entrar do Workspace", r.r.headers.get("location"));
+r = await GET("/workspace/email", maria);
 checar(r.status === 200 && /pagina \/workspace\/</.test(await r.r.text()) && /script-src 'self'/.test(r.r.headers.get("content-security-policy")), "/workspace/email serve a página do Workspace com a CSP da conta");
 
 console.log(falhas ? "\n" + falhas + " FALHA(S)" : "\ntudo certo");

@@ -7,6 +7,9 @@
    desta propria Atos (o checkout de um produto manda quem ainda nao entrou para ca e volta). */
 (function () {
   "use strict";
+  // O comum com a tela do Workspace (entrar-comum.js): o pedido, os pedacos do formulario, a volta.
+  var C = window.AtosEntrar;
+  var esc = C.esc, api = C.api;
   var consulta = location.search.replace(/^\?/, "");
   var params = new URLSearchParams(consulta);
   var OIDC = params.has("client_id");
@@ -19,7 +22,7 @@
   // O pedido do aplicativo vai junto ao Google e volta (worker/google.js); o erro dele nao.
   params.delete("erro_google");
   // So caminho daqui ("/pavlvs/assinar/?preco=..."), nunca outro site: "//x" e "https:" nao passam.
-  var VOLTA = (function () { var v = params.get("volta") || ""; return /^\/(?![\/\\])/.test(v) ? v : ""; })();
+  var VOLTA = C.volta(params);
   consulta = OIDC ? (function () { var q = new URLSearchParams(params); return q.toString(); })() : VOLTA ? "volta=" + encodeURIComponent(VOLTA) : "";
   var G = '<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
   /* "Continuar com Google" (worker/google.js), dentro do cartao, depois do "ou": so com o Google ligado na Atos. */
@@ -28,36 +31,21 @@
     return '<div class="ou">ou</div><a class="btn largo" href="/oauth/google?consulta=' + encodeURIComponent(consulta) + '">' + G + "<span>Continuar com Google</span></a>";
   }
 
-  function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
-  }
-
-  function api(caminho, corpo) {
-    var op = corpo === undefined ? { credentials: "same-origin" } :
-      { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) };
-    return fetch(caminho, op).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (d) { d._status = r.status; return d; });
-    }, function () { return { erro: "sem conexão com o servidor", _status: 0 }; });
-  }
-
   function nomeDoApp() { return S.pedido && S.pedido.app ? S.pedido.app.nome : ""; }
 
   function campo(nome, rotulo, tipo, extra, classe) {
-    // div e label for, e nao o label em volta: o "Esqueci a senha" ao lado do rotulo e um botao
-    var topo = '<label class="rotulo" for="c-' + nome + '">' + rotulo + "</label>";
-    if (nome === "senha" && S.modo === "entrar") topo = '<span class="topo-campo">' + topo + link("esqueci", "Esqueci a senha") + "</span>";
-    return '<div class="campo' + (classe ? " " + classe : "") + '">' + topo + '<input id="c-' + nome + '" name="' + nome + '" type="' + tipo + '" ' + (extra || "") + ">" +
-      (nome === "senha2" ? '<span class="dica">Pelo menos 10 caracteres, com letras e números.</span>' : "") +
+    return C.campo(nome, rotulo, tipo, extra, {
+      classe: classe,
+      // o "Esqueci a senha" ao lado do rotulo da senha, so na tela de entrar
+      esqueci: nome === "senha" && S.modo === "entrar" ? "Esqueci a senha" : "",
       // O endereco Atos (<alias>@atos.dev.br) entra na mesma conta, com a mesma senha (worker/contas.js).
-      (nome === "email" && (S.modo === "entrar" || S.modo === "esqueci") ? '<span class="dica">ou o seu endereço @atos.dev.br</span>' : "") + "</div>";
+      dica: nome === "email" && (S.modo === "entrar" || S.modo === "esqueci") ? "ou o seu endereço @atos.dev.br" : "",
+    });
   }
-  var ERRO = function () { return '<p class="erro" role="alert">' + esc(S.erro) + "</p>"; };
+  var ERRO = function () { return C.erro(S.erro); };
+  function botao(texto) { return C.botao(texto, S.ocupado); }
   var DIS = function () { return S.ocupado ? " disabled" : ""; };
-  function botao(texto) { return '<button type="submit" class="btn primario largo"' + DIS() + ">" + texto + "</button>"; }
-  function link(acao, texto, forte) { return '<button type="button" class="link' + (forte ? " forte" : "") + '" data-acao="' + acao + '">' + texto + "</button>"; }
-  /* a frase curta embaixo do titulo vai em prata; a explicacao longa, em cinza */
-  function cabeca(titulo, sub, longo) { return '<div class="cabeca"><h1>' + titulo + "</h1>" + (sub ? (longo ? '<p class="longo">' : "<p>") + sub + "</p>" : "") + "</div>"; }
-  function pe(conteudo) { return '<div class="pe">' + conteudo + "</div>"; }
+  var link = C.link, cabeca = C.cabeca, pe = C.pe;
   function maiuscula(t) { t = String(t || ""); return t.charAt(0).toUpperCase() + t.slice(1); }
   function linhaDoApp(a) {
     return '<div class="linha app">' + (a.icone ? '<img class="logo" src="' + esc(a.icone) + '" alt="" width="36" height="36">'
@@ -71,7 +59,7 @@
     // Quem cadastrou: o e-mail Atos dele (nunca o e-mail pessoal); sem um, "uma Conta Atos".
     return '<div class="linha app terceiro"><span class="nome"><small>Cadastrado por ' + (a.cadastrado_por ? esc(a.cadastrado_por) : "uma Conta Atos") + ". Não é um aplicativo da Atos: a Atos só confirma quem é você.</small></span></div>";
   }
-  var COD = 'inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required';
+  var COD = C.COD;
 
   function desenhar() {
     var h = "";
@@ -143,8 +131,7 @@
         '<button type="button" class="btn primario" data-acao="permitir"' + DIS() + ">Permitir</button></div>";
     }
     tela.innerHTML = h;
-    var foco = tela.querySelector("input:not([value]), input[value=''], input[name=senha], input[name=codigo]") || tela.querySelector("input");
-    if (foco && !S.ocupado) foco.focus();
+    C.focar(tela, S.ocupado);
   }
 
   function ir(modo, erro) { S.modo = modo; S.erro = erro || ""; S.aviso = ""; S.ocupado = false; desenhar(); }
@@ -187,7 +174,7 @@
     var modo = form.getAttribute("data-form");
     if (v("email")) S.email = v("email").trim();
     if (modo === "criar") S.nome = v("nome").trim();
-    if ((modo === "criar" || modo === "redefinir") && v("senha") !== v("senha2")) { S.erro = "as duas senhas não são iguais"; desenhar(); return; }
+    if ((modo === "criar" || modo === "redefinir") && C.senhasIguais(f)) { S.erro = C.senhasIguais(f); desenhar(); return; }
     var rota, corpo, depois;
     if (modo === "entrar") { rota = "/api/entrar"; corpo = { email: S.email, senha: v("senha") }; depois = depoisDeEntrar; }
     else if (modo === "criar") { rota = "/api/cadastrar"; corpo = { email: S.email, senha: v("senha"), nome: S.nome }; depois = function () { pendente = corpo; ir("confirmar"); }; }
@@ -229,7 +216,7 @@
     S.google = Boolean(d.google);
     if (d.conta && !modo && !S.erro) { location.replace(VOLTA || "/conta/"); return; }
     if (d.conta) S.email = d.conta.email;
-    // ?login_hint=: o endereco ja preenchido (o Workspace manda quem entrou com o e-mail pessoal entrar pelo alias).
+    // ?login_hint=: o endereco ja preenchido (o Workspace usa a propria tela, /workspace/entrar, que tambem le o login_hint).
     var dica = (params.get("login_hint") || "").trim().slice(0, 200);
     if (dica) S.email = dica;
     ir(modo === "criar" || modo === "esqueci" ? modo : "entrar", S.erro);

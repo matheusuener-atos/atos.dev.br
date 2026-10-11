@@ -140,7 +140,7 @@ checar(r.status === 200 && r.d.apps.length === 0 && r.d.limites.apps === 5 && r.
   "com sessão: nenhum aplicativo, os limites e o que precisa para integrar", r.d);
 r = await chamar("/conta/integracoes", { metodo: "GET" });
 checar(r.status === 301 && r.r.headers.get("location") === A + "/workspace/integracoes", "/conta/integracoes leva ao Atos Workspace", r.r.headers.get("location"));
-r = await chamar("/workspace/integracoes", { metodo: "GET" });
+r = await chamar("/workspace/integracoes", { metodo: "GET", cookie: ana });
 checar(r.status === 200 && (await r.r.text()).includes("/workspace/") && r.r.headers.get("content-security-policy").includes("script-src 'self'"), "/workspace/integracoes serve a página do Workspace, com a CSP da conta");
 
 console.log("criar o aplicativo");

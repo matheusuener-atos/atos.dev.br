@@ -15,7 +15,8 @@
   var S = { raiz: null, dados: null, erro: "", carregando: false, aberto: "", modal: null, aviso: "" };
   var ICONE_MAX = 30 * 1024;
   var ONDE = "atos.dev.br/workspace/integracoes";
-  var VOLTA_ENTRAR = "/entrar/?modo=entrar&volta=" + encodeURIComponent("/workspace/integracoes");
+  // As Integracoes pedem a sessao pelo endereco Atos: o "Entrar de novo" e a tela de entrar do Workspace.
+  var VOLTA_ENTRAR = "/workspace/entrar/?modo=entrar&volta=" + encodeURIComponent("/workspace/integracoes");
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
@@ -51,7 +52,7 @@
     S.carregando = true;
     api("/api/integracoes").then(function (d) {
       S.carregando = false;
-      if (d._status === 401) { location.replace("/entrar/?volta=" + encodeURIComponent("/workspace/integracoes")); return; }
+      if (d._status === 401) { location.replace("/workspace/entrar/?volta=" + encodeURIComponent("/workspace/integracoes")); return; }
       // O Workspace foi desativado (noutra aba): a workspace.js volta a mostrar a ativacao.
       // Ou o e-mail Atos deixou de cumprir o que as Integracoes pedem (codigo: sem_alias, alias_nao_confirmado, entrar_pelo_alias).
       if (d._status === 403 && (d.workspace === false || d.codigo)) { S.dados = null; document.dispatchEvent(new CustomEvent("workspace-inativo")); return; }

@@ -19,6 +19,9 @@
 //   GET  /api/eu                                 {conta: {email, nome, via, alias?} | null}
 //   POST /api/nome       {nome}                  troca o nome de quem esta dentro
 //
+// entrar, esqueci e redefinir aceitam {workspace: true} (a tela /workspace/entrar): so o endereco Atos passa; outro
+// e-mail responde 400 {codigo: "so_alias"} sem consulta nenhuma.
+//
 // A sessao: um segredo aleatorio no cookie __Host-atos (HttpOnly, Secure,
 // SameSite=Lax), e no KV so o SHA-256 dele ("atos:sessao:<hash>"), 30 dias.
 // As respostas de cadastrar e esqueci sao sempre as mesmas, exista ou nao a
@@ -134,16 +137,18 @@ async function errou(env, email, alias) {
   await env.CONTAS.put(k, JSON.stringify({ n: e.n + 1 }), { expirationTtl: BLOQUEIO_S });
 }
 const BLOQUEADO = "muitas tentativas erradas com este e-mail: espere 15 minutos e tente de novo";
+export const SO_ALIAS = "no Workspace você entra com o seu endereço @" + DOMINIO;
 const SEM_REGISTRO = () => json({ erro: "não deu para conferir agora: tente de novo em instantes" }, 503);
 
 /* Quem digitou `email`: a conta com esse e-mail, ou - quando nenhuma conta tem esse e-mail e ele e um endereco Atos -
    o alias (que existe e nao esta suspenso) e a conta dele. {conta (o registro guardado ou null), email (o da conta),
    alias ("" ou o nome do alias digitado), peloAlias (o endereco tem forma de alias e nenhuma conta o tem)}. Lanca se o
-   registro do e-mail Atos nao responde. */
-async function quemDigitou(env, email) {
-  const direta = await kv(env, "id:conta:" + email);
+   registro do e-mail Atos nao responde. `soAlias` (a tela do Workspace): o e-mail de uma conta nao conta, so o alias. */
+async function quemDigitou(env, email, soAlias = false) {
+  const direta = soAlias ? null : await kv(env, "id:conta:" + email);
   const alias = direta ? "" : aliasDoTexto(email);
-  if (!alias) return { conta: direta, email, alias: "", peloAlias: false };
+  // Pela tela do Workspace, um @atos.dev.br fora do formato de alias (ou reservado) responde como alias inexistente.
+  if (!alias) return { conta: direta, email, alias: "", peloAlias: soAlias };
   const a = await aliasParaEntrar(env, email);
   const c = a && a.conta ? await kv(env, "id:conta:" + a.conta) : null;
   if (!c || c.sub !== a.sub) return { conta: null, email, alias, peloAlias: true };
@@ -192,11 +197,18 @@ export async function atenderConta(request, env, url, deps = {}) {
   const email = normal(d.email);
   if (!emailValido(email)) return json({ erro: "confira o e-mail" }, 400);
 
+  // A tela do Atos Workspace (/workspace/entrar; public/assets/workspace-entrar.js) manda {workspace: true}: ali so entra o
+  // endereco Atos. Outro e-mail e recusado antes de qualquer consulta (sem conferir a senha nem contar tentativa: a
+  // resposta so depende do texto digitado, nao entrega se a conta existe). Um @atos.dev.br que nao e alias (uma conta
+  // cujo e-mail e @atos.dev.br) segue como alias inexistente: a mesma resposta da senha errada.
+  const soAlias = d.workspace === true && (p === "/api/entrar" || p === "/api/esqueci" || p === "/api/redefinir");
+  if (soAlias && !email.endsWith("@" + DOMINIO)) return json({ erro: SO_ALIAS, codigo: "so_alias" }, 400);
+
   if (p === "/api/entrar") {
     // O e-mail da conta ou o endereco Atos dela (<alias>@atos.dev.br, a mesma senha). Alias inexistente, removido ou
     // suspenso responde o mesmo que a senha errada, com o mesmo limite de tentativas.
     let q;
-    try { q = await quemDigitou(env, email); } catch { return SEM_REGISTRO(); }
+    try { q = await quemDigitou(env, email, soAlias); } catch { return SEM_REGISTRO(); }
     if (await bloqueado(env, email, q.peloAlias && q.alias)) return json({ erro: BLOQUEADO }, 429);
     // Conta so com o Google (sem senha) nao entra por senha: "Esqueci a senha" cria uma.
     const c = q.conta && q.conta.hash ? q.conta : null;
@@ -261,7 +273,7 @@ export async function atenderConta(request, env, url, deps = {}) {
     // Pelo endereco Atos, o codigo vai SEMPRE ao e-mail cadastrado da conta, nunca ao alias (que so encaminha, e pode
     // estar desligado ou apontando para outro lugar); a resposta diz para onde, mascarado.
     let q;
-    try { q = await quemDigitou(env, email); } catch { return SEM_REGISTRO(); }
+    try { q = await quemDigitou(env, email, soAlias); } catch { return SEM_REGISTRO(); }
     const destino = q.email;
     const c = q.conta;
     const google = c || q.peloAlias ? null : await kv(env, "id:google:" + destino);
@@ -282,7 +294,7 @@ export async function atenderConta(request, env, url, deps = {}) {
     const falha = conferirSenha(d.senha);
     if (falha) return json({ erro: falha }, 400);
     let q;
-    try { q = await quemDigitou(env, email); } catch { return SEM_REGISTRO(); }
+    try { q = await quemDigitou(env, email, soAlias); } catch { return SEM_REGISTRO(); }
     const alvo = q.email;
     const k = q.peloAlias && q.alias;
     if (await bloqueado(env, email, k)) return json({ erro: BLOQUEADO }, 429);

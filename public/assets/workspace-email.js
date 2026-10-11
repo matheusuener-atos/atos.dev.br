@@ -17,7 +17,10 @@
   "use strict";
   var S = { raiz: null, dados: null, erro: "", carregando: false, ocupado: false, msg: "", livre: null, alias: "", destino: "", codigo: "",
     trocar: false, remover: false, codigoTeste: "" };
+  // "Entrar de novo" (o login recente): pelo endereco Atos, a tela do Workspace; pelo e-mail pessoal, o /entrar.
   var VOLTA_ENTRAR = "/entrar/?modo=entrar&volta=" + encodeURIComponent("/workspace/email");
+  var VOLTA_ENTRAR_WS = "/workspace/entrar/?modo=entrar&volta=" + encodeURIComponent("/workspace/email");
+  function entrarDeNovo(D) { return D && D.entrou_pelo_alias ? VOLTA_ENTRAR_WS : VOLTA_ENTRAR; }
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
@@ -56,7 +59,7 @@
 
   function blocoEscolher(D) {
     var h = h2("Escolher o endereço") + '<div class="card ws-ativar">';
-    if (!D.recente) return h + '<p class="ws-aviso">Para escolher o endereço, o login precisa ser das últimas ' + D.limites.recente_h + ' horas. <a href="' + VOLTA_ENTRAR + '">Entrar de novo</a></p></div>';
+    if (!D.recente) return h + '<p class="ws-aviso">Para escolher o endereço, o login precisa ser das últimas ' + D.limites.recente_h + ' horas. <a href="' + entrarDeNovo(D) + '">Entrar de novo</a></p></div>';
     h += '<form data-em-form="alias" class="we-form"><label class="campo"><span class="rotulo">Endereço</span>' +
       '<span class="we-alias"><input data-em-in="alias" value="' + esc(S.alias) + '" maxlength="30" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="seunome" aria-describedby="we-alias-dica">' +
       '<span class="we-dominio">@' + esc(D.dominio) + "</span></span></label>" +
@@ -138,7 +141,7 @@
       h += '<div class="card ws-ativar"><p>Destino confirmado. Para cadastrar sistemas nas Integrações, entre com <strong>' + esc(A.endereco) + "</strong> (a mesma senha da conta).</p>" +
         '<div class="ws-botoes"><button type="button" class="btn p primario" data-ws="entrar-alias" data-alias="' + esc(A.endereco) + '">Entrar com ' + esc(A.endereco) + "</button></div></div>";
     }
-    if (!D.recente) h += '<p class="ws-aviso">Para mudar o e-mail Atos, o login precisa ser das últimas ' + D.limites.recente_h + ' horas. <a href="' + VOLTA_ENTRAR + '">Entrar de novo</a></p>';
+    if (!D.recente) h += '<p class="ws-aviso">Para mudar o e-mail Atos, o login precisa ser das últimas ' + D.limites.recente_h + ' horas. <a href="' + entrarDeNovo(D) + '">Entrar de novo</a></p>';
     if (!A.suspenso) h += passos(D, A);
     if (A.historico && A.historico.length) {
       h += h2("Registro") + '<div class="card ws-texto">' + A.historico.map(function (x) { return "<p>" + esc(quando(x.quando)) + " · " + esc(x.oque) + "</p>"; }).join("") + "</div>";
@@ -185,7 +188,7 @@
     S.carregando = true;
     return api("/api/workspace/email").then(function (d) {
       S.carregando = false;
-      if (d._status === 401 && d.entrar) { location.replace("/entrar/?volta=" + encodeURIComponent("/workspace/email")); return; }
+      if (d._status === 401 && d.entrar) { location.replace("/workspace/entrar/?volta=" + encodeURIComponent("/workspace/email")); return; }
       if (d.erro || typeof d.disponivel !== "boolean") { S.dados = null; S.erro = d.erro || "não deu para carregar o e-mail Atos agora"; }
       else { S.dados = d; S.erro = ""; }
       pintar();

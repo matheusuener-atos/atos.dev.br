@@ -32,6 +32,9 @@ import { ID_APP_TERCEIRO, KO } from "./oidc.js";
 import { aliasDaConta, emailAtosLigado } from "./email-atos.js";
 
 export const WORKSPACE = "workspace";
+/* Para onde a tela /workspace/entrar volta: so um caminho de /workspace/ (sem consulta), nunca a propria tela de entrar.
+   O mesmo em public/assets/workspace-entrar.js. */
+export const VOLTA_DO_WORKSPACE = /^\/workspace(?:\/(?!entrar(?:\/|$))[a-z0-9-]+)*\/?$/;
 const RECENTE_H = 12;
 const RECENTE_S = RECENTE_H * 3600;
 

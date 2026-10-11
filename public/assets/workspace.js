@@ -3,7 +3,8 @@
    cartao "Como integrar" do integrar.js, carregados so quando a guia abre e o Workspace esta ativo) e E-mail Atos
    (workspace-email.js, carregado quando a guia abre).
 
-     GET  /api/eu                     quem esta dentro (sem sessao: /entrar/?volta=<esta pagina>)
+     GET  /api/eu                     quem esta dentro (sem sessao: /workspace/entrar/?volta=<esta pagina>, a tela de
+                                      entrar do Workspace; o Worker ja redireciona o GET da pagina sem sessao)
      GET  /api/workspace              a ativacao, os termos atuais, o login recente, quantos aplicativos a conta tem e o
                                       e-mail Atos (alias, via_alias, pendencia: sem_alias, alias_nao_confirmado,
                                       entrar_pelo_alias). Quem tem o alias usa o Workspace entrando por ele; a ativacao,
@@ -54,7 +55,12 @@
   function titulo(t, descricao) { return "<h1>" + t + "</h1>" + (descricao ? '<p class="descricao">' + descricao + "</p>" : "") + guias(); }
   function h2(t) { return '<h2 class="titulo-secao">' + t + "</h2>"; }
   function vazio(t) { return '<div class="card"><p class="vazio">' + t + "</p></div>"; }
-  var VOLTA_ENTRAR = function () { return "/entrar/?modo=entrar&volta=" + encodeURIComponent(location.pathname); };
+  /* "Entrar de novo" (o login recente): quem entrou pelo endereco Atos, pela tela do Workspace; quem entrou pelo e-mail
+     pessoal (a ativacao abre com qualquer login), pelo /entrar da Conta Atos. */
+  var VOLTA_ENTRAR = function () {
+    return (S.conta && S.conta.via === "alias" ? "/workspace/entrar/" : "/entrar/") + "?modo=entrar&volta=" + encodeURIComponent(location.pathname);
+  };
+  var ENTRAR_WS = function () { return "/workspace/entrar/?volta=" + encodeURIComponent(location.pathname); };
   function apps(n) { return n + (n === 1 ? " aplicativo" : " aplicativos"); }
 
   // ------------------------------------------------------------ Visao geral
@@ -96,7 +102,7 @@
     return h;
   }
 
-  /* Quem tem o e-mail Atos e entrou com o e-mail pessoal: sai e volta ao /entrar com o endereco Atos preenchido. */
+  /* Quem tem o e-mail Atos e entrou com o e-mail pessoal: a tela de entrar do Workspace, com o endereco Atos preenchido. */
   function entrarPeloAlias(W) {
     var a = W.alias.endereco;
     return '<div class="card ws-ativar"><p><strong>Entre com ' + esc(a) + " para usar o Workspace.</strong> Você entrou com o e-mail pessoal (" + esc(W.conta.email) + "). " +
@@ -235,7 +241,7 @@
   }
   function carregar() {
     return api("/api/workspace").then(function (d) {
-      if (d._status === 401 && d.entrar) { location.replace("/entrar/?volta=" + encodeURIComponent(location.pathname)); return; }
+      if (d._status === 401 && d.entrar) { location.replace(ENTRAR_WS()); return; }
       if (d.erro || typeof d.ativo !== "boolean") { S.ws = null; S.erro = d.erro || "não deu para carregar o Atos Workspace agora"; }
       else { S.ws = d; S.erro = ""; }
       desenhar();
@@ -261,12 +267,10 @@
     var a = b.getAttribute("data-ws");
     if (a === "recarregar") { S.erro = ""; desenhar(); carregar(); }
     else if (a === "entrar-alias") {
-      // Sai desta sessao (a do e-mail pessoal) e volta ao /entrar com o endereco Atos preenchido; depois, de volta aqui.
+      // A tela de entrar do Workspace com o endereco Atos preenchido; depois, de volta aqui. A sessao do e-mail pessoal
+      // continua ate o login pelo alias abrir a nova (quem desiste nao fica de fora da conta).
       var alias = b.getAttribute("data-alias") || "";
-      b.disabled = true;
-      api("/api/sair", {}).then(function () {
-        location.assign("/entrar/?modo=entrar&login_hint=" + encodeURIComponent(alias) + "&volta=" + encodeURIComponent(location.pathname));
-      });
+      location.assign("/workspace/entrar/?login_hint=" + encodeURIComponent(alias) + "&volta=" + encodeURIComponent(location.pathname));
     }
     else if (a === "ativar") {
       mudar("/api/workspace/ativar", { aceito: true, versao: S.ws.termos.versao }, function (d) { S.msg = d.ativo ? "Atos Workspace ativo. As Integrações já estão liberadas." : ""; emailDeNovo(); });
@@ -287,7 +291,7 @@
   window.addEventListener("popstate", function () { S.confirmar = false; desenhar(); });
 
   api("/api/eu").then(function (d) {
-    if (!d.conta) { location.replace("/entrar/?volta=" + encodeURIComponent(location.pathname)); return; }
+    if (!d.conta) { location.replace(ENTRAR_WS()); return; }
     S.conta = d.conta;
     $("workspace").hidden = false;
     desenhar();

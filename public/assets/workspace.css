@@ -25,3 +25,11 @@
 .we-linha { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
 .we-linha .campo { width: 180px; }
 .we-erro { padding: 0 16px 14px; }
+/* A tela de entrar do Workspace (/workspace/entrar; workspace-entrar.js), sobre o /entrar de conta.css */
+.we-so-alias { display: flex; flex-direction: column; gap: 6px; padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--danger-line); }
+.we-so-alias .nota a { color: var(--text); }
+.we-aviso-conta { padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); }
+.we-aviso-conta strong { color: var(--text); font-weight: 500; }
+.pe .we-link { color: var(--text); text-decoration: none; border-bottom: 1px solid #4c5056; padding-bottom: 1px; }
+.pe .we-link:hover { border-color: var(--silver); }
+.ws-noscript { text-align: center; padding: 16px; }
