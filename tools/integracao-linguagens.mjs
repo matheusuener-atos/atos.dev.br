@@ -33,7 +33,8 @@ export async function arquivosGerados() {
     "public/integracao/index.html": pagina.slice(0, i) + secao + pagina.slice(f + FIM.length),
     "exemplos/entrar-com-atos/python/app.py": codigo("python"),
     "exemplos/entrar-com-atos/dotnet/Program.cs": codigo("dotnet"),
-    "exemplos/entrar-com-atos/node/servidor.mjs": codigo("js"),
+    // O exemplo testado roda com a copia do pacote ao lado (testar.mjs), sem npm install: o import aponta para ela.
+    "exemplos/entrar-com-atos/node/servidor.mjs": codigo("js").replace('from "@atos.dev.br/entrar"', 'from "./entrar.js"'),
     "public/pacotes/entrar/0.1.0/entrar.js": lf(await readFile(join(RAIZ, "pacotes/entrar/index.js"), "utf8")),
   };
 }

@@ -1,4 +1,4 @@
-// Servidor Node com Express (cliente confidencial). entrar.js: o pacote @atos.dev.br/entrar.
+// Servidor Node com Express (cliente confidencial), com o pacote @atos.dev.br/entrar.
 // O segredo fica só em ATOS_CLIENT_SECRET (o pacote lê de lá). Rode com: node --env-file=.env servidor.mjs
 import express from "express";
 import session from "express-session";

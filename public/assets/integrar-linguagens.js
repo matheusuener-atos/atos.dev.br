@@ -25,8 +25,9 @@
 
   function jsNavegador(v) {
     return [
-      "// Navegador (cliente público, sem segredo). entrar.js: o pacote @atos.dev.br/entrar.",
-      'import { entrarComAtos } from "./entrar.js";',
+      "// Navegador (cliente público, sem segredo). Com empacotador (Vite, webpack...): o pacote do npm.",
+      '// Sem empacotador: baixe o entrar.js (o mesmo código) e importe de "./entrar.js".',
+      'import { entrarComAtos } from "@atos.dev.br/entrar";',
       "",
       "const atos = entrarComAtos({",
       "  clientId: " + jsTexto(v.clientId) + ",",
@@ -47,11 +48,11 @@
     ].join("\n");
   }
 
-  var JS_SERVIDOR = String.raw`// Servidor Node com Express (cliente confidencial). entrar.js: o pacote @atos.dev.br/entrar.
+  var JS_SERVIDOR = String.raw`// Servidor Node com Express (cliente confidencial), com o pacote @atos.dev.br/entrar.
 // O segredo fica só em ATOS_CLIENT_SECRET (o pacote lê de lá). Rode com: node --env-file=.env servidor.mjs
 import express from "express";
 import session from "express-session";
-import { entrarComAtos } from "./entrar.js";
+import { entrarComAtos } from "@atos.dev.br/entrar";
 
 const atos = entrarComAtos({
   clientId: process.env.ATOS_CLIENT_ID,
@@ -513,7 +514,7 @@ end
       {
         id: "js", nome: "JavaScript", biblioteca: "@atos.dev.br/entrar (o pacote da Atos, sem dependências)", testado: true,
         nota: "Testado contra a Atos: o pacote no Node e num navegador simulado (state, iss, access_denied e id_token forjados recusados), e o servidor Express abaixo.",
-        instalar: "# Ainda não está no npm (em breve: npm install @atos.dev.br/entrar).\n# Por enquanto, baixe o arquivo (um só, sem dependências, licença MIT) e ponha ao lado do seu código:\n#   " + PACOTE +
+        instalar: "npm install @atos.dev.br/entrar\n# Sem npm (página sem empacotador): baixe o mesmo código, um arquivo só, licença MIT:\n#   " + PACOTE +
           (v.ambos ? "\n# No servidor Node, também:\nnpm install express express-session" : v.confidencial ? "\nnpm install express express-session" : ""),
         codigos: v.ambos ? [{ titulo: "Código no navegador (acesso público)", texto: jsNavegador(v) }, { titulo: "Código no servidor Node (acesso confidencial)", texto: JS_SERVIDOR }]
           : [{ titulo: "Código", texto: v.confidencial ? JS_SERVIDOR : jsNavegador(v) }],

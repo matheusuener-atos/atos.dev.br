@@ -2,14 +2,18 @@
 
 O **Entrar com Atos** (OpenID Connect) em JavaScript, no navegador e no Node 18 ou mais novo. Sem dependências: o PKCE e a conferência do `id_token` (ES256, pela JWKS da Atos) usam o WebCrypto da própria plataforma.
 
-> Ainda não está publicado no npm. Enquanto não estiver, use o arquivo servido pela Atos, `https://atos.dev.br/pacotes/entrar/0.1.0/entrar.js` (é este `index.js`), ou copie `index.js` deste repositório.
+```
+npm install @atos.dev.br/entrar
+```
+
+Sem npm (uma página sem empacotador): o mesmo código num arquivo só, servido pela Atos, `https://atos.dev.br/pacotes/entrar/0.1.0/entrar.js`; importe de `"./entrar.js"`.
 
 Antes, cadastre o seu sistema em [atos.dev.br/conta/integracoes](https://atos.dev.br/conta/integracoes): o aplicativo, o acesso (o `client_id`) e o endereço de volta. Veja também [atos.dev.br/integracao](https://atos.dev.br/integracao/).
 
 ## Navegador (acesso público, sem segredo)
 
 ```js
-import { entrarComAtos } from "./entrar.js";
+import { entrarComAtos } from "@atos.dev.br/entrar";
 
 const atos = entrarComAtos({
   clientId: "u-xxxxxxxxxx-yyyyyy",
