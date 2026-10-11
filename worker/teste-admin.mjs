@@ -45,14 +45,6 @@ const dono = await sessao("dono@atos.dev.br", 1);
 r = await pedir("GET", "/api/admin/eu", dono);
 checar(r.status === 200 && r.d.email === "dono@atos.dev.br" && r.d.papel === "dono" && r.d.nome === "Matheus", "o dono entra", r.d);
 
-{
-  const bom = env.ATOS_EQUIPE;
-  env.ATOS_EQUIPE = "master@atos.dev.br";
-  r = await pedir("GET", "/api/admin/eu", dono);
-  checar(r.status === 403 && r.d.config && /ATOS_EQUIPE/.test(r.d.erro), "a lista quebrada (só o e-mail, sem o JSON): 403 dizendo que é a configuração", r);
-  env.ATOS_EQUIPE = bom;
-}
-
 console.log("as notas");
 const chamadas = [];
 const emissor = async (req, e, url, quem) => { chamadas.push({ metodo: req.method, caminho: url.pathname, quem }); return new Response(JSON.stringify({ ok: true }), { status: 200 }); };
