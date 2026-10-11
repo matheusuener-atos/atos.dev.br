@@ -269,6 +269,23 @@ checar(Math.abs((Date.parse(dir.ate) - Date.now()) / 86400000 - umMes) < 0.01, "
   const outra = await contaComSessao("outra@x.br", "pv-outra");
   r = await chamar("/api/cobranca/v1/notas/nfse-7/pdf", { semCookie: true, headers: { cookie: outra } });
   checar(r.status === 404, "outra Conta Atos nao baixa a nota de quem nao e ela: 404", r.status);
+
+  // O produto busca as notas do cliente dele (o PAULUS mostra as notas recebidas): Bearer com o segredo dos eventos.
+  const produtoPede = (caminho, segredo = "segredo-dos-eventos") =>
+    chamar(caminho, { semCookie: true, headers: { authorization: "Bearer " + segredo } });
+  r = await produtoPede("/api/cobranca/v1/notas?produto=pavlvs&sub=pv-dona");
+  checar(r.status === 200 && r.d.notas.length === 1 && r.d.notas[0].id === "nfse-7" && r.d.notas[0].numero === "7", "o PAVLVS lista as notas do cliente dele (as dos pagamentos do PAVLVS)", r.d);
+  r = await produtoPede("/api/cobranca/v1/notas/nfse-7/pdf?produto=pavlvs&sub=pv-dona");
+  checar(r.status === 200 && (await r.r.text()) === "%PDF-1.7 de mentira", "e baixa o PDF", r.status);
+  r = await produtoPede("/api/cobranca/v1/notas?produto=pavlvs&sub=pv-dona", "errado");
+  checar(r.status === 401, "segredo errado: 401", r.status);
+  r = await produtoPede("/api/cobranca/v1/notas?produto=pavlvs&sub=pv-outra");
+  checar(r.status === 200 && r.d.notas.length === 0, "outro sub: nenhuma nota", r.d);
+  await guardarNotaDoCliente(env, { id: "nfse-8", conta: cid, numero: "8", competencia: "2026-10", valor: 10, descricao: "avulsa", ambiente: "producao_restrita", xml_b64: btoa("<x/>") });
+  r = await produtoPede("/api/cobranca/v1/notas?produto=pavlvs&sub=pv-dona");
+  checar(r.status === 200 && !r.d.notas.some((n) => n.id === "nfse-8"), "a nota avulsa (sem pagamento) nao vai para o produto", r.d);
+  r = await produtoPede("/api/cobranca/v1/notas/nfse-8/xml?produto=pavlvs&sub=pv-dona");
+  checar(r.status === 404, "nem o arquivo dela", r.status);
   const quebrado = { ...env, CONTAS: { ...CONTAS, list: async () => { throw new Error("KV fora"); } } };
   const rq = await worker.fetch(new Request(A + "/api/cobranca/v1/conta", { headers: { cookie } }), quebrado, { waitUntil() {} });
   checar(rq.status === 200 && (await rq.json()).notas.length === 0, "sem conseguir ler as notas, a Minha conta abre do mesmo jeito (sem notas)", rq.status);

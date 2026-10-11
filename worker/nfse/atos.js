@@ -407,6 +407,18 @@ export async function notasDoCliente(env, clienteId) {
   return notas.sort((a, b) => String(b.emitida_em).localeCompare(String(a.emitida_em)));
 }
 
+/* As notas do cliente que sao de um produto: as de um pagamento desse produto (a fila, K.pag, guarda o produto).
+   A nota avulsa (sem pagamento) nao e de produto nenhum: so a Minha conta da Atos a mostra. */
+export async function notasDoProduto(env, clienteId, produto) {
+  const saida = [];
+  for (const n of await notasDoCliente(env, clienteId)) {
+    if (!n.pagamento) continue;
+    const pag = await kvJSON(env, K(env).pag + n.pagamento, null);
+    if (pag && pag.produto === produto) saida.push(n);
+  }
+  return saida;
+}
+
 /* O PDF ou o XML (base64) de uma nota do cliente, ou "". */
 export async function arquivoDaNota(env, clienteId, id, tipo = "pdf") {
   if (!RE_CLIENTE.test(String(clienteId || "")) || !RE_NOTA.test(String(id || ""))) return "";

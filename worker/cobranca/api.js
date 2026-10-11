@@ -25,7 +25,7 @@ import { catalogoPublico, MOEDA, PRODUTOS, produtoAberto, resolveOffer, voltaPer
 import { cliente, clienteDaRef, idDoCliente, novaRef } from "./cliente.js";
 import { ehAmbienteDeTeste, segredoDo } from "./eventos.js";
 import { criarPreapproval, ErroMP, fraseDaRecusa, mpFetch } from "./mp.js";
-import { arquivoDaNota, indexarCliente, notasDoCliente, porNaFila } from "../nfse/atos.js";
+import { arquivoDaNota, indexarCliente, notasDoCliente, notasDoProduto, porNaFila } from "../nfse/atos.js";
 
 const ACOES = { pause: "paused", reactivate: "authorized", cancel: "cancelled" }; // cancel -> canceled (a API grafa "cancelled")
 const PIX_VALIDADE = "P1D";
@@ -61,6 +61,27 @@ export async function atenderCobrancaV1(request, env, url, deps = {}) {
   }
 
   if (p === "/api/mp/aviso") return receberAviso(request, env, url, deps);
+
+  // As NFS-e de um cliente para o produto (o PAULUS instalado mostra as notas recebidas): o produto pelo segredo
+  // dele, como nos direitos, e so as notas dos pagamentos daquele produto. Com Bearer; sem ele, a rota e a da
+  // Minha conta (a sessao da pessoa), mais abaixo.
+  const mNf = /^\/api\/cobranca\/v1\/notas(?:\/([A-Za-z0-9_.-]{1,64})\/(pdf|xml))?$/.exec(p);
+  if (mNf && request.method === "GET" && request.headers.get("authorization")) {
+    const produto = url.searchParams.get("produto") || "";
+    const segredo = segredoDo(env, produto);
+    const m = /^Bearer\s+(\S+)$/.exec(request.headers.get("authorization") || "");
+    if (!segredo || !m || !iguais(m[1], segredo)) return erro(401, "produto não autenticado");
+    const sub = url.searchParams.get("sub") || "";
+    if (!sub || sub.length > 200) return erro(400, "falta o sub");
+    const cid = await idDoCliente(sub);
+    const notas = await notasDoProduto(env, cid, produto);
+    if (!mNf[1]) return json({ notas: notas.map(notaPublica) });
+    if (!notas.some((n) => n.id === mNf[1])) return erro(404, "essa nota não existe");
+    const b64 = await arquivoDaNota(env, cid, mNf[1], mNf[2]);
+    if (!b64) return erro(404, "essa nota não tem " + mNf[2].toUpperCase());
+    return new Response(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)), { headers: {
+      "content-type": mNf[2] === "pdf" ? "application/pdf" : "application/xml; charset=utf-8", "cache-control": "no-store" } });
+  }
 
   if (p === "/api/cobranca/v1/direitos" && request.method === "GET") {
     // So o produto (o segredo dele, o mesmo dos eventos), e so o direito a ele.
