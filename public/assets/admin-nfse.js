@@ -338,7 +338,7 @@
     var naFila = ns.some(function (n) { return PENDENTES.indexOf(n.estado) >= 0; });
     h += '<div class="nf-topo">' + seloAmbiente(s) + (s && naFila ? '<button type="button" class="btn p" data-nf="fila"' + trava() + (S.ocupado === "fila" ? " disabled" : "") + ">" +
       (S.ocupado === "fila" ? "Processando…" : "Processar a fila agora") + "</button>" : "") + "</div>";
-    if (s && !s.pode_emitir && (s.motivos || []).length) h += faixa("<strong>Ainda não dá para emitir:</strong> " + esc(s.motivos.join("; ")) + ".");
+    if (s && !s.pode_emitir && (s.motivos || []).length) h += faixa("<strong>Ainda não dá para emitir:</strong> " + esc(s.motivos.join("; ").replace(/\.$/, "")) + ".");
     var c = s && s.certificado;
     if (c && c.instalado && (c.vencido || c.dias_restantes <= 30)) {
       h += faixa(c.vencido ? "O certificado A1 venceu em " + esc(data(c.valido_ate)) + ": instale o novo em Parâmetros."
@@ -497,7 +497,7 @@
   function abaEmitir() {
     var d = S.resumo, s = d.situacao, pg = d.pagamentos || [], h = "", bl = bloqueio();
     if (!S.em) S.em = novoEm();
-    if (s && bl) h += faixa("<strong>Ainda não dá para emitir:</strong> " + esc((s.motivos || []).join("; ")) + ".");
+    if (s && bl) h += faixa("<strong>Ainda não dá para emitir:</strong> " + esc((s.motivos || []).join("; ").replace(/\.$/, "")) + ".");
     var trancar = !pode() ? trava() : bl ? ' disabled title="' + esc(bl) + '"' : "";
     h += h2("Pagamentos sem nota" + (pg.length ? " · " + pg.length : ""));
     if (!pg.length) h += vazio("Todos os pagamentos aprovados têm nota.");
