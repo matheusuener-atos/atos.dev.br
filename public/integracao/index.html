@@ -69,17 +69,17 @@
     <div class="capturas">
       <figure class="captura">
         <img src="/assets/integracao/entrar.webp" width="720" height="900" loading="lazy" decoding="async"
-          alt="Tela de entrar da Atos aberta por um aplicativo: o título “Entrar com a conta Atos”, a frase “Para continuar no Sistema de Exemplo”, os campos de e-mail e senha, o botão Entrar e o link Criar conta.">
+          alt="Tela de entrar da Atos aberta por um aplicativo: o título “Entrar com a conta Atos”, a frase “Para continuar em Loja da Maria”, os campos de e-mail e senha preenchidos com joao@exemplo.test, o botão Entrar e o link Criar conta.">
         <figcaption><strong>1. Entrar</strong>A pessoa entra com o e-mail e a senha da Conta Atos, ou cria a conta ali mesmo. A página diz para qual sistema ela está entrando.</figcaption>
       </figure>
       <figure class="captura">
         <img src="/assets/integracao/consentimento.webp" width="720" height="900" loading="lazy" decoding="async"
-          alt="Tela de consentimento: “O Sistema de Exemplo quer entrar com a sua conta Atos”, o aviso “Cadastrado por maria@exemplo.test. Não é um aplicativo da Atos”, a conta que está entrando, a lista do que o sistema poderá (saber que é você, ver o e-mail, ver o nome) e os botões Cancelar e Permitir.">
+          alt="Tela de consentimento: “Loja da Maria quer entrar com a sua conta Atos”, o aviso “Cadastrado por maria@exemplo.test. Não é um aplicativo da Atos”, a conta que está entrando (João Exemplo), a lista do que o sistema poderá (saber que é você, ver o e-mail, ver o nome) e os botões Cancelar e Permitir.">
         <figcaption><strong>2. Permitir</strong>Na primeira vez, a Atos mostra o seu sistema, quem o cadastrou e o que ele vai receber, com os links da política de privacidade e dos termos dele. Nada segue sem o “Permitir”.</figcaption>
       </figure>
       <figure class="captura larga">
-        <img src="/assets/integracao/aplicativos.webp" width="1200" height="210" loading="lazy" decoding="async"
-          alt="Minha conta da Atos, seção Aplicativos com acesso: o Sistema de Exemplo, com o que ele recebe, a data em que foi permitido, o último acesso e o botão Tirar o acesso.">
+        <img src="/assets/integracao/aplicativos.webp" width="1200" height="200" loading="lazy" decoding="async"
+          alt="Minha conta da Atos, seção Aplicativos com acesso: a Loja da Maria, com o que ela recebe, quem a cadastrou (maria@exemplo.test, não é da Atos), a data em que foi permitida, o último acesso e o botão Tirar o acesso.">
         <figcaption><strong>3. Tirar o acesso</strong>Em Minha conta › Aplicativos com acesso, a pessoa vê os sistemas que permitiu e tira o acesso de qualquer um. Na próxima vez, o sistema pede a permissão de novo.</figcaption>
       </figure>
     </div>
@@ -121,7 +121,7 @@
       <li>
         <div>
           <h3>Teste</h3>
-          <p>Entre com uma conta liberada, confira o nome e o e-mail que chegaram e tente com uma que não está liberada. Depois tire o acesso em Minha conta e veja o pedido de permissão aparecer de novo.</p>
+          <p>Entre com uma conta liberada, confira o nome e o e-mail que chegaram e tente com uma que não está liberada. Depois tire o acesso em Minha conta e veja o pedido de permissão aparecer de novo. Um exemplo completo, com as telas, está em <a href="#na-pratica">Na prática</a>.</p>
         </div>
       </li>
     </ol>
@@ -601,6 +601,137 @@ end
 #   &lt;%= button_to &quot;Entrar com Atos&quot;, &quot;/auth/atos&quot;, data: { turbo: false } %&gt;
 </pre></div></div></div>
 <!-- linguagens:fim -->
+  </section>
+
+  <section id="na-pratica" aria-labelledby="na-pratica-titulo">
+    <h2 id="na-pratica-titulo">Na prática: do zero ao login</h2>
+    <div class="corpo">
+      <p>Um exemplo rodando de verdade, do cadastro ao “Olá”. A Maria tem um site, a Loja da Maria, e quer que os clientes dela entrem com a Conta Atos. Ela libera o João; o Pedro ainda não está na lista.</p>
+      <p class="aviso-pratica">Feito num ambiente de teste com dados fictícios, com o pacote instalado do npm. A Atos rodou nesta máquina, por isso alguns endereços mostram <code>127.0.0.1</code>. As contas são de mentira, e a loja é a de <code>exemplos/loja-de-exemplo</code> no repositório. Em <code>atos.dev.br</code>, os passos e as telas são os mesmos.</p>
+    </div>
+
+    <ol class="pratica">
+      <li>
+        <h3>A Maria cadastra a loja na Atos</h3>
+        <p>Em Minha conta › Integrações, ela cria o aplicativo “Loja da Maria” e escolhe “Só as pessoas liberadas”. Depois libera o e-mail do João e cria um acesso confidencial, porque a loja tem servidor, com o endereço de volta da loja. A Atos mostra o segredo do acesso uma vez só, e ela o guarda.</p>
+        <figure class="captura">
+          <img src="/assets/integracao/pratica-integracoes.webp" width="796" height="745" loading="lazy" decoding="async"
+            alt="Minha conta › Integrações da Maria: o aplicativo Loja da Maria, “Quem pode entrar” em “Só as pessoas liberadas” com joao@exemplo.test na lista, e um acesso confidencial ligado com o endereço de volta da loja.">
+          <figcaption>O aplicativo, quem pode entrar e o acesso. O endereço de volta é <code>127.0.0.1</code> porque é o ambiente de teste; num site publicado, é o endereço <code>https</code> dele.</figcaption>
+        </figure>
+      </li>
+      <li>
+        <h3>Ela abre o “Como integrar”</h3>
+        <p>O cartão traz o <code>client_id</code>, os endereços e um comando que grava no <code>.env</code> do projeto o emissor, o <code>client_id</code> e a volta. O segredo ela cola à mão em <code>ATOS_CLIENT_SECRET</code>: ele nunca vai no comando.</p>
+        <figure class="captura">
+          <img src="/assets/integracao/pratica-como-integrar.webp" width="744" height="937" loading="lazy" decoding="async"
+            alt="O cartão Como integrar do acesso da Loja da Maria: a tabela com a descoberta, o issuer, o client_id, os endereços de autorização, token, userinfo, JWKS e revogação, os escopos e a volta; os cinco passos do fluxo; e o início do comando PowerShell que grava o .env.">
+          <figcaption>No ambiente de teste, os endereços são os da Atos local (<code>127.0.0.1:8787</code>). Em <code>atos.dev.br</code>, o emissor é <code>https://atos.dev.br</code>.</figcaption>
+        </figure>
+      </li>
+      <li>
+        <h3>Ela instala o pacote</h3>
+        <p>Na pasta da loja, um servidor Node com Express, basta um comando: o pacote <code>@atos.dev.br/entrar</code> vem do npm, junto com o Express e a sessão.</p>
+        <figure class="captura">
+          <img src="/assets/integracao/pratica-npm-install.webp" width="862" height="316" loading="lazy" decoding="async"
+            alt="Um terminal com o comando npm install @atos.dev.br/entrar express express-session e a resposta: added 74 packages, and audited 75 packages in 6s; 30 packages are looking for funding; found 0 vulnerabilities.">
+          <figcaption>A saída real do <code>npm install</code> desta demonstração. O <code>@atos.dev.br/entrar</code> 0.1.0 veio do registro do npm.</figcaption>
+        </figure>
+      </li>
+      <li>
+        <h3>Ela escreve três trechos</h3>
+        <p>Criar o cliente, mandar a pessoa para a Atos e receber a volta. O resto da loja é dela. Este é o trecho do <code>servidor.mjs</code> da loja de exemplo:</p>
+        <pre class="codigo" tabindex="0" aria-label="O código do Entrar com Atos na Loja da Maria"><code>import { entrarComAtos } from "@atos.dev.br/entrar";
+
+// 1. O cliente, com o que o .env tem (o segredo o pacote lê sozinho de ATOS_CLIENT_SECRET).
+const atos = entrarComAtos({
+  clientId: process.env.ATOS_CLIENT_ID,
+  voltaPara: process.env.ATOS_REDIRECT_URI, // exatamente como cadastrada na Atos
+  emissor: process.env.ATOS_ISSUER || undefined, // vazio: https://atos.dev.br
+});
+
+// 2. O botão "Entrar com Atos" leva para cá: o pacote gera state, nonce e o PKCE, e a pessoa vai à Atos.
+app.get("/entrar", async (req, res) =&gt; {
+  const { url, guardar } = await atos.comecar();
+  req.session.atos = guardar;
+  res.redirect(url);
+});
+
+// 3. A Atos devolve a pessoa aqui (o endereço de volta cadastrado). O pacote confere tudo e troca o código.
+app.get(new URL(atos.voltaPara).pathname, async (req, res) =&gt; {
+  const guardado = req.session.atos;
+  delete req.session.atos;
+  try {
+    const pessoa = await atos.concluir(req.originalUrl, guardado);
+    req.session.pessoa = { id: pessoa.id, nome: pessoa.nome, email: pessoa.email };
+    res.redirect("/");
+  } catch (e) {
+    // access_denied: a conta não está liberada na Loja, ou a pessoa não permitiu.
+    if (e.codigo === "access_denied") return res.redirect("/sem-acesso");
+    // ... (a página de erro da loja, com e.message)
+  }
+});</code></pre>
+        <div class="por-tras">
+          <h4>O que o pacote faz por trás</h4>
+          <ul>
+            <li><strong><code>comecar()</code></strong> sorteia o <code>state</code>, o <code>nonce</code> e o <code>code_verifier</code> do PKCE e monta o endereço da Atos. A loja só guarda isso na sessão de quem está entrando.</li>
+            <li><strong><code>concluir()</code></strong> confere se o <code>state</code> e o emissor que voltaram são os esperados e troca o código pelo token, com o segredo e o <code>code_verifier</code>. Depois confere o <code>id_token</code>: a assinatura, pelas chaves públicas da Atos; se foi emitido para esta loja; se está na validade; e se o <code>nonce</code> é o do começo.</li>
+            <li>Se a Atos voltou com <code>error=access_denied</code>, o <code>concluir()</code> lança um erro com <code>codigo</code> igual a <code>"access_denied"</code>, e a loja decide o que mostrar.</li>
+          </ul>
+        </div>
+      </li>
+      <li>
+        <h3>O João abre a loja</h3>
+        <p>A loja mostra o botão “Entrar com Atos”. O clique leva ao <code>/entrar</code> da loja, que manda o João para a Atos.</p>
+        <figure class="captura">
+          <img src="/assets/integracao/pratica-loja.webp" width="1280" height="800" loading="lazy" decoding="async"
+            alt="A página inicial da Loja da Maria, um site claro de bolos e doces caseiros: o título “Bolos e doces feitos em casa”, o botão “Entrar com Atos” no topo e abaixo do texto, e três produtos com preço.">
+          <figcaption>O site é da Maria, com a cara dela. Só o botão fala da Atos.</figcaption>
+        </figure>
+      </li>
+      <li>
+        <h3>O João entra e permite</h3>
+        <p>Na Atos, ele entra com o e-mail e a senha da Conta Atos dele. Como é a primeira vez, a Atos mostra quem cadastrou a loja, avisa que ela não é um aplicativo da Atos e diz o que a loja vai receber. Ele permite.</p>
+        <div class="capturas">
+          <figure class="captura">
+            <img src="/assets/integracao/pratica-entrar.webp" width="720" height="440" loading="lazy" decoding="async"
+              alt="A tela de entrar da Atos: “Entrar com a conta Atos”, “Para continuar em Loja da Maria”, o e-mail joao@exemplo.test e a senha preenchidos e o botão Entrar.">
+            <figcaption>Na Atos: “Para continuar em Loja da Maria”. A senha fica na Atos; a loja não a recebe.</figcaption>
+          </figure>
+          <figure class="captura">
+            <img src="/assets/integracao/pratica-permitir.webp" width="720" height="710" loading="lazy" decoding="async"
+              alt="A tela de consentimento: “Loja da Maria quer entrar com a sua conta Atos”, “Cadastrado por maria@exemplo.test. Não é um aplicativo da Atos”, a conta do João Exemplo, o que a loja poderá (saber que é você, ver o e-mail, ver o nome) e os botões Cancelar e Permitir.">
+            <figcaption>O consentimento aparece só na primeira vez, com quem cadastrou a loja e o que ela vai receber.</figcaption>
+          </figure>
+        </div>
+      </li>
+      <li>
+        <h3>De volta à loja, já identificado</h3>
+        <p>A Atos devolve o João ao endereço de volta com um código. A loja chama o <code>concluir()</code>, que confere tudo e entrega o identificador, o nome e o e-mail. A loja abre a sessão dela e mostra o “Olá”.</p>
+        <figure class="captura">
+          <img src="/assets/integracao/pratica-ola.webp" width="1280" height="800" loading="lazy" decoding="async"
+            alt="A Loja da Maria depois do login: “Área de clientes”, “Olá, João Exemplo”, o e-mail joao@exemplo.test, o quadro Seus pedidos e o link Sair no topo.">
+          <figcaption>O nome e o e-mail vieram da Atos, conferidos pelo pacote. Para guardar o cliente, a loja usa o <code>id</code>, que não muda.</figcaption>
+        </figure>
+      </li>
+      <li>
+        <h3>E o Pedro, que não está liberado</h3>
+        <p>O Pedro também tem Conta Atos, mas a Maria não liberou o e-mail dele. A Atos não pede consentimento nem entrega código: avisa que a conta dele não tem acesso. Quando ele volta à loja, a volta traz <code>error=access_denied</code>, o <code>concluir()</code> lança esse erro e a loja mostra a página de “sem acesso” dela.</p>
+        <div class="capturas">
+          <figure class="captura">
+            <img src="/assets/integracao/pratica-atos-sem-acesso.webp" width="720" height="540" loading="lazy" decoding="async"
+              alt="A tela da Atos “Sem acesso a este aplicativo”: a Loja da Maria, cadastrada por maria@exemplo.test, a conta Pedro Exemplo, o aviso “Sua Conta Atos não tem acesso a este aplicativo. Peça a quem o administra.” e os botões Voltar ao aplicativo e Entrar com outra conta.">
+            <figcaption>Na Atos: a conta do Pedro não está na lista da Loja da Maria.</figcaption>
+          </figure>
+          <figure class="captura larga">
+            <img src="/assets/integracao/pratica-loja-sem-acesso.webp" width="1280" height="480" loading="lazy" decoding="async"
+              alt="A página da Loja da Maria “Sua conta ainda não tem acesso”, explicando que a área de clientes é para quem já fez encomenda, com o botão Voltar à loja.">
+            <figcaption>Na loja, depois do “Voltar ao aplicativo”: o texto é da Maria, que decide o que dizer a quem não tem acesso.</figcaption>
+          </figure>
+        </div>
+      </li>
+    </ol>
+    <p class="nota-fim">Para rodar a loja de exemplo contra a Atos de verdade, veja o README de <a href="https://github.com/matheusuener-atos/matheusuener.com.br/tree/main/exemplos/loja-de-exemplo"><code>exemplos/loja-de-exemplo</code></a>: como cadastrar o aplicativo e gravar o <code>.env</code>.</p>
   </section>
 
   <section id="referencia" aria-labelledby="referencia-titulo">

@@ -71,3 +71,29 @@ main.integracao { flex: 1; width: 100%; max-width: 920px; margin: 0 auto; paddin
 .integracao .il .il-nota { font-size: 12px; line-height: 1.5; }
 .integracao .il .il-nota.il-testado { color: var(--success); }
 .integracao .il .il-nota.il-nao-testado { color: var(--warning); }
+
+/* Na pratica: do zero ao login (o passo a passo com as capturas da loja de exemplo) */
+.integracao .aviso-pratica { padding: 12px 14px; border: 1px solid var(--line); border-left: 3px solid var(--silver); background: var(--surface); font-size: 14px; line-height: 1.6; }
+.pratica { list-style: none; margin: 28px 0 0; padding: 0; counter-reset: pratica; display: flex; flex-direction: column; gap: 40px; }
+.pratica > li { counter-increment: pratica; position: relative; margin: 0; padding-left: 52px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pratica > li + li { margin-top: 0; }
+.pratica > li::before {
+  content: counter(pratica); position: absolute; left: 0; top: 0; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 1px solid var(--line); font-family: var(--serif); font-size: 16px; color: var(--text);
+}
+.pratica h3 { margin: 6px 0 0; font-size: 16px; color: var(--text); }
+.pratica > li > p { max-width: 640px; }
+.pratica .capturas { margin-top: 4px; }
+.pratica > li > .captura { margin-top: 4px; }
+.pratica .codigo { margin-top: 0; }
+.por-tras { padding: 14px 16px; border: 1px solid var(--line); background: var(--surface); }
+.por-tras h4 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--text); }
+.por-tras li { font-size: 14px; line-height: 1.6; }
+.por-tras li + li { margin-top: 6px; }
+
+@media (max-width: 640px) {
+  .pratica { gap: 32px; }
+  .pratica > li { padding-left: 0; }
+  .pratica > li::before { position: static; width: 32px; height: 32px; font-size: 14px; }
+}
+.pratica > li > .captura img { width: auto; max-width: 100%; }

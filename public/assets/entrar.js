@@ -73,9 +73,9 @@
   function desenhar() {
     var h = "";
     var app = nomeDoApp();
-    var paraApp = app ? "Para continuar no " + esc(app) : "";
+    var paraApp = app ? "Para continuar em " + esc(app) : "";
     if (S.modo === "carregando") {
-      h = cabeca(app ? "Voltando ao " + esc(app) + "…" : "Carregando…");
+      h = cabeca(app ? "Voltando para " + esc(app) + "…" : "Carregando…");
     } else if (S.modo === "fatal") {
       h = cabeca("Não foi possível continuar") +
         '<div class="form"><p class="erro" role="alert">' + esc(S.erro) + '</p><p class="nota">Volte ao aplicativo e tente de novo. Se continuar, escreva para contato@atos.dev.br.</p></div>';
@@ -114,24 +114,24 @@
         botao("Trocar a senha") + "</form>" + pe(link("esqueci", "Voltar"));
     } else if (S.modo === "negado") {
       // A Conta Atos nao esta entre as que podem entrar neste aplicativo: nada de consentimento nem codigo.
-      var pn = S.pedido, nomeN = esc(pn.app.nome);
-      h = cabeca("Sem acesso ao " + nomeN) +
+      var pn = S.pedido;
+      h = cabeca("Sem acesso a este aplicativo") +
         '<div class="card">' + linhaDoApp(pn.app) + linhaDeTerceiro(pn.app) +
         '<div class="linha"><span class="nome"><strong>' + esc(pn.conta.nome || pn.conta.email) + "</strong>" + (pn.conta.nome ? "<small>" + esc(pn.conta.email) + "</small>" : "") + "</span></div></div>" +
-        '<p class="erro" role="alert">Sua Conta Atos não tem acesso ao ' + nomeN + ". Peça a quem administra o " + nomeN + ".</p>" +
-        '<p class="nota">Quem decide quem entra é quem administra o ' + nomeN + ". Se você tem outra Conta Atos com acesso, entre com ela.</p>" +
-        '<div class="dois">' + (pn.voltar ? '<button type="button" class="btn" data-acao="voltar-app">Voltar ao ' + nomeN + "</button>" : "<span></span>") +
+        '<p class="erro" role="alert">Sua Conta Atos não tem acesso a este aplicativo. Peça a quem o administra.</p>' +
+        '<p class="nota">Quem decide quem entra é quem administra o aplicativo. Se você tem outra Conta Atos com acesso, entre com ela.</p>' +
+        '<div class="dois">' + (pn.voltar ? '<button type="button" class="btn" data-acao="voltar-app">Voltar ao aplicativo</button>' : "<span></span>") +
         '<button type="button" class="btn primario" data-acao="trocar">Entrar com outra conta</button></div>';
     } else if (S.modo === "consentir") {
       var p = S.pedido;
       var nome = esc(p.app.nome);
-      h = cabeca("O " + nome + " quer entrar com a sua conta Atos", "Confira antes de permitir") +
+      h = cabeca(nome + " quer entrar com a sua conta Atos", "Confira antes de permitir") +
         '<div class="card">' + linhaDoApp(p.app) + linhaDeTerceiro(p.app) +
         '<div class="linha"><span class="nome"><strong>' + esc(p.conta.nome || p.conta.email) + "</strong>" + (p.conta.nome ? "<small>" + esc(p.conta.email) + "</small>" : "") + "</span>" + link("trocar", "Trocar de conta") + "</div>" +
-        '<div class="escopos"><span class="titulo-secao">O ' + nome + " poderá</span>" +
+        '<div class="escopos"><span class="titulo-secao">' + nome + " poderá</span>" +
         p.escopos.map(function (e) { return '<div><span aria-hidden="true">✓</span><span>' + esc(e.texto) + "</span></div>"; }).join("") + "</div></div>" +
-        '<p class="nota">O ' + nome + " não recebe a sua senha. Você pode tirar essa permissão quando quiser, em Minha conta. " +
-        "Veja como o " + nome + ' trata os seus dados na <a href="' + esc(p.app.privacidade) + '" target="_blank" rel="noopener">política de privacidade</a> e nos ' +
+        '<p class="nota">' + nome + " não recebe a sua senha. Você pode tirar essa permissão quando quiser, em Minha conta. " +
+        'Veja como o aplicativo trata os seus dados na <a href="' + esc(p.app.privacidade) + '" target="_blank" rel="noopener">política de privacidade</a> e nos ' +
         '<a href="' + esc(p.app.termos) + '" target="_blank" rel="noopener">termos de uso</a> dele.</p>' + ERRO() +
         '<div class="dois"><button type="button" class="btn" data-acao="negar"' + DIS() + ">Cancelar</button>" +
         '<button type="button" class="btn primario" data-acao="permitir"' + DIS() + ">Permitir</button></div>";
