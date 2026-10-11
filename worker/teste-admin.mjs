@@ -257,8 +257,10 @@ checar(r.d.ok && !JSON.parse(guardados.get("atos:admin:equipe")).some((x) => x.e
 console.log("as áreas (onde cada um atua)");
 checar(Object.keys(PRODUTOS).every((id) => !RESERVADOS.includes(id) && /^[a-z0-9-]{1,30}$/.test(id)), "nenhum produto tem id de rota do painel");
 r = await pedir("GET", "/api/admin/eu", dono);
-checar(r.d.areas.join() === "atos,pavlvs" && r.d.produtos.length === 1 && r.d.produtos[0].id === "pavlvs" && r.d.produtos[0].nome === "PAVLVS" && r.d.areas_do_painel[0].id === "atos",
-  "o /eu traz as áreas da pessoa e o registro de produtos (id e nome)", r.d);
+checar(r.d.areas.join() === "atos,pavlvs" && r.d.produtos.length === 1 && r.d.produtos[0].id === "pavlvs" && r.d.produtos[0].nome === "PAVLVS" && r.d.produtos[0].github === true && r.d.areas_do_painel[0].id === "atos",
+  "o /eu traz as áreas da pessoa e o registro de produtos (id, nome e github)", r.d);
+checar(Object.keys(r.d.produtos[0]).sort().join() === "github,id,nome" && !/binding|segredo|origem|PAINEL_SEGREDO|paulus\.ia\.br/.test(JSON.stringify(r.d.produtos)),
+  "o /eu não expõe o binding, o segredo nem a origem do produto", r.d.produtos);
 r = await pedir("GET", "/api/admin/eu", sup);
 checar(r.d.areas.join() === "atos,pavlvs", "membro antigo, sem a lista: todas as áreas", r.d.areas);
 chamadas.length = 0;

@@ -17,7 +17,7 @@
 // (convidar, papeis, areas) e so do dono, em qualquer area.
 //
 // Rotas (o contrato inteiro em C:\coryphaeus\worker\admin-api.md, "O painel na Atos"):
-//   GET  /api/admin/eu                       {email, nome, papel, areas, produtos: [{id, nome}], areas_do_painel,
+//   GET  /api/admin/eu                       {email, nome, papel, areas, produtos: [{id, nome, github}], areas_do_painel,
 //                                            github: login | null}; 401 {entrar} ou {reentrar}; 403 fora da equipe
 //   *    /api/admin/nfse/...                 o emissor da Atos (deps.emissor); area "atos" (a tabela de municipios,
 //                                            GET .../municipios, e de consulta e serve a todos); suporte so GET
@@ -47,7 +47,9 @@ const NOME_DO_PAPEL = { dono: "Dono", financeiro: "Financeiro", suporte: "Suport
 // Os produtos do painel: cada um mora no proprio Worker e chega aqui por service binding, com quem pede assinado
 // pelo segredo dele (o mesmo valor nos dois Workers). /api/admin/<id>/* vai ao Worker do produto com o mesmo
 // caminho. Um produto novo = uma linha aqui + o binding em wrangler.jsonc ("services") + o segredo
-// (npx wrangler secret put <segredo>) + a tela dele (public/assets/admin-<id>.js, grupo = o nome).
+// (npx wrangler secret put <segredo>) + a tela dele (public/assets/admin-<id>.js, grupo = o nome, que declara os
+// prefixos dos tipos que poe na fila: AdminAtos.fila.tiposDo). A fila dele (/api/admin/<id>/alteracoes...) aparece
+// sozinha, a partir do /eu (produtos: [{id, nome, github}]); assets/admin-fila.js nao muda.
 export const PRODUTOS = {
   // github: o token do GitHub da sessao vai junto na assinatura (o OAuth App "PAVLVS Admin" e do repositorio dele).
   pavlvs: { nome: "PAVLVS", binding: "PAVLVS", segredo: "PAINEL_SEGREDO_PAVLVS", origem: "https://paulus.ia.br", github: true },
@@ -669,7 +671,8 @@ export async function atenderAdmin(request, env, url, deps = {}) {
     const gh = await githubDaSessao(request, env, quem.email);
     return json({
       email: quem.email, nome: quem.nome, papel: quem.papel, areas: quem.areas, github: gh ? gh.login : null,
-      produtos: Object.entries(PRODUTOS).map(([id, x]) => ({ id, nome: x.nome })), areas_do_painel: areasDoPainel(),
+      // Do registro, so o que a tela usa (id, nome e se publica pelo GitHub); o binding, o segredo e a origem ficam aqui.
+      produtos: Object.entries(PRODUTOS).map(([id, x]) => ({ id, nome: x.nome, github: Boolean(x.github) })), areas_do_painel: areasDoPainel(),
     });
   }
   const doProduto = p.match(/^\/api\/admin\/([a-z0-9-]{1,30})\//);

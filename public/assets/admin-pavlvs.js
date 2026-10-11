@@ -53,6 +53,16 @@
   var MP = null; // o pop-up desta secao (google, endereco, campCancelar, escContas, tunelHist, busca)
 
   function fila() { return A.fila; }
+  /* Os tipos que estas telas poem na fila do PAVLVS (a fila e escolhida pelo prefixo; admin-fila.js nao conhece o
+     PAVLVS) e o papel que pode cada um: o PODE de worker/admin.js do coryphaeus (conta.creditar, conta.cadastro,
+     conta.instalacao.apagar, google.servicos, google.desvincular, tunel.apagar, tunel.endereco, tunel.ativo,
+     plano.editar, plano.criar, planos.json, campanha.disparar, campanha.cancelar). Tipo novo do PAVLVS com outro
+     prefixo: acrescentar aqui, senao a fila recusa com o erro na tela. */
+  var DF = ["dono", "financeiro"], DS = ["dono", "suporte"];
+  if (fila()) fila().tiposDo("pavlvs", ["conta.", "google.", "tunel.", "plano.", "planos.", "campanha."], {
+    "conta.creditar": DF, "conta.instalacao.apagar": DS, "google.servicos": DS, "google.desvincular": DS,
+    "tunel.apagar": DS, "tunel.endereco": DS, "tunel.ativo": DS, "plano.editar": DF, "plano.criar": DF, "planos.json": DF,
+  });
   function pode(tipo) { return fila() ? fila().pode(tipo) : false; }
   function naFila(tipo, alvo) { return Boolean(fila() && fila().naFila(tipo, alvo)); }
   function enfileirar(tela, tipo, alvo, dados, texto, quieto) {

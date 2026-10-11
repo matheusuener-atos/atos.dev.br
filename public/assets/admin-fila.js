@@ -1,55 +1,136 @@
 /* O painel da Atos, as filas de alteracoes e a secao Confirmar alteracoes. Porte da tela 13 do painel do PAVLVS
-   (site/assets/admin.js do coryphaeus), sobre o contrato worker/admin-api.md do coryphaeus. Duas filas, a mesma
-   regra: o que muda o que esta no ar entra na fila de quem mexeu e so acontece em "Commitar e pushar".
+   (site/assets/admin.js do coryphaeus), sobre o contrato worker/admin-api.md do coryphaeus. Uma fila por lugar, a
+   mesma regra: o que muda o que esta no ar entra na fila de quem mexeu e so acontece em "Commitar e pushar".
 
-     a da Atos    /api/admin/alteracoes, /publicar, /retroagir          a equipe (equipe.papel, equipe.membro,
-                                                                        equipe.areas) e o Login Atos (oauth.app,
-                                                                        oauth.cliente); nada aqui vira commit:
-                                                                        publica sem o GitHub
-     (a do PAVLVS so aparece para quem atua no PAVLVS)
-     a do PAVLVS  /api/admin/pavlvs/alteracoes, /publicar, /retroagir   contas, tuneis, planos, campanhas; publicar
-                                                                        e retroagir pedem o GitHub ligado
+     a da Atos       /api/admin/alteracoes, /publicar, /retroagir   fixa: a equipe (equipe.papel, equipe.membro,
+                                                                    equipe.areas) e o Login Atos (oauth.app,
+                                                                    oauth.cliente); nada aqui vira commit: publica
+                                                                    sem o GitHub
+     a de um produto /api/admin/<id>/alteracoes, /publicar, ...     uma por produto do registro do servidor (GET
+                                                                    /api/admin/eu, produtos: [{id, nome, github}]),
+                                                                    montada quando a pessoa entra e mostrada so a
+                                                                    quem tem a area <id>; com github: true, publicar
+                                                                    e retroagir pedem o GitHub ligado
 
-   AdminAtos.fila e o que as outras secoes usam: pendentes (as duas), naFila, ultima, enfileirar (escolhe a fila pelo
-   tipo), pode (o papel que pode cada tipo, a tabela do contrato) e ouvir (redesenhar quando uma fila muda).
-   O GitHub: GET /api/admin/eu traz github: login|null; sem ele, a fila do PAVLVS prepara mas nao publica e a tela
-   pede "Ligar o GitHub" (GET /api/admin/github/entrar?volta=<tela>, que volta ao painel). */
+   Nenhum produto tem nome aqui. Cada tela de produto diz os tipos que poe na fila, pelos prefixos, ao carregar:
+
+     AdminAtos.fila.tiposDo("<id>", ["conta.", "plano.", ...], {"conta.creditar": ["dono", "financeiro"], ...})
+
+   (o terceiro argumento, opcional, e o papel que pode cada tipo, a tabela do contrato do produto; o que nao esta la,
+   todos os papeis). A fila escolhe pelo prefixo; um tipo que nao e de ninguem, que casa com dois lugares ou que e de
+   um produto fora do painel desta pessoa nao vai para fila nenhuma: o erro aparece na tela (aviso e Confirmar
+   alteracoes), nunca em silencio. Prefixo repetido entre lugares tambem e erro, na hora de declarar.
+
+   Acrescentar um produto: o registro no servidor (PRODUTOS em worker/admin.js, com o binding e o segredo) e a tela
+   dele (public/assets/admin-<id>.js, que chama tiposDo). Nada muda neste arquivo.
+
+   AdminAtos.fila e o que as outras secoes usam: pendentes (de todas as filas desta pessoa), naFila, ultima,
+   enfileirar (escolhe a fila pelo tipo), pode (o papel que pode cada tipo), ouvir (redesenhar quando uma fila muda)
+   e tiposDo. O GitHub: GET /api/admin/eu traz github: login|null; sem ele, a fila de produto com github prepara mas
+   nao publica e a tela pede "Ligar o GitHub" (GET /api/admin/github/entrar?volta=<tela>, que volta ao painel). */
 (function () {
   "use strict";
   var A = window.AdminAtos;
   if (!A) return;
   var esc = A.esc, U = A.util;
-  var DF = ["dono", "financeiro"], DS = ["dono", "suporte"];
-  // O papel que pode cada tipo (o contrato); o que nao esta aqui, todos os papeis. O servidor decide de verdade.
+  // O papel que pode cada tipo; o que nao esta aqui, todos os papeis. Os da Atos aqui; os de cada produto, da tela
+  // dele (tiposDo). O servidor decide de verdade.
   var PAPEIS = {
-    "retroagir": ["dono"], "conta.creditar": DF, "conta.instalacao.apagar": DS, "google.servicos": DS, "google.desvincular": DS,
-    "tunel.apagar": DS, "tunel.endereco": DS, "tunel.ativo": DS, "plano.editar": DF, "plano.criar": DF, "planos.json": DF,
+    "retroagir": ["dono"],
     "equipe.papel": ["dono"], "equipe.membro": ["dono"], "equipe.areas": ["dono"], "oauth.app": ["dono"], "oauth.cliente": ["dono"],
   };
-  var FILAS = [
-    { id: "pavlvs", nome: "PAVLVS", area: "pavlvs", base: "/api/admin/pavlvs/", github: true, pendentes: [], publicacoes: [], lido: false, erro: "", carregando: false,
-      vazio: "Nada pendente. O PAVLVS está igual ao que está no ar." },
-    { id: "atos", nome: "Atos", base: "/api/admin/", github: false, pendentes: [], publicacoes: [], lido: false, erro: "", carregando: false,
-      vazio: "Nada pendente na Atos (equipe e Login Atos)." },
-  ];
+  function novaFila(x) {
+    return { id: x.id, nome: x.nome, area: x.area, base: x.base, github: Boolean(x.github), vazio: x.vazio,
+      pendentes: [], publicacoes: [], lido: false, erro: "", carregando: false };
+  }
+  var ATOS = novaFila({ id: "atos", nome: "Atos", base: "/api/admin/", github: false, vazio: "Nada pendente na Atos (equipe e Login Atos)." });
+  // As filas dos produtos entram antes da da Atos, na ordem do registro, quando a pessoa entra (montar).
+  var FILAS = [ATOS];
+  // Os prefixos de cada lugar: o da Atos, fixo; os dos produtos, das telas deles.
+  var PREFIXOS = { atos: ["equipe.", "oauth."] };
+  var PROBLEMAS = []; // o que nao vale (declaracao errada, tipo sem fila): aparece na tela
+  var avisados = {};
+  /* Um problema e dito uma vez (o aviso e a lista em Confirmar alteracoes); `sempre`: o aviso de novo (quem clicou). */
+  function problema(texto, sempre) {
+    var novo = !avisados[texto];
+    if (novo) { avisados[texto] = true; PROBLEMAS.push(texto); if (window.console) console.error("fila de alterações: " + texto); }
+    if ((novo || sempre) && A.quem) A.toast(texto, true);
+  }
   function filaDe(id) { return FILAS.filter(function (f) { return f.id === id; })[0]; }
-  function filaDoTipo(tipo) { return filaDe(/^(equipe|oauth)\./.test(tipo) ? "atos" : "pavlvs"); }
   /* As filas que esta pessoa ve: a da Atos (a equipe e o Login Atos) para todos; a de um produto, so com a area. */
-  function minhas() { return FILAS.filter(function (f) { return !f.area || A.temArea(f.area); }); }
+  function minhas() { garantir(); return FILAS.filter(function (f) { return !f.area || A.temArea(f.area); }); }
+  var montado = false;
+  /* As filas dos produtos existem assim que se sabe quem esta (as secoes ja pintam antes do aoEntrar rodar). */
+  function garantir() { if (!montado && A.quem) { montado = true; montar(A.quem); } }
+  function montar(quem) {
+    var ps = (quem && quem.produtos) || [];
+    ps.forEach(function (p) {
+      if (!p || !/^[a-z0-9-]{1,30}$/.test(String(p.id)) || p.id === "atos" || filaDe(p.id)) return;
+      FILAS.splice(FILAS.length - 1, 0, novaFila({ id: p.id, nome: p.nome || p.id, area: p.id, base: "/api/admin/" + p.id + "/", github: p.github === true,
+        vazio: "Nada pendente. O " + (p.nome || p.id) + " está igual ao que está no ar." }));
+    });
+    // Uma tela que declarou tipos para um produto que o servidor nao registrou: os tipos dela nao tem para onde ir.
+    Object.keys(PREFIXOS).forEach(function (id) {
+      if (id !== "atos" && !ps.some(function (p) { return p && p.id === id; })) problema("a tela do produto “" + id + "” declarou tipos, mas o painel não tem esse produto no registro (GET /api/admin/eu)");
+    });
+  }
+  /* A fila do tipo: {fila} ou {erro}. Pelo prefixo declarado; nunca por palpite. */
+  function lugarDo(tipo) {
+    garantir();
+    tipo = String(tipo || "");
+    var donos = Object.keys(PREFIXOS).filter(function (id) { return PREFIXOS[id].some(function (p) { return tipo.indexOf(p) === 0; }); });
+    if (!donos.length) return { erro: "a alteração “" + tipo + "” não é de nenhuma fila: a tela que a usa não declarou o tipo (AdminAtos.fila.tiposDo)" };
+    if (donos.length > 1) return { erro: "a alteração “" + tipo + "” casa com mais de uma fila (" + donos.join(", ") + "): não vai para nenhuma" };
+    var f = filaDe(donos[0]);
+    if (!f) return { erro: "a alteração “" + tipo + "” é do produto “" + donos[0] + "”, que não está no registro do painel" };
+    if (minhas().indexOf(f) < 0) return { erro: "a alteração “" + tipo + "” é do " + f.nome + ", e você não atua nele: peça ao dono para incluir a área" };
+    return { fila: f };
+  }
+  function filaDoTipo(tipo) {
+    var l = lugarDo(tipo);
+    if (l.erro) problema(l.erro);
+    return l.fila || null;
+  }
 
   var F = A.fila = {
     filas: FILAS, ouvintes: [],
     get pendentes() { return minhas().reduce(function (l, f) { return l.concat(f.pendentes); }, []); },
     pode: function (tipo) { var p = PAPEIS[tipo]; return !p || Boolean(A.quem && p.indexOf(A.quem.papel) >= 0); },
-    naFila: function (tipo, alvo) { return filaDoTipo(tipo).pendentes.some(function (p) { return p.tipo === tipo && String(p.alvo) === String(alvo); }); },
+    naFila: function (tipo, alvo) {
+      var f = filaDoTipo(tipo);
+      return Boolean(f) && f.pendentes.some(function (p) { return p.tipo === tipo && String(p.alvo) === String(alvo); });
+    },
     ultima: function (tipo, alvo) {
-      var r = null;
-      filaDoTipo(tipo).pendentes.forEach(function (p) { if (p.tipo === tipo && (alvo == null || String(p.alvo) === String(alvo))) r = p; });
+      var r = null, f = filaDoTipo(tipo);
+      if (f) f.pendentes.forEach(function (p) { if (p.tipo === tipo && (alvo == null || String(p.alvo) === String(alvo))) r = p; });
       return r;
     },
     ouvir: function (fn) { F.ouvintes.push(fn); },
     github: function () { return Boolean(A.quem && A.quem.github); },
     ligarGithub: function (volta) { location.assign("/api/admin/github/entrar?volta=" + encodeURIComponent(volta || A.secaoAtual() || "alteracoes")); },
+    /* A tela de um produto diz os tipos dela: tiposDo(id, ["conta.", ...], {tipo: [papeis]}?). Prefixo que ja e de
+       outro lugar (ou que contem / esta contido num dele) e recusado, com o erro na tela. */
+    tiposDo: function (id, prefixos, papeis) {
+      id = String(id || "");
+      if (!/^[a-z0-9-]{1,30}$/.test(id) || id === "atos") { problema("tiposDo: “" + id + "” não é id de produto"); return false; }
+      var meus = PREFIXOS[id] || (PREFIXOS[id] = []), ok = true;
+      (prefixos || []).forEach(function (p) {
+        p = String(p || "");
+        if (!/^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.$/.test(p)) { problema("tiposDo(" + id + "): o prefixo “" + p + "” precisa terminar em ponto (ex.: “conta.”)"); ok = false; return; }
+        var de = Object.keys(PREFIXOS).filter(function (outro) {
+          return outro !== id && PREFIXOS[outro].some(function (q) { return q.indexOf(p) === 0 || p.indexOf(q) === 0; });
+        });
+        if (de.length) { problema("tiposDo(" + id + "): o prefixo “" + p + "” já é da fila " + de.join(", ")); ok = false; return; }
+        if (meus.indexOf(p) < 0) meus.push(p);
+      });
+      Object.keys(papeis || {}).forEach(function (t) {
+        if (!meus.some(function (p) { return t.indexOf(p) === 0; })) { problema("tiposDo(" + id + "): o papel de “" + t + "” é de um tipo fora dos prefixos dele"); ok = false; return; }
+        if (Array.isArray(papeis[t])) PAPEIS[t] = papeis[t].slice();
+      });
+      return ok;
+    },
+    /* (para a tela e para conferir) a fila de um tipo, sem enfileirar: {fila: id} ou {erro} */
+    lugar: function (tipo) { var l = lugarDo(tipo); return l.erro ? { erro: l.erro } : { fila: l.fila.id }; },
   };
   function mudou() {
     F.ouvintes.forEach(function (fn) { try { fn(); } catch (e) { /* uma secao nao derruba as outras */ } });
@@ -65,9 +146,12 @@
     return f.promessa;
   }
   F.carregar = function () { return Promise.all(minhas().map(carregarUma)); };
-  /* Poe na fila (a do tipo): {tela, tipo, alvo, dados, texto} -> true/false. `texto` e a frase no passado da lista. */
+  /* Poe na fila (a do tipo): {tela, tipo, alvo, dados, texto} -> true/false. `texto` e a frase no passado da lista.
+     O tipo sem fila nao vai a lugar nenhum: o erro aparece (aviso vermelho) e volta false. */
   F.enfileirar = function (tela, tipo, alvo, dados, texto, quieto) {
-    var f = filaDoTipo(tipo);
+    var l = lugarDo(tipo);
+    if (l.erro) { problema(l.erro, true); if (A.secaoAtual() === "alteracoes") pintar(); return Promise.resolve(false); }
+    var f = l.fila;
     return A.pedir("POST", f.base + "alteracoes", { tela: tela, tipo: tipo, alvo: String(alvo), dados: dados, texto: texto }).then(function (r) {
       if (r.pendentes) f.pendentes = r.pendentes;
       if (!quieto) F.avisarFila();
@@ -80,6 +164,10 @@
   };
   F.avisarFila = function () { A.toast('Na fila de alterações · <a href="#alteracoes" data-secao="alteracoes">Confirmar alterações</a>', false, true); };
   A.aoEntrar(function () {
+    var antes = PROBLEMAS.length;
+    garantir();
+    // O que deu errado antes de entrar (as declaracoes) e dito agora (o que garantir() achou ja foi dito).
+    if (antes) A.toast(PROBLEMAS[0] + (antes > 1 ? " (e mais " + (antes - 1) + " em Confirmar alterações)" : ""), true);
     F.carregar();
     // Na volta do GitHub (?github=1 ou ?erro=), a frase e dita e o endereco fica limpo.
     var u = new URL(location.href), erro = u.searchParams.get("erro");
@@ -124,9 +212,15 @@
     var gh = F.github();
     var h = "<h1>Confirmar alterações</h1>" +
       '<p class="descricao">Tudo o que muda o que está no ar fica aqui até publicar. Publicar aplica em ordem, uma depois da outra; a que falha não desfaz as outras e volta para a fila com o motivo.</p>';
-    if (!minhas().some(function (f) { return f.github; })) return h + minhas().map(blocoFila).join("");
-    h += gh ? '<p class="nf-aviso ok fila-gh"><span>GitHub ligado nesta sessão: <strong>' + esc(A.quem.github) + "</strong>. Você pode publicar e retroagir o PAVLVS.</span></p>"
-      : '<p class="nf-aviso fila-gh"><span>Para publicar ou retroagir o PAVLVS, o painel precisa do seu GitHub. Sem ele, você prepara a fila do PAVLVS, mas não publica. A da Atos não precisa.</span>' +
+    // O que nao foi para fila nenhuma (tipo sem dono, declaracao errada): dito aqui tambem, para nao sumir com o aviso.
+    if (PROBLEMAS.length) h += '<div class="nf-aviso fila-problemas" role="alert"><span><strong>Alterações sem fila.</strong> ' + PROBLEMAS.map(esc).join(" · ") + "</span></div>";
+    var comGh = minhas().filter(function (f) { return f.github; });
+    if (!comGh.length) return h + minhas().map(blocoFila).join("");
+    var nomes = comGh.map(function (f) { return f.nome; }), quais = nomes.length > 1 ? nomes.slice(0, -1).join(", ") + " e " + nomes[nomes.length - 1] : nomes[0];
+    var semGh = minhas().filter(function (f) { return !f.github; }).map(function (f) { return f.nome; });
+    h += gh ? '<p class="nf-aviso ok fila-gh"><span>GitHub ligado nesta sessão: <strong>' + esc(A.quem.github) + "</strong>. Você pode publicar e retroagir: " + esc(quais) + ".</span></p>"
+      : '<p class="nf-aviso fila-gh"><span>Para publicar ou retroagir ' + esc(quais) + ", o painel precisa do seu GitHub. Sem ele, você prepara a fila, mas não publica." +
+        (semGh.length ? " " + (semGh.length > 1 ? "As filas de " : "A fila da ") + esc(semGh.join(", ")) + " não " + (semGh.length > 1 ? "precisam" : "precisa") + "." : "") + "</span>" +
         '<button type="button" class="btn p primario" data-fila="github">Ligar o GitHub</button></p>';
     return h + minhas().map(blocoFila).join("");
   }
