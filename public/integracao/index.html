@@ -72,8 +72,8 @@
       </figure>
       <figure class="captura">
         <img src="/assets/integracao/consentimento.webp" width="720" height="900" loading="lazy" decoding="async"
-          alt="Tela de consentimento: “O Sistema de Exemplo quer entrar com a sua conta Atos”, a conta que está entrando, a lista do que o sistema poderá (saber que é você, ver o e-mail, ver o nome) e os botões Cancelar e Permitir.">
-        <figcaption><strong>2. Permitir</strong>Na primeira vez, a Atos mostra o seu sistema e o que ele vai receber, com os links da política de privacidade e dos termos dele. Nada segue sem o “Permitir”.</figcaption>
+          alt="Tela de consentimento: “O Sistema de Exemplo quer entrar com a sua conta Atos”, o aviso “Cadastrado por maria@exemplo.test. Não é um aplicativo da Atos”, a conta que está entrando, a lista do que o sistema poderá (saber que é você, ver o e-mail, ver o nome) e os botões Cancelar e Permitir.">
+        <figcaption><strong>2. Permitir</strong>Na primeira vez, a Atos mostra o seu sistema, quem o cadastrou e o que ele vai receber, com os links da política de privacidade e dos termos dele. Nada segue sem o “Permitir”.</figcaption>
       </figure>
       <figure class="captura larga">
         <img src="/assets/integracao/aplicativos.webp" width="1200" height="210" loading="lazy" decoding="async"
@@ -100,7 +100,7 @@
           <ul>
             <li><strong>O aplicativo:</strong> o nome que a pessoa verá, o site, a política de privacidade e os termos.</li>
             <li><strong>O acesso:</strong> página ou aplicativo (cliente público, sem segredo) ou servidor (cliente confidencial, com um segredo mostrado uma vez só: guarde-o na hora).</li>
-            <li><strong>O endereço de volta:</strong> exato, como o seu sistema vai mandar no <code>redirect_uri</code>. Em <code>https</code> (ou <code>http</code> só em <code>127.0.0.1</code>, para testar na sua máquina).</li>
+            <li><strong>O endereço de volta:</strong> exato, como o seu sistema vai mandar no <code>redirect_uri</code>. Em <code>https</code>, ou <code>http</code> só em <code>127.0.0.1</code> e <code>[::1]</code> (para testar na sua máquina; um programa instalado pode aceitar a volta em qualquer porta).</li>
           </ul>
         </div>
       </li>
@@ -113,7 +113,7 @@
       <li>
         <div>
           <h3>Integre</h3>
-          <p>O bloco “Como integrar” da Integrações traz o seu <code>client_id</code>, os endereços e um pedido pronto para colar no Claude Code, além de comandos para PowerShell e Linux. Ou siga a <a href="#referencia">referência técnica</a> abaixo com a biblioteca OpenID Connect da sua linguagem.</p>
+          <p>O bloco “Como integrar” da Integrações traz o seu <code>client_id</code>, os endereços e um pedido pronto para colar no Claude Code, além de comandos para PowerShell e Linux/macOS (o segredo nunca entra no pedido nem nos comandos). Ou siga a <a href="#referencia">referência técnica</a> abaixo com a biblioteca OpenID Connect da sua linguagem.</p>
         </div>
       </li>
       <li>
