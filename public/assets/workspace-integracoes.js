@@ -53,7 +53,8 @@
       S.carregando = false;
       if (d._status === 401) { location.replace("/entrar/?volta=" + encodeURIComponent("/workspace/integracoes")); return; }
       // O Workspace foi desativado (noutra aba): a workspace.js volta a mostrar a ativacao.
-      if (d._status === 403 && d.workspace === false) { S.dados = null; document.dispatchEvent(new CustomEvent("workspace-inativo")); return; }
+      // Ou o e-mail Atos deixou de cumprir o que as Integracoes pedem (codigo: sem_alias, alias_nao_confirmado, entrar_pelo_alias).
+      if (d._status === 403 && (d.workspace === false || d.codigo)) { S.dados = null; document.dispatchEvent(new CustomEvent("workspace-inativo")); return; }
       if (d.erro || !d.apps) { S.erro = d.erro || "não deu para carregar as integrações agora"; pintar(); return; }
       S.erro = ""; S.dados = d; pintar();
     });
@@ -62,7 +63,7 @@
   function mudar(caminho, corpo, depois) {
     return api(caminho, corpo).then(function (d) {
       if (d._status === 401 && d.reentrar) { S.dados.recente = false; S.aviso = ""; pintar(); return d; }
-      if (d._status === 403 && d.workspace === false) { S.dados = null; S.modal = null; pintarModal(); document.dispatchEvent(new CustomEvent("workspace-inativo")); return d; }
+      if (d._status === 403 && (d.workspace === false || d.codigo)) { S.dados = null; S.modal = null; pintarModal(); document.dispatchEvent(new CustomEvent("workspace-inativo")); return d; }
       if (d.erro) return d;
       if (d.app) S.dados.apps = S.dados.apps.map(function (a) { return a.id === d.app.id ? d.app : a; });
       if (d.apagado) S.dados.apps = S.dados.apps.filter(function (a) { return a.id !== d.apagado; });
@@ -157,7 +158,7 @@
       h += '<div class="card"><p class="vazio">Nenhum aplicativo. Cadastre o seu sistema para as pessoas entrarem nele com a Conta Atos: você recebe o client_id e diz quem pode entrar.</p></div>';
     } else h += D.apps.map(cartaoDoApp).join("");
     h += '<p class="nota">O aplicativo é seu e você responde por ele: a Atos só confirma quem é a pessoa e, com a permissão dela, passa ao seu sistema o identificador da conta, o nome e o e-mail. ' +
-      "Na tela de permitir, quem entra vê que o aplicativo foi cadastrado por " + esc(D.conta.email) + " e não é da Atos. A Atos pode desligar um aplicativo usado para abuso. " +
+      "Na tela de permitir, quem entra vê que o aplicativo foi cadastrado por " + esc(D.email_atos || "uma Conta Atos") + " (o seu e-mail Atos; o pessoal não aparece) e não é da Atos. A Atos pode desligar um aplicativo usado para abuso. " +
       'Limites: ' + D.limites.apps + " aplicativos por conta, " + D.limites.acessos + " acessos por aplicativo e " + D.limites.liberados + ' pessoas liberadas por aplicativo. Veja os <a href="/termos/#workspace">termos do Atos Workspace</a> e a <a href="/privacidade/">política de privacidade</a>.</p>';
     return h;
   }
@@ -208,7 +209,7 @@
   function modalApp() {
     var M = S.modal, v = M.v;
     return '<h2 id="ig-modal-titulo">' + (M.id ? "Editar " + esc(v.nome) : "Novo aplicativo") + "</h2>" +
-      "<p>Quem entra vê o nome, a descrição, o ícone, quem cadastrou e os links da política de privacidade e dos termos do seu sistema na tela de permitir.</p>" +
+      "<p>Quem entra vê o nome, a descrição, o ícone, quem cadastrou (o seu e-mail Atos, nunca o pessoal) e os links da política de privacidade e dos termos do seu sistema na tela de permitir.</p>" +
       campo("Nome", "nome", v.nome, ' maxlength="60"') + campo("Descrição curta (ex.: controle de canteiros)", "descricao", v.descricao, ' maxlength="140"') +
       campo("Site (https)", "site", v.site, ' type="url"') + campo("Política de privacidade (https)", "privacidade", v.privacidade, ' type="url"') +
       campo("Termos de uso (https)", "termos", v.termos, ' type="url"') +

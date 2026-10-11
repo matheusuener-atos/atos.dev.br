@@ -76,6 +76,13 @@
     if (w.ativo) return "ativo" + (w.ativado ? " desde " + U.quando(w.ativado) : "");
     return w.desativado ? "desativado em " + U.quando(w.desativado) + " (o dono não muda o aplicativo até ativar de novo)" : "nunca ativado (o dono não muda o aplicativo até ativar)";
   }
+  /* O e-mail Atos do dono: e o que quem entra no aplicativo ve como "Cadastrado por" (sem ele, "uma Conta Atos"). */
+  function aliasDoDono(a) {
+    if (!a.dono_alias_lido) return "não deu para conferir";
+    var x = a.dono_alias;
+    if (!x) return "nenhum (quem entra vê “Cadastrado por uma Conta Atos”)";
+    return x.endereco + (x.suspenso ? " · suspenso (quem entra vê “uma Conta Atos”)" : x.confirmado ? "" : " · destino não confirmado");
+  }
   /* Os aplicativos que as pessoas cadastram no Atos Workspace > Integracoes: ver, desligar por abuso, ligar e apagar. */
   function terceiros(D) {
     var l = D.terceiros || [];
@@ -92,7 +99,8 @@
       var det = "";
       if (aberto) {
         det = '<div class="nf-det"><dl class="nf-info">' +
-          "<dt>Dono</dt><dd>" + esc(a.dono) + "</dd>" +
+          "<dt>Dono</dt><dd>" + esc(a.dono) + (a.dono_sub ? " <small>(" + esc(a.dono_sub) + ")</small>" : "") + "</dd>" +
+          "<dt>E-mail Atos do dono</dt><dd>" + esc(aliasDoDono(a)) + "</dd>" +
           "<dt>Workspace do dono</dt><dd>" + esc(workspaceDoDono(a)) + "</dd>" +
           "<dt>Site</dt><dd>" + esc(a.site) + "</dd>" +
           "<dt>Privacidade</dt><dd>" + esc(a.privacidade) + "</dd>" +

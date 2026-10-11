@@ -47,7 +47,9 @@
     var topo = '<label class="rotulo" for="c-' + nome + '">' + rotulo + "</label>";
     if (nome === "senha" && S.modo === "entrar") topo = '<span class="topo-campo">' + topo + link("esqueci", "Esqueci a senha") + "</span>";
     return '<div class="campo' + (classe ? " " + classe : "") + '">' + topo + '<input id="c-' + nome + '" name="' + nome + '" type="' + tipo + '" ' + (extra || "") + ">" +
-      (nome === "senha2" ? '<span class="dica">Pelo menos 10 caracteres, com letras e números.</span>' : "") + "</div>";
+      (nome === "senha2" ? '<span class="dica">Pelo menos 10 caracteres, com letras e números.</span>' : "") +
+      // O endereco Atos (<alias>@atos.dev.br) entra na mesma conta, com a mesma senha (worker/contas.js).
+      (nome === "email" && (S.modo === "entrar" || S.modo === "esqueci") ? '<span class="dica">ou o seu endereço @atos.dev.br</span>' : "") + "</div>";
   }
   var ERRO = function () { return '<p class="erro" role="alert">' + esc(S.erro) + "</p>"; };
   var DIS = function () { return S.ocupado ? " disabled" : ""; };
@@ -66,7 +68,8 @@
   function linhaDeTerceiro(a) {
     if (!a.terceiro) return "";
     // "linha app": a linha de baixo quebra em vez de cortar (conta.css).
-    return '<div class="linha app terceiro"><span class="nome"><small>Cadastrado por ' + esc(a.cadastrado_por) + ". Não é um aplicativo da Atos: a Atos só confirma quem é você.</small></span></div>";
+    // Quem cadastrou: o e-mail Atos dele (nunca o e-mail pessoal); sem um, "uma Conta Atos".
+    return '<div class="linha app terceiro"><span class="nome"><small>Cadastrado por ' + (a.cadastrado_por ? esc(a.cadastrado_por) : "uma Conta Atos") + ". Não é um aplicativo da Atos: a Atos só confirma quem é você.</small></span></div>";
   }
   var COD = 'inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required';
 
@@ -101,12 +104,15 @@
         campo("codigo", "Código", "text", COD, "codigo") + botao("Confirmar") + "</form>" +
         pe(link("criar", "Voltar") + (pendente ? " · " + link("reenviar", "Reenviar código") : ""));
     } else if (S.modo === "esqueci") {
-      h = cabeca("Trocar a senha", "Mandamos um código para o seu e-mail. Se você só entrava com o Google, assim você cria uma senha para a mesma conta.", true) +
+      h = cabeca("Trocar a senha", "Mandamos um código para o e-mail cadastrado da conta, também quando você digita o endereço @atos.dev.br. Se você só entrava com o Google, assim você cria uma senha para a mesma conta.", true) +
         '<form class="form" data-form="esqueci">' + ERRO() +
         campo("email", "E-mail", "email", 'autocomplete="email" maxlength="200" placeholder="voce@empresa.com" required value="' + esc(S.email) + '"') +
         botao("Enviar o código") + "</form>" + pe(link("entrar", "Voltar"));
     } else if (S.modo === "redefinir") {
-      h = cabeca("Trocar a senha", "Se <strong>" + esc(S.email) + "</strong> tem conta, chegou lá um código de 6 dígitos. Ele vale 15 minutos.", true) +
+      // Pelo endereco Atos, o codigo foi ao e-mail cadastrado da conta (mascarado), nunca ao alias.
+      h = cabeca("Trocar a senha", (S.para ? "Enviamos um código de 6 dígitos para o e-mail cadastrado da conta (<strong>" + esc(S.para) + "</strong>), não para " + esc(S.email) + "."
+        : S.peloAlias ? "Se <strong>" + esc(S.email) + "</strong> é o endereço de uma Conta Atos, enviamos um código de 6 dígitos para o e-mail cadastrado dela (não para o endereço @atos.dev.br)."
+        : "Se <strong>" + esc(S.email) + "</strong> tem conta, chegou lá um código de 6 dígitos.") + " Ele vale 15 minutos.", true) +
         '<form class="form" data-form="redefinir">' + ERRO() +
         campo("codigo", "Código", "text", COD, "codigo") +
         campo("senha", "Nova senha", "password", 'autocomplete="new-password" maxlength="200" required') +
@@ -186,12 +192,12 @@
     if (modo === "entrar") { rota = "/api/entrar"; corpo = { email: S.email, senha: v("senha") }; depois = depoisDeEntrar; }
     else if (modo === "criar") { rota = "/api/cadastrar"; corpo = { email: S.email, senha: v("senha"), nome: S.nome }; depois = function () { pendente = corpo; ir("confirmar"); }; }
     else if (modo === "confirmar") { rota = "/api/confirmar"; corpo = { email: S.email, codigo: v("codigo").trim() }; depois = depoisDeEntrar; }
-    else if (modo === "esqueci") { rota = "/api/esqueci"; corpo = { email: S.email }; depois = function () { ir("redefinir"); }; }
+    else if (modo === "esqueci") { rota = "/api/esqueci"; corpo = { email: S.email }; depois = function (d) { S.para = d.para || ""; S.peloAlias = Boolean(d.alias); ir("redefinir"); }; }
     else if (modo === "redefinir") { rota = "/api/redefinir"; corpo = { email: S.email, codigo: v("codigo").trim(), senha: v("senha") }; depois = depoisDeEntrar; }
     S.ocupado = true; S.erro = ""; desenhar();
     api(rota, corpo).then(function (d) {
       S.ocupado = false;
-      if (d.ok) { depois(); return; }
+      if (d.ok) { depois(d); return; }
       S.erro = d.erro || "não deu certo: tente de novo"; desenhar();
     });
   }
@@ -223,6 +229,9 @@
     S.google = Boolean(d.google);
     if (d.conta && !modo && !S.erro) { location.replace(VOLTA || "/conta/"); return; }
     if (d.conta) S.email = d.conta.email;
+    // ?login_hint=: o endereco ja preenchido (o Workspace manda quem entrou com o e-mail pessoal entrar pelo alias).
+    var dica = (params.get("login_hint") || "").trim().slice(0, 200);
+    if (dica) S.email = dica;
     ir(modo === "criar" || modo === "esqueci" ? modo : "entrar", S.erro);
   });
 })();

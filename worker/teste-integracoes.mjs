@@ -9,6 +9,7 @@ import { nomeReservado } from "./integracoes.js";
 import { sha256 } from "./comum.js";
 import { ClienteCobranca } from "./cobranca/cliente.js";
 import { PRODUTOS } from "./cobranca/catalogo.js";
+import { EmailAtos } from "./email-atos.js";
 const PRODUTOS_TERMOS = PRODUTOS.workspace.termos.versao;
 
 let falhas = 0;
@@ -46,16 +47,36 @@ function objetosDeClientes(e) {
   } };
 }
 env.CLIENTES = objetosDeClientes(env);
+// O registro do e-mail Atos (o alias de quem cadastra sistemas: as Integracoes pedem o alias confirmado e o login por ele).
+function objetoDoEmail(e) {
+  const m = new Map();
+  const st = { async get(k) { return m.has(k) ? structuredClone(m.get(k)) : undefined; }, async put(k, v) { m.set(k, structuredClone(v)); },
+    async delete(k) { for (const x of Array.isArray(k) ? k : [k]) m.delete(x); },
+    async list({ prefix = "" } = {}) { return new Map([...m].filter(([k]) => k.startsWith(prefix))); }, async setAlarm() {}, async getAlarm() { return null; } };
+  const o = new EmailAtos({ storage: st }, e);
+  return { idFromName: (n) => n, get() { return { fetch: (url, op) => o.fetch(new Request(url, op)) }; } };
+}
+env.EMAIL_ATOS = objetoDoEmail(env);
 const envT = { ...env, AMBIENTE: "teste" };
 envT.CLIENTES = objetosDeClientes(envT);
+envT.EMAIL_ATOS = objetoDoEmail(envT);
+/* Da a conta (pelo e-mail) o alias com o destino confirmado (o codigo da Atos e a Cloudflare), pelas ops do objeto. */
+async function darAlias(e, email, alias) {
+  const sub = "sub-" + email.split("@")[0];
+  const pedir = (op, d) => e.EMAIL_ATOS.get().fetch("https://email-atos/", { method: "POST", body: JSON.stringify({ op, sub, conta: email, ...d }) }).then((r) => r.json());
+  await pedir("reservar", { alias });
+  await pedir("destino_pedir", { destino: email.split("@")[0] + "@destino.example", hash: "h" });
+  await pedir("codigo_conferir", { hash: "h" });
+  return pedir("destino_cf", { email: email.split("@")[0] + "@destino.example", cf_id: "cf-" + alias, criado: true, verificado: true });
+}
 const ativar = (cookie, e = env) => chamar("/api/workspace/ativar", { cookie, corpo: { aceito: true, versao: PRODUTOS_TERMOS }, e });
 const A = "https://atos.dev.br";
 
-async function sessao(email, { idade = 0 } = {}) {
-  const segredo = "s-" + email + "-" + idade;
+async function sessao(email, { idade = 0, alias = "" } = {}) {
+  const segredo = "s-" + email + "-" + idade + "-" + alias;
   const sub = "sub-" + email.split("@")[0];
   guardados.set("id:conta:" + email, JSON.stringify({ sub, nome: "Nome " + email.split("@")[0] }));
-  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub, email, auth_time: Math.floor(Date.now() / 1000) - idade }));
+  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub, email, auth_time: Math.floor(Date.now() / 1000) - idade, ...(alias ? { via: "alias", alias } : {}) }));
   return "__Host-atos=" + segredo;
 }
 async function chamar(caminho, { metodo = "POST", corpo, form, cookie, origem = A, headers = {}, e = env } = {}) {
@@ -85,10 +106,14 @@ async function codigoPara(cookie, cliente, volta, e = env) {
 const trocar = (cod, cliente, volta, extra = {}, headers = {}) => chamar("/oauth/token", { origem: "", headers,
   form: { grant_type: "authorization_code", code: cod.code, redirect_uri: volta, client_id: cliente, code_verifier: cod.verifier, ...extra } });
 
-const ana = await sessao("ana@dev.example");          // dona do sistema
+// A dona e a Bia cadastram sistemas: cada uma tem o e-mail Atos confirmado e entra por ele (a Bia tambem no Worker de teste).
+await darAlias(env, "ana@dev.example", "ana.horta");
+await darAlias(env, "bia@fora.example", "bia.fora");
+await darAlias(envT, "bia@fora.example", "bia.fora");
+const ana = await sessao("ana@dev.example", { alias: "ana.horta" });          // dona do sistema
 const joao = await sessao("joao@escritorio.adv.br");  // quem vai ser liberado
-const bia = await sessao("bia@fora.example");         // nunca liberada
-const anaVelha = await sessao("ana@dev.example", { idade: 13 * 3600 });
+const bia = await sessao("bia@fora.example", { alias: "bia.fora" });         // nunca liberada
+const anaVelha = await sessao("ana@dev.example", { idade: 13 * 3600, alias: "ana.horta" });
 const dono = await sessao("dono@atos.dev.br");        // a equipe da Atos
 const SITE = { nome: "Horta Viva", descricao: "controle de canteiros", site: "https://horta.example", privacidade: "https://horta.example/privacidade", termos: "https://horta.example/termos" };
 const WEB = "https://horta.example/volta";
@@ -158,7 +183,7 @@ checar(r.d.apps.length === 0, "e não vê os aplicativos dos outros");
 console.log("quem pode entrar (só os liberados)");
 let p = await pkce();
 r = await chamar("/api/pedido", { cookie: ana, corpo: { consulta: consulta(web, WEB, p.desafio) } });
-checar(r.status === 200 && r.d.negado === false && r.d.app.terceiro === true && r.d.app.cadastrado_por === "ana@dev.example" && !r.d.app.daAtos,
+checar(r.status === 200 && r.d.negado === false && r.d.app.terceiro === true && r.d.app.cadastrado_por === "ana.horta@atos.dev.br" && !r.d.app.daAtos,
   "a dona entra sempre; o consentimento diz quem cadastrou e que não é da Atos", r.d);
 r = await chamar("/api/pedido", { cookie: joao, corpo: { consulta: consulta(web, WEB, p.desafio) } });
 checar(r.status === 200 && r.d.negado === true && r.d.permitido === false && r.d.app.nome === "Horta Viva" && new URL(r.d.voltar).searchParams.get("error") === "access_denied",
@@ -189,7 +214,7 @@ checar(r.status === 204 && r.r.headers.get("access-control-allow-origin") === "h
 r = await chamar("/oauth/userinfo", { metodo: "GET", origem: "https://horta.example", headers: { authorization: "Bearer " + acesso } });
 checar(r.status === 200 && r.d.email === "joao@escritorio.adv.br", "o userinfo responde", r.d);
 r = await chamar("/api/apps", { metodo: "GET", cookie: joao });
-checar(r.d.apps.some((a) => a.id === app.id && a.terceiro && a.cadastrado_por === "ana@dev.example"), "a Minha conta do joão lista o aplicativo de terceiro (para tirar o acesso)", r.d);
+checar(r.d.apps.some((a) => a.id === app.id && a.terceiro && a.cadastrado_por === "ana.horta@atos.dev.br"), "a Minha conta do joão lista o aplicativo de terceiro (para tirar o acesso)", r.d);
 const codPendente = await codigoPara(joao, web, WEB);
 r = await chamar("/api/integracoes/apps/" + app.id, { cookie: ana, corpo: { acao: "tirar", email: "joao@escritorio.adv.br" } });
 checar(r.status === 200 && !r.d.app.liberados.includes("joao@escritorio.adv.br"), "a dona tira o joão da lista");

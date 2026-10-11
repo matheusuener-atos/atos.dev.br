@@ -42,6 +42,8 @@
     return h2("Como funciona") + '<div class="card ws-texto">' +
       "<p>O e-mail Atos é um endereço <strong>@" + esc(D.dominio) + "</strong> que <strong>encaminha</strong> o que chega para um e-mail seu (Gmail, Outlook, o do seu domínio). " +
       "Serve para dar um endereço da Atos aos seus sistemas e contatos sem mostrar o seu.</p>" +
+      "<p>Ele também <strong>entra na sua Conta Atos</strong>, com a mesma senha (é a mesma conta). “Esqueci a senha” pelo endereço manda o código para o e-mail cadastrado da conta, nunca para ele. " +
+      "E é o que o Workspace pede para <strong>cadastrar sistemas</strong>: com o destino confirmado e o login feito por ele, as Integrações abrem, e quem entra nos seus sistemas vê esse endereço como quem cadastrou, nunca o seu e-mail pessoal.</p>" +
       "<p><strong>Não é uma caixa de entrada.</strong> A Atos não guarda as mensagens: elas passam direto para o seu e-mail. " +
       "Não dá para enviar nem responder como " + esc((D.alias && D.alias.endereco) || "o endereço da Atos") + ": a resposta sai do seu e-mail, com o seu endereço.</p>" +
       "<p>O encaminhamento começa <strong>desligado</strong>. Enquanto estiver desligado (ou se o Atos Workspace for desativado), as mensagens são <strong>recusadas na entrega</strong>: " +
@@ -131,6 +133,11 @@
       '<div class="dado"><span class="rotulo">Destino</span><span>' + (A.destino ? esc(A.destino.email) + (A.destino.codigo_ok && A.destino.cf_ok ? "" : " (falta confirmar)") : "—") + "</span>" +
       (A.destino && !S.trocar && !A.suspenso ? '<button type="button" class="btn p" data-em="trocar">Trocar</button>' : "<span></span>") + "</div>" +
       '<div class="dado"><span class="rotulo">Desde</span><span>' + esc(quando(A.criado)) + "</span><span></span></div></div>";
+    // Confirmado, mas a sessao veio do e-mail pessoal: as Integracoes pedem o login pelo endereco (workspace.js, "entrar-alias").
+    if (!A.suspenso && A.destino && A.destino.codigo_ok && A.destino.cf_ok && !D.entrou_pelo_alias) {
+      h += '<div class="card ws-ativar"><p>Destino confirmado. Para cadastrar sistemas nas Integrações, entre com <strong>' + esc(A.endereco) + "</strong> (a mesma senha da conta).</p>" +
+        '<div class="ws-botoes"><button type="button" class="btn p primario" data-ws="entrar-alias" data-alias="' + esc(A.endereco) + '">Entrar com ' + esc(A.endereco) + "</button></div></div>";
+    }
     if (!D.recente) h += '<p class="ws-aviso">Para mudar o e-mail Atos, o login precisa ser das últimas ' + D.limites.recente_h + ' horas. <a href="' + VOLTA_ENTRAR + '">Entrar de novo</a></p>';
     if (!A.suspenso) h += passos(D, A);
     if (A.historico && A.historico.length) {

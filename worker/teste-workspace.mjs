@@ -7,6 +7,7 @@ import worker from "./index.js";
 import { sha256 } from "./comum.js";
 import { ClienteCobranca } from "./cobranca/cliente.js";
 import { PRODUTOS, catalogoPublico, produtoGratuito, resolveOffer } from "./cobranca/catalogo.js";
+import { EmailAtos } from "./email-atos.js";
 
 let falhas = 0;
 const checar = (ok, descricao, detalhe) => {
@@ -39,14 +40,28 @@ env.CLIENTES = { idFromName: (n) => n, get(id) {
   if (!objetos.has(id)) objetos.set(id, new ClienteCobranca({ storage: storage() }, env));
   return { fetch: (url, op) => objetos.get(id).fetch(new Request(url, op)) };
 } };
+// O registro do e-mail Atos: as Integracoes pedem o alias confirmado e o login por ele (a Maria o tem).
+{
+  const m = new Map();
+  const st = { async get(k) { return m.has(k) ? structuredClone(m.get(k)) : undefined; }, async put(k, v) { m.set(k, structuredClone(v)); },
+    async delete(k) { for (const x of Array.isArray(k) ? k : [k]) m.delete(x); },
+    async list({ prefix = "" } = {}) { return new Map([...m].filter(([k]) => k.startsWith(prefix))); }, async setAlarm() {}, async getAlarm() { return null; } };
+  const o = new EmailAtos({ storage: st }, env);
+  env.EMAIL_ATOS = { idFromName: (n) => n, get() { return { fetch: (url, op) => o.fetch(new Request(url, op)) }; } };
+  const pedir = (op, d) => env.EMAIL_ATOS.get().fetch("https://email-atos/", { method: "POST", body: JSON.stringify({ op, sub: "sub-maria", conta: "maria@exemplo.test", ...d }) });
+  await pedir("reservar", { alias: "maria.loja" });
+  await pedir("destino_pedir", { destino: "maria@destino.example", hash: "h" });
+  await pedir("codigo_conferir", { hash: "h" });
+  await pedir("destino_cf", { email: "maria@destino.example", cf_id: "cf1", criado: true, verificado: true });
+}
 const A = "https://atos.dev.br";
 const VERSAO = PRODUTOS.workspace.termos.versao;
 
-async function sessao(email, { idade = 0 } = {}) {
-  const segredo = "s-" + email + "-" + idade;
+async function sessao(email, { idade = 0, alias = "" } = {}) {
+  const segredo = "s-" + email + "-" + idade + "-" + alias;
   const sub = "sub-" + email.split("@")[0];
   guardados.set("id:conta:" + email, JSON.stringify({ sub, nome: "Nome " + email.split("@")[0] }));
-  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub, email, auth_time: Math.floor(Date.now() / 1000) - idade }));
+  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub, email, auth_time: Math.floor(Date.now() / 1000) - idade, ...(alias ? { via: "alias", alias } : {}) }));
   return "__Host-atos=" + segredo;
 }
 async function chamar(caminho, { metodo = "POST", corpo, form, cookie, origem = A, e = env } = {}) {
@@ -78,8 +93,8 @@ async function entrarNo(cookie, cliente, volta) {
   return { pedido: ped, token: tok };
 }
 
-const maria = await sessao("maria@exemplo.test");
-const mariaVelha = await sessao("maria@exemplo.test", { idade: 13 * 3600 });
+const maria = await sessao("maria@exemplo.test", { alias: "maria.loja" });
+const mariaVelha = await sessao("maria@exemplo.test", { idade: 13 * 3600, alias: "maria.loja" });
 const joao = await sessao("joao@exemplo.test");
 const dono = await sessao("dono@atos.dev.br");
 const SITE = { nome: "Loja da Maria", descricao: "bolos e doces", site: "https://loja.exemplo.test", privacidade: "https://loja.exemplo.test/privacidade", termos: "https://loja.exemplo.test/termos" };
@@ -177,6 +192,8 @@ console.log("o painel da equipe");
 r = await chamar("/api/admin/oauth", { metodo: "GET", cookie: dono });
 let t = r.d && r.d.terceiros && r.d.terceiros.find((x) => x.id === app.id);
 checar(r.status === 200 && t && t.dono_workspace && t.dono_workspace.ativo === false && t.dono_workspace.desativado, "Login Atos mostra que a dona está sem o Workspace", t && t.dono_workspace);
+checar(t && t.dono === "maria@exemplo.test" && t.dono_sub === "sub-maria" && t.dono_alias_lido && t.dono_alias.endereco === "maria.loja@atos.dev.br" && t.dono_alias.confirmado,
+  "e a equipe vê o dono real (e-mail e sub) e o e-mail Atos dele", t);
 
 console.log("reativar");
 r = await chamar("/api/workspace/ativar", { cookie: maria, corpo: { aceito: true, versao: VERSAO } });

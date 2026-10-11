@@ -195,7 +195,7 @@
     else {
       h += '<div class="card">' + S.apps.map(function (x) {
         var partes = [resumoEscopos(x.escopos)];
-        if (x.terceiro && x.cadastrado_por) partes.push("Cadastrado por " + x.cadastrado_por + " (não é da Atos)");
+        if (x.terceiro) partes.push("Cadastrado por " + (x.cadastrado_por || "uma Conta Atos") + " (não é da Atos)");
         if (x.quando) partes.push("Permitido em " + data(x.quando));
         if (x.ultimo) partes.push("Último acesso em " + data(x.ultimo));
         var logo = x.icone ? '<img class="logo" src="' + esc(x.icone) + '" alt="" width="32" height="32">'

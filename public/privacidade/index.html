@@ -35,18 +35,18 @@
 
     <h2>O que a conta Atos guarda</h2>
     <ul>
-      <li><strong>O seu e-mail</strong>, que é a própria conta, e <strong>o nome</strong> que você digitou. (Um endereço @atos.dev.br só existe se você reservar um no e-mail Atos, abaixo; ele não substitui o e-mail da conta.)</li>
+      <li><strong>O seu e-mail</strong>, que é a própria conta, e <strong>o nome</strong> que você digitou. (Um endereço @atos.dev.br só existe se você reservar um no e-mail Atos, abaixo; ele não substitui o e-mail da conta. Ele também serve para entrar na mesma conta, com a mesma senha, mas o código de “Esqueci a senha” vai sempre para o e-mail da conta, nunca para ele.)</li>
       <li><strong>Se você entra com o Google</strong>: o identificador da sua conta Google, o e-mail confirmado por ele e o nome. A senha do Google não passa pela Atos, e a Atos pede ao Google só isso (nada de e-mail, agenda ou arquivos).</li>
       <li><strong>A senha, só como resumo</strong> (PBKDF2-SHA256 com sal próprio). A senha em si não fica guardada em lugar nenhum, e ninguém consegue lê-la de volta.</li>
       <li><strong>Um identificador da conta</strong>. Se você já entrava no PAVLVS com o Google pelo mesmo e-mail, é o mesmo identificador de lá, para ser a mesma conta.</li>
-      <li><strong>As sessões abertas</strong>: só o resumo do código do cookie <code>__Host-atos</code>, por 30 dias.</li>
+      <li><strong>As sessões abertas</strong>: só o resumo do código do cookie <code>__Host-atos</code>, por 30 dias, e por qual endereço você entrou (o e-mail da conta ou o seu endereço @atos.dev.br; o Atos Workspace usa isso).</li>
       <li><strong>Os aplicativos a que você deu acesso</strong>, o que cada um pode ver, quando você permitiu e o último acesso.</li>
       <li><strong>Se você ativa o Atos Workspace</strong>: que ele está ativo ou não, quando você ativou e desativou, a versão dos termos do Workspace que você aceitou e quando, e o histórico dessas mudanças (as últimas 50). Fica no mesmo registro dos seus dados de cobrança na Atos, para mostrar o que você aceitou e quando.</li>
       <li><strong>Se você usa o e-mail Atos</strong> (em Atos Workspace › E-mail Atos): o endereço que você reservou, o destino para onde ele encaminha, se o destino foi confirmado (o código da Atos e a verificação da Cloudflare) e quando, se o encaminhamento está ligado, e o registro das mudanças (as últimas 50 no endereço; as mudanças, por um ano). O conteúdo das mensagens <strong>não</strong> é guardado: elas passam direto ao destino. De cada mensagem que chega, a Atos registra só quando, o resultado (encaminhada, recusada e por quê), o tamanho e o domínio de quem mandou (não o endereço inteiro), por 30 dias; para o limite por remetente, guarda um resumo (hash) do endereço de quem mandou só enquanto dura a contagem (uma hora, até a limpeza seguinte, em poucas horas). A Cloudflare mantém o próprio registro das entregas na conta da Atos, nas regras dela. Mensagens a endereços que não existem só entram numa contagem por dia. A equipe da Atos vê os endereços, o e-mail da conta, o destino e esse registro, para coibir abuso. O destino também fica cadastrado na conta Cloudflare da Atos até você removê-lo ou trocá-lo.</li>
       <li><strong>Se você cadastra um sistema</strong> (em Atos Workspace › Integrações): os dados do aplicativo, quem você liberou para entrar e o registro das mudanças (quem, quando, o quê). Esse registro fica um ano depois que o aplicativo é apagado.</li>
       <li><strong>Se alguém liberou o seu e-mail</strong> num aplicativo: o e-mail fica na lista daquele aplicativo, que só quem o administra vê e muda (e a equipe da Atos, para coibir abuso). A Atos usa a lista só para decidir se você pode entrar nele.</li>
       <li><strong>Se você assina algo com a Atos</strong> (como o PAVLVS): os dados para a nota fiscal (nome ou razão social, CPF ou CNPJ e endereço), as assinaturas, os pagamentos e até quando cada produto está pago. O cartão não passa pela Atos: é digitado nos campos seguros do Mercado Pago e fica guardado só lá; a Atos sabe apenas a bandeira. O produto que você assina recebe da Atos só o plano e até quando ele está pago.</li>
-      <li><strong>Por pouco tempo</strong>: os códigos de 6 dígitos (15 minutos), os códigos que voltam ao aplicativo (2 minutos), os tokens de acesso (1 hora) e a contagem de senhas erradas (15 minutos).</li>
+      <li><strong>Por pouco tempo</strong>: os códigos de 6 dígitos (15 minutos), os códigos que voltam ao aplicativo (2 minutos), os tokens de acesso (1 hora) e a contagem de senhas erradas (15 minutos; a de quem tenta entrar pelo endereço @atos.dev.br é contada à parte, pelo endereço).</li>
     </ul>
     <p>Não guardamos o endereço de internet de quem entra. Ele é usado na hora, pela Cloudflare, para limitar tentativas seguidas.</p>
     <p><strong>Visitas às páginas públicas</strong>: na página inicial, nesta política e nos termos, a Cloudflare conta as visitas (o Web Analytics dela), sem cookies e sem identificar quem visita. Nas páginas de entrar, da conta e de pagamento, essa contagem não roda.</p>
@@ -56,13 +56,14 @@
 
     <h2>O que um aplicativo recebe</h2>
     <p>Só o que aparece na tela de permissão e você aceita: um identificador da conta, o e-mail e o nome. O aplicativo nunca recebe a sua senha. Os aplicativos da Atos, como o PAVLVS (paulus.ia.br), têm a própria política de privacidade.
-    Outras pessoas também podem cadastrar os próprios sistemas no Entrar com Atos: esses aparecem na tela de permissão com o e-mail de quem cadastrou e o aviso de que não são da Atos, e respondem pelo que fazem com os seus dados, na política de privacidade deles.
+    O e-mail que o aplicativo recebe é o da sua conta, mesmo que você tenha entrado pelo endereço @atos.dev.br (esse endereço não vai a aplicativo nenhum).
+    Outras pessoas também podem cadastrar os próprios sistemas no Entrar com Atos: esses aparecem na tela de permissão com o e-mail Atos de quem cadastrou (o endereço @atos.dev.br dela, nunca o e-mail pessoal; sem um, “uma Conta Atos”) e o aviso de que não são da Atos, e respondem pelo que fazem com os seus dados, na política de privacidade deles.
     Se a sua conta não está liberada num aplicativo, a Atos recusa a entrada e não passa nada a ele.
     Em atos.dev.br/conta você vê os aplicativos e tira o acesso de qualquer um.</p>
 
     <h2>Se você cadastra um sistema</h2>
     <p>No Entrar com Atos (pelo Atos Workspace), quem cadastra um sistema vê na Atos só a lista de e-mails que ele mesmo liberou. O sistema dele recebe, de quem permite, o identificador da conta, o nome e o e-mail; a Atos não mostra a ele quem tem conta, quem tentou entrar sem estar liberado nem nada além disso.
-    O e-mail da sua conta aparece na tela de permissão do seu aplicativo, para quem entra saber quem o cadastrou. A equipe da Atos vê todos os aplicativos cadastrados, com o e-mail de quem cadastrou e se o Atos Workspace dessa conta está ativo, para coibir abuso.</p>
+    Cadastrar um sistema pede o e-mail Atos. Na tela de permissão do seu aplicativo aparece o seu endereço @atos.dev.br, para quem entra saber quem o cadastrou; o e-mail pessoal da sua conta não aparece para quem entra. A equipe da Atos vê todos os aplicativos cadastrados, com a conta de quem cadastrou (o identificador e o e-mail), o endereço @atos.dev.br dela e se o Atos Workspace dessa conta está ativo, para coibir abuso.</p>
 
     <h2>Com quem os dados são tratados</h2>
     <ul>

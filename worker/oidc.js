@@ -57,6 +57,7 @@
 import { EMISSOR, aleatorio, emissorDe, b64url, b64urlTexto, deB64url, iguais, json, kv, lerJson, normal, sha256 } from "./comum.js";
 import { sessaoDe } from "./contas.js";
 import { googleLigado } from "./google.js";
+import { aliasDaConta } from "./email-atos.js";
 
 const CODIGO_S = 120;
 export const TOKEN_S = 3600;
@@ -311,11 +312,22 @@ async function emitirCodigo(env, pedido, sessao) {
 /* O que a pagina /entrar e a /conta mostram do aplicativo. Sem icone (""), elas mostram a inicial do nome. */
 function publicoDoApp(id, reg = FIXOS) {
   const a = reg.apps[id];
-  // O de terceiro diz quem o cadastrou (e a pagina diz que nao e da Atos); os da Atos (fixos e da equipe), nao.
+  // O de terceiro diz quem o cadastrou (comCadastrador; e a pagina diz que nao e da Atos); os da Atos (fixos e da
+  // equipe), nao. Aqui nunca vai o e-mail do dono.
   return {
     id, nome: a.nome, descricao: a.descricao, site: a.site, privacidade: a.privacidade, termos: a.termos, icone: a.icone || "", daAtos: Boolean(a.daAtos),
-    terceiro: Boolean(a.terceiro), cadastrado_por: a.terceiro && a.dono ? a.dono.email : "",
+    terceiro: Boolean(a.terceiro), cadastrado_por: "",
   };
+}
+
+/* "Cadastrado por": o e-mail Atos do dono (<alias>@atos.dev.br), nunca o e-mail pessoal dele. Sem alias (aplicativo
+   antigo, alias removido), suspenso ou sem conseguir ver o registro: "" (a pagina diz "uma Conta Atos"). */
+async function comCadastrador(env, pub, reg) {
+  const a = reg.apps[pub.id];
+  if (!pub.terceiro || !a || !a.dono) return pub;
+  let x = null;
+  try { x = await aliasDaConta(env, a.dono.sub); } catch { x = null; }
+  return { ...pub, cadastrado_por: x && !x.suspenso ? x.endereco : "" };
 }
 
 // ---------------------------------------------------------- a assinatura
@@ -541,9 +553,9 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     const apps = await appsDe(env, sessao.sub);
     for (const id of Object.keys(apps)) if (ID_APP_TERCEIRO.test(id)) await comTerceiro(env, reg, id);
     return json({
-      apps: Object.entries(apps).filter(([id, a]) => temChave(reg.apps, id) && permissaoVale(a, reg.apps[id])).map(([id, a]) => ({
-        ...publicoDoApp(id, reg), escopos: (a.escopos || []).map((s) => ESCOPOS[s] || s), quando: a.quando || null, ultimo: a.ultimo || null,
-      })),
+      apps: await Promise.all(Object.entries(apps).filter(([id, a]) => temChave(reg.apps, id) && permissaoVale(a, reg.apps[id])).map(async ([id, a]) => ({
+        ...(await comCadastrador(env, publicoDoApp(id, reg), reg)), escopos: (a.escopos || []).map((s) => ESCOPOS[s] || s), quando: a.quando || null, ultimo: a.ultimo || null,
+      }))),
     });
   }
   if (request.method !== "POST") return json({ erro: "use POST" }, 405);
@@ -578,7 +590,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
       return json({ ir: await emitirCodigo(env, pedido, sessao) });
     }
     return json({
-      app: publicoDoApp(pedido.app, reg),
+      app: await comCadastrador(env, publicoDoApp(pedido.app, reg), reg),
       escopos: pedido.escopos.map((s) => ({ id: s, texto: ESCOPOS[s] })),
       conta: sessao ? { email: sessao.email, nome: sessao.nome } : null,
       entrar, permitido, negado, dica: pedido.dica, google: googleLigado(env),

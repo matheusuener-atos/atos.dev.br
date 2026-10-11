@@ -4,7 +4,10 @@
    (workspace-email.js, carregado quando a guia abre).
 
      GET  /api/eu                     quem esta dentro (sem sessao: /entrar/?volta=<esta pagina>)
-     GET  /api/workspace              a ativacao, os termos atuais, o login recente e quantos aplicativos a conta tem
+     GET  /api/workspace              a ativacao, os termos atuais, o login recente, quantos aplicativos a conta tem e o
+                                      e-mail Atos (alias, via_alias, pendencia: sem_alias, alias_nao_confirmado,
+                                      entrar_pelo_alias). Quem tem o alias usa o Workspace entrando por ele; a ativacao,
+                                      os termos e a guia E-mail Atos abrem com qualquer login.
      POST /api/workspace/ativar       {aceito: true, versao}
      POST /api/workspace/desativar    {confirmar: true}
 
@@ -65,7 +68,10 @@
       '<a href="/integracao/">Como funciona</a>.</p>' +
       (S.ws && S.ws.email && S.ws.email.disponivel
         ? "<p>E o <strong>e-mail Atos</strong>: um endereço @atos.dev.br que encaminha para o seu e-mail (não é caixa de entrada; desligado, as mensagens são recusadas).</p>"
-        : "<p>Em preparação: o <strong>e-mail Atos</strong>, um endereço @atos.dev.br que encaminha para o seu e-mail.</p>") + "</div>";
+        : "<p>Em preparação: o <strong>e-mail Atos</strong>, um endereço @atos.dev.br que encaminha para o seu e-mail.</p>") +
+      "<p>Para cadastrar um sistema: <strong>1.</strong> ative o Workspace; <strong>2.</strong> crie o seu e-mail Atos e confirme o destino; " +
+      "<strong>3.</strong> entre com o endereço @atos.dev.br (a mesma senha da conta); <strong>4.</strong> cadastre o sistema em Integrações. " +
+      "Quem entra nele vê o seu endereço @atos.dev.br como quem cadastrou, nunca o seu e-mail pessoal.</p></div>";
   }
 
   function blocoAtivar(W) {
@@ -75,7 +81,8 @@
     h += '<div class="card ws-ativar">' + desativado +
       '<p>Gratuito: ativar não pede cartão nem pagamento. Ao ativar, você aceita os <a href="' + esc(W.termos.endereco) + '">termos do Atos Workspace</a> ' +
       "(versão de " + esc(versao(W.termos.versao)) + "). Em resumo: o sistema que você cadastra é seu e você responde por ele; " +
-      "quem entra vê o e-mail da sua conta como quem cadastrou e o aviso de que o sistema não é da Atos; " +
+      "cadastrar sistemas pede o seu e-mail Atos (um endereço @atos.dev.br com o destino confirmado) e o login feito por ele; " +
+      "quem entra vê esse endereço como quem cadastrou (nunca o seu e-mail pessoal) e o aviso de que o sistema não é da Atos; " +
       "nomes que se passem pela Atos ou por outro serviço são recusados; e a Atos pode desligar um aplicativo usado para fraude ou abuso.</p>";
     if (!W.recente) {
       h += '<p class="ws-aviso">Para ativar, o login precisa ser das últimas ' + W.limites.recente_h + ' horas. <a href="' + VOLTA_ENTRAR() + '">Entrar de novo</a></p>';
@@ -89,10 +96,20 @@
     return h;
   }
 
+  /* Quem tem o e-mail Atos e entrou com o e-mail pessoal: sai e volta ao /entrar com o endereco Atos preenchido. */
+  function entrarPeloAlias(W) {
+    var a = W.alias.endereco;
+    return '<div class="card ws-ativar"><p><strong>Entre com ' + esc(a) + " para usar o Workspace.</strong> Você entrou com o e-mail pessoal (" + esc(W.conta.email) + "). " +
+      "É a mesma conta e a mesma senha. A ativação, os termos e o E-mail Atos abrem com qualquer login.</p>" +
+      '<div class="ws-botoes"><button type="button" class="btn primario" data-ws="entrar-alias" data-alias="' + esc(a) + '">Entrar com ' + esc(a) + "</button></div></div>";
+  }
+  function temAliasAtivo(W) { return Boolean(W.alias && !W.alias.suspenso); }
+
   function blocoAtivo(W) {
     var termosNovos = W.aceito && W.aceito.versao !== W.termos.versao;
     var h = "";
     if (S.msg) h += '<p class="ok ws-ok">' + esc(S.msg) + "</p>";
+    if (temAliasAtivo(W) && !W.via_alias) h += entrarPeloAlias(W);
     h += h2("Ativação") + '<div class="card">' +
       '<div class="dado"><span class="rotulo">Situação</span><span>Ativo desde ' + esc(data(W.ativado)) + "</span><span></span></div>" +
       '<div class="dado"><span class="rotulo">Plano</span><span>Gratuito</span><span></span></div>' +
@@ -110,7 +127,8 @@
       '<span class="nome"><strong>Integrações</strong><small>O Login Atos para os seus sistemas · ' + esc(String(W.apps)) + " de 5 aplicativos</small></span>" +
       '<span class="seta" aria-hidden="true">→</span></a>' +
       '<a class="item" href="/workspace/email" data-ws-secao="email"><span class="logo inicial" aria-hidden="true">@</span>' +
-      '<span class="nome"><strong>E-mail Atos</strong><small>' + (W.email && W.email.disponivel ? "Um endereço @atos.dev.br que encaminha para o seu e-mail" : "Em preparação") + "</small></span>" +
+      '<span class="nome"><strong>E-mail Atos</strong><small>' + (W.alias ? esc(W.alias.endereco) + (W.alias.suspenso ? " · suspenso" : W.alias.confirmado ? "" : " · falta confirmar o destino")
+        : W.email && W.email.disponivel ? "Um endereço @atos.dev.br que encaminha para o seu e-mail. Crie o seu antes de cadastrar sistemas" : "Em preparação") + "</small></span>" +
       '<span class="seta" aria-hidden="true">→</span></a></div>';
     h += h2("Desativar") + '<div class="card">';
     if (S.confirmar) {
@@ -147,6 +165,25 @@
         (S.ws.apps ? " Os seus " + esc(apps(S.ws.apps)) + " continuam funcionando para quem entra neles; ative de novo para vê-los e mudá-los." : "") + "</p>" +
         '<div class="ws-botoes"><a class="btn primario" href="/workspace/" data-ws-secao="geral">Ativar o Atos Workspace</a></div></div>';
     }
+    var W = S.ws;
+    var antigos = W.apps ? " Os seus " + esc(apps(W.apps)) + " continuam funcionando para quem entra neles; você volta a vê-los e mudá-los quando cumprir este passo." : "";
+    if (W.pendencia === "sem_alias") {
+      if (W.alias && W.alias.suspenso) {
+        return h + '<div class="card ws-ativar"><p class="ws-aviso">A Atos suspendeu o seu e-mail Atos (' + esc(W.alias.endereco) + "). Sem ele, as Integrações ficam paradas. Para entender ou contestar, escreva para contato@atos.dev.br." + antigos + "</p></div>";
+      }
+      if (!(W.email && W.email.disponivel)) {
+        return h + '<div class="card ws-ativar"><p>Cadastrar sistemas pede o e-mail Atos, que ainda está em preparação na Atos. As Integrações abrem quando ele estiver ligado.' + antigos + "</p></div>";
+      }
+      return h + '<div class="card ws-ativar"><p><strong>Crie o seu e-mail Atos para cadastrar sistemas.</strong> Quem entra nos seus sistemas vê esse endereço como quem cadastrou, nunca o seu e-mail pessoal. ' +
+        "Depois de criar e confirmar o destino, entre com ele (é a mesma conta e a mesma senha)." + antigos + "</p>" +
+        '<div class="ws-botoes"><a class="btn primario" href="/workspace/email" data-ws-secao="email">Criar o e-mail Atos</a></div></div>';
+    }
+    if (W.pendencia === "alias_nao_confirmado") {
+      return h + '<div class="card ws-ativar"><p><strong>Confirme o destino do seu e-mail Atos.</strong> ' + esc(W.alias.endereco) + " ainda não tem o destino confirmado (o código da Atos e o e-mail da Cloudflare). " +
+        "Depois, entre com ele para usar as Integrações." + antigos + "</p>" +
+        '<div class="ws-botoes"><a class="btn primario" href="/workspace/email" data-ws-secao="email">Ir ao E-mail Atos</a></div></div>';
+    }
+    if (W.pendencia === "entrar_pelo_alias") return h + entrarPeloAlias(W);
     return h + '<div id="ig-raiz"><div class="card"><p class="vazio">Carregando…</p></div></div>';
   }
   var scripts = {};
@@ -184,7 +221,7 @@
   function desenhar() {
     var sec = secaoAtual();
     $("secao").innerHTML = DESENHO[sec]();
-    if (sec === "integracoes" && S.ws && S.ws.ativo) montarIntegracoes();
+    if (sec === "integracoes" && S.ws && S.ws.ativo && !S.ws.pendencia) montarIntegracoes();
     if (sec === "email" && S.ws) montarEmail();
   }
   function ir(sec) {
@@ -193,6 +230,8 @@
     S.erro = ""; S.confirmar = ""; S.msg = "";
     desenhar();
     window.scrollTo(0, 0);
+    // O e-mail Atos pode ter mudado na outra guia (criado, confirmado): a Visao geral e as Integracoes leem de novo.
+    if (sec !== "email" && S.ws) carregar();
   }
   function carregar() {
     return api("/api/workspace").then(function (d) {
@@ -221,6 +260,14 @@
     if (!b || b.disabled) return;
     var a = b.getAttribute("data-ws");
     if (a === "recarregar") { S.erro = ""; desenhar(); carregar(); }
+    else if (a === "entrar-alias") {
+      // Sai desta sessao (a do e-mail pessoal) e volta ao /entrar com o endereco Atos preenchido; depois, de volta aqui.
+      var alias = b.getAttribute("data-alias") || "";
+      b.disabled = true;
+      api("/api/sair", {}).then(function () {
+        location.assign("/entrar/?modo=entrar&login_hint=" + encodeURIComponent(alias) + "&volta=" + encodeURIComponent(location.pathname));
+      });
+    }
     else if (a === "ativar") {
       mudar("/api/workspace/ativar", { aceito: true, versao: S.ws.termos.versao }, function (d) { S.msg = d.ativo ? "Atos Workspace ativo. As Integrações já estão liberadas." : ""; emailDeNovo(); });
     }

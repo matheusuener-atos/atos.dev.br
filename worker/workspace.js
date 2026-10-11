@@ -16,7 +16,10 @@
 //
 // Rotas (so a propria pagina; a sessao da Conta Atos):
 //   GET  /api/workspace              {conta, recente, limites, produto, termos (os atuais), ativo, ativado, desativado,
-//                                     aceito: {versao, quando}|null, apps (quantos a conta cadastrou), email: {disponivel}}
+//                                     aceito: {versao, quando}|null, apps (quantos a conta cadastrou), email: {disponivel},
+//                                     alias: null|{endereco, suspenso, confirmado}, via_alias, pendencia (estadoDoAlias)}
+// A ativacao, os termos e o desativar abrem com qualquer login (o e-mail pessoal ou o alias); o resto da area (as
+// Integracoes) pede o que estadoDoAlias diz.
 //   POST /api/workspace/ativar       {aceito: true, versao} a versao dos termos que a pessoa leu (tem de ser a atual)
 //   POST /api/workspace/desativar    {confirmar: true}
 // Mudar pede login das ultimas 12 horas (o mesmo das Integracoes e do painel).
@@ -26,7 +29,7 @@ import { sessaoDe } from "./contas.js";
 import { PRODUTOS } from "./cobranca/catalogo.js";
 import { cliente, idDoCliente } from "./cobranca/cliente.js";
 import { ID_APP_TERCEIRO, KO } from "./oidc.js";
-import { emailAtosLigado } from "./email-atos.js";
+import { aliasDaConta, emailAtosLigado } from "./email-atos.js";
 
 export const WORKSPACE = "workspace";
 const RECENTE_H = 12;
@@ -58,7 +61,35 @@ export function vistaDoWorkspace(d) {
   };
 }
 
-export const SEM_WORKSPACE = () => json({ erro: "ative o Atos Workspace para cadastrar e mudar os seus sistemas (atos.dev.br/workspace)", workspace: false }, 403);
+export const SEM_WORKSPACE = () => json({ erro: "ative o Atos Workspace para cadastrar e mudar os seus sistemas (atos.dev.br/workspace)", workspace: false, codigo: "workspace" }, 403);
+
+/* O e-mail Atos de quem esta com a sessao, como o Workspace o exige (decisoes de 11/10/2026):
+     - quem tem o alias (existe e nao esta suspenso) usa o Workspace so tendo ENTRADO PELO ALIAS (a sessao com via
+       "alias" e o mesmo nome); a ativacao, os termos e a guia E-mail Atos abrem com qualquer login;
+     - cadastrar e gerir sistemas (as Integracoes) pede o alias com o destino confirmado (o codigo da Atos e a
+       verificacao da Cloudflare) e a sessao pelo alias.
+   {alias: null|{endereco, suspenso, confirmado}, via_alias, pendencia: null|"sem_alias"|"alias_nao_confirmado"|
+   "entrar_pelo_alias"}. Lanca se o registro do e-mail Atos nao responde. */
+export async function estadoDoAlias(env, sessao) {
+  const a = await aliasDaConta(env, sessao.sub);
+  const via = Boolean(a && sessao.via === "alias" && sessao.alias === a.alias);
+  let pendencia = null;
+  if (!a || a.suspenso) pendencia = "sem_alias";
+  else if (!a.confirmado) pendencia = "alias_nao_confirmado";
+  else if (!via) pendencia = "entrar_pelo_alias";
+  return { alias: a ? { endereco: a.endereco, suspenso: a.suspenso, confirmado: a.confirmado } : null, via_alias: via, pendencia };
+}
+
+/* O 403 das Integracoes para cada pendencia do e-mail Atos (o codigo diz qual; a mensagem, o passo seguinte). */
+export function recusaDoAlias(e, ligado) {
+  const a = e.alias;
+  if (e.pendencia === "sem_alias") {
+    if (a && a.suspenso) return json({ erro: "a Atos suspendeu o seu e-mail Atos (" + a.endereco + "): sem ele, as Integrações ficam paradas. Escreva para contato@atos.dev.br", codigo: "sem_alias", suspenso: true }, 403);
+    return json({ erro: ligado ? "crie o seu e-mail Atos para cadastrar sistemas (atos.dev.br/workspace/email)" : "o cadastro de sistemas pede o e-mail Atos, que ainda está em preparação na Atos", codigo: "sem_alias", disponivel: ligado }, 403);
+  }
+  if (e.pendencia === "alias_nao_confirmado") return json({ erro: "confirme o destino do seu e-mail Atos (" + a.endereco + ": o código da Atos e o e-mail da Cloudflare) para cadastrar sistemas", codigo: "alias_nao_confirmado", alias: a.endereco }, 403);
+  return json({ erro: "entre com " + a.endereco + " para usar o Workspace (você entrou com o e-mail pessoal)", codigo: "entrar_pelo_alias", alias: a.endereco }, 403);
+}
 export const WORKSPACE_FORA = () => json({ erro: "não deu para conferir o Atos Workspace agora: tente de novo em instantes" }, 503);
 
 export function ehRotaDoWorkspace(url) {
@@ -80,16 +111,16 @@ export async function atenderWorkspace(request, env, url, deps = {}) {
   const tela = async (d) => json({
     conta: { email: sessao.email }, recente, limites: { recente_h: RECENTE_H }, produto: { id: WORKSPACE, nome: PRODUTOS[WORKSPACE].nome, gratuito: true },
     termos, ...vistaDoWorkspace(d), apps: await quantosApps(env, sessao.sub),
-    // O e-mail Atos (worker/email-atos.js): ligado neste Worker? (a guia diz "em preparacao" sem ele)
-    email: { disponivel: emailAtosLigado(env) },
+    // O e-mail Atos (worker/email-atos.js): ligado neste Worker? (a guia diz "em preparacao" sem ele) E o alias da conta,
+    // por onde a sessao entrou e o que falta para as Integracoes (estadoDoAlias).
+    email: { disponivel: emailAtosLigado(env) }, ...(await estadoDoAlias(env, sessao)),
   });
   if (!env.CLIENTES) return WORKSPACE_FORA();
   const p = url.pathname;
 
   if (p === "/api/workspace" && request.method === "GET") {
     let d;
-    try { d = await workspaceDe(env, sessao.sub); } catch { return WORKSPACE_FORA(); }
-    return tela(d);
+    try { d = await workspaceDe(env, sessao.sub); return await tela(d); } catch { return WORKSPACE_FORA(); }
   }
   if (p !== "/api/workspace/ativar" && p !== "/api/workspace/desativar") return json({ erro: "rota não existe" }, 404);
   if (request.method !== "POST") return json({ erro: "use POST" }, 405);
@@ -102,10 +133,10 @@ export async function atenderWorkspace(request, env, url, deps = {}) {
     if (corpo.versao !== termos.versao) return json({ erro: "os termos do Atos Workspace mudaram: leia a versão atual e aceite de novo", termos }, 409);
     const r = await (await meu()).pedir("ativar", { produto: WORKSPACE, termos: { versao: termos.versao } });
     if (!r || !r.ok) return WORKSPACE_FORA();
-    return tela(r.direito);
+    try { return await tela(r.direito); } catch { return WORKSPACE_FORA(); }
   }
   if (corpo.confirmar !== true) return json({ erro: "confirme na página: os aplicativos continuam funcionando, mas você só volta a mudá-los ativando de novo" }, 400);
   const r = await (await meu()).pedir("desativar", { produto: WORKSPACE });
   if (!r || !r.ok) return WORKSPACE_FORA();
-  return tela(r.direito);
+  try { return await tela(r.direito); } catch { return WORKSPACE_FORA(); }
 }

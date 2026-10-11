@@ -511,6 +511,47 @@ export class EmailAtos {
   }
 }
 
+// ------------------------------------------------------------------ o alias como login e como requisito
+
+/* O alias de uma conta como o login, o Workspace e a tela de permissao o veem: null ou {alias, endereco, sub, conta,
+   suspenso, confirmado (o codigo da Atos e a Cloudflare)}. */
+function resumoDoAlias(r) {
+  if (!r || !r.alias || !r.sub) return null;
+  return {
+    alias: r.alias, endereco: r.alias + "@" + DOMINIO, sub: r.sub, conta: r.conta || "", suspenso: Boolean(r.suspenso),
+    confirmado: Boolean(r.destino && r.destino.codigo_ok && r.destino.cf_ok),
+  };
+}
+
+/* O alias da conta `sub` (removido nao existe mais: null). Sem o registro (EMAIL_ATOS) neste Worker: null. Lanca se o
+   objeto nao responde (quem chama responde 503, nunca "sem alias" por engano). */
+export async function aliasDaConta(env, sub) {
+  if (!env || !env.EMAIL_ATOS || !sub) return null;
+  const v = await registro(env).pedir("ver", { sub });
+  if (!v || !v.ok) throw new Error("o registro do e-mail Atos não respondeu");
+  return resumoDoAlias(v.alias);
+}
+
+/* O endereco e um <alias>@atos.dev.br bem formado? Devolve o alias ou "". */
+export function aliasDoTexto(endereco) {
+  const e = normal(endereco);
+  const at = e.lastIndexOf("@");
+  if (at < 1 || e.slice(at + 1) !== DOMINIO) return "";
+  return conferirAlias(e.slice(0, at)).alias || "";
+}
+
+/* O login pelo endereco Atos: o alias que existe e nao esta suspenso ({alias, endereco, sub, conta, ...}); senao null
+   (inexistente, removido, suspenso ou fora do formato: o login responde o mesmo que a senha errada). Lanca se o objeto
+   nao responde. */
+export async function aliasParaEntrar(env, endereco) {
+  const alias = aliasDoTexto(endereco);
+  if (!alias || !env || !env.EMAIL_ATOS) return null;
+  const v = await registro(env).pedir("ver", { alias });
+  if (!v || !v.ok) throw new Error("o registro do e-mail Atos não respondeu");
+  const r = resumoDoAlias(v.alias);
+  return r && !r.suspenso && r.alias === alias ? r : null;
+}
+
 // ------------------------------------------------------------------ o handler de e-mail
 
 /* O remetente do envelope e um hash curto (para o limite por remetente sem guardar o endereco). */
@@ -624,6 +665,8 @@ export async function atenderEmailAtos(request, env, url, deps = {}) {
       extra = { vagas: v.vagas, ...extra };
     }
     return json({
+      // entrou_pelo_alias: a sessao foi aberta por este alias (o Workspace pede isso para as Integracoes).
+      entrou_pelo_alias: Boolean(r && sessao.via === "alias" && sessao.alias === r.alias),
       disponivel: ligado, simulada: simulada(env), workspace: ativo, recente, limites: { recente_h: RECENTE_H, tamanho_mb: LIMITES.tamanho / 1048576, por_hora: LIMITES.por_hora,
         por_dia: LIMITES.por_dia, por_remetente_hora: LIMITES.por_remetente_hora, codigo_min: LIMITES.codigo_min }, dominio: DOMINIO, ...extra, alias: vistaDoAlias(r),
     });

@@ -30,6 +30,7 @@
 
     <h2>A conta</h2>
     <p>A conta Atos é a conta única para entrar nos produtos da Atos, como o PAVLVS. Ela é o seu próprio e-mail, confirmado por um código, com uma senha que só você sabe.
+    Se você tiver um <a href="#email-atos">e-mail Atos</a> (um endereço @atos.dev.br), ele também entra na mesma conta, com a mesma senha; o código de “Esqueci a senha” vai sempre para o e-mail cadastrado da conta, nunca para o endereço @atos.dev.br.
     É gratuita. O que você paga num produto (como a assinatura do PAVLVS) segue os termos daquele produto.
     Para construir sistemas com a conta Atos, há o <a href="#workspace">Atos Workspace</a>, com termos próprios, abaixo.</p>
 
@@ -44,16 +45,18 @@
     <p>Quando um aplicativo pede para entrar com a sua conta Atos, a tela de permissão mostra o que ele vai receber. Você pode tirar o acesso em atos.dev.br/conta.
     Cada aplicativo responde pelo uso que faz dos dados que recebe, nos termos e na política dele.
     Quem decide quem pode entrar num aplicativo é quem o administra: se a sua conta não estiver liberada, a Atos recusa a entrada e não passa nada ao aplicativo.
-    Um aplicativo cadastrado por outra pessoa aparece na tela de permissão com o e-mail de quem o cadastrou e o aviso de que não é da Atos.</p>
+    Um aplicativo cadastrado por outra pessoa aparece na tela de permissão com o aviso de que não é da Atos e com o e-mail Atos de quem o cadastrou (o endereço @atos.dev.br dela), nunca o e-mail pessoal; sem um e-mail Atos ativo, aparece “Cadastrado por uma Conta Atos”.
+    O aplicativo recebe o e-mail da sua conta (o cadastrado), nunca o seu endereço @atos.dev.br.</p>
 
     <h2 id="workspace">Termos do Atos Workspace</h2>
-    <p><strong>Versão de 11 de outubro de 2026, revisão 2</strong> (acrescenta o e-mail Atos). Ao ativar o Atos Workspace, a Atos registra esta versão e a data em que você a aceitou.</p>
+    <p><strong>Versão de 11 de outubro de 2026, revisão 3</strong> (o e-mail Atos passa a entrar na conta, passa a ser exigido para cadastrar sistemas, e a tela de permissão mostra o endereço @atos.dev.br de quem cadastrou no lugar do e-mail pessoal). Ao ativar o Atos Workspace, a Atos registra esta versão e a data em que você a aceitou.</p>
     <p>O Atos Workspace é o produto da Atos para quem constrói sistemas com a conta Atos. Ele inclui o Login Atos para os seus sistemas (cadastrar os seus sistemas no Entrar com Atos, em atos.dev.br/workspace/integracoes) e o e-mail Atos (um endereço @atos.dev.br que encaminha para o seu e-mail, em atos.dev.br/workspace/email, quando estiver ligado; abaixo).
     É gratuito: ativar é aceitar estes termos, sem cartão nem pagamento. Hoje nada no Workspace é cobrado.</p>
 
     <h3>Ativar e desativar</h3>
     <ul>
       <li>Ativar e desativar são feitos em atos.dev.br/workspace e pedem um login das últimas 12 horas.</li>
+      <li>Quem tem um e-mail Atos usa o Workspace entrando por ele (o endereço @atos.dev.br e a senha da conta). Entrando com o e-mail pessoal, só a ativação, os termos e a guia E-mail Atos abrem; o resto pede o login pelo endereço @atos.dev.br.</li>
       <li>Você pode desativar quando quiser. Os aplicativos que você cadastrou continuam funcionando para quem entra neles, com as mesmas regras de quem pode entrar; mas você não os vê nem os muda até ativar de novo. Para que ninguém mais entre num aplicativo, desligue os acessos dele ou apague-o antes de desativar.</li>
       <li>Se estes termos mudarem, a versão acima muda, e a área do Workspace mostra a versão nova para você aceitar.</li>
     </ul>
@@ -61,10 +64,11 @@
     <h3>Para quem cadastra um sistema</h3>
     <p>Com o Atos Workspace ativo, você cadastra os próprios sistemas em Atos Workspace › Integrações. Ao cadastrar:</p>
     <ul>
+      <li>Cadastrar e mudar sistemas pede o seu e-mail Atos (abaixo) ativo, com o destino confirmado, e o login feito por ele. Se um desses deixar de valer (o endereço removido, suspenso, o destino trocado e ainda não confirmado), os sistemas que você já cadastrou continuam funcionando para quem entra neles, mas você não os vê nem os muda até cumprir de novo.</li>
       <li>O sistema é seu, e você responde por ele: pelo que ele faz, pelos dados que recebe e pelos termos e pela política de privacidade que você informa no cadastro.</li>
       <li>A Atos só confirma quem é a pessoa e, com a permissão dela, passa ao seu sistema o identificador da conta, o nome e o e-mail. A Atos não responde pelo funcionamento do seu sistema nem pelo que ele faz com esses dados.</li>
       <li>Você decide quem pode entrar: só as pessoas que você liberar (o padrão) ou qualquer conta Atos.</li>
-      <li>Na tela de permissão, quem entra vê o nome, a descrição, o ícone e os links que você informou, o e-mail da sua conta como quem cadastrou e o aviso de que o aplicativo não é da Atos.</li>
+      <li>Na tela de permissão, quem entra vê o nome, a descrição, o ícone e os links que você informou, o seu e-mail Atos (o endereço @atos.dev.br) como quem cadastrou e o aviso de que o aplicativo não é da Atos. O seu e-mail pessoal não aparece para quem entra. Sem o e-mail Atos ativo (removido ou suspenso), aparece “Cadastrado por uma Conta Atos”. A equipe da Atos continua vendo a sua conta (o identificador e o e-mail) para responder por abuso.</li>
       <li>Não use nome, marca ou aparência que se passe pela Atos, por um produto dela ou por outro serviço. Nomes como Atos, PAVLVS, Paulus, Google e Mercado Pago são recusados.</li>
       <li>Limites: até 5 aplicativos por conta, 5 acessos por aplicativo, 500 pessoas liberadas por aplicativo e 60 mudanças por hora. Criar e mudar pede um login das últimas 12 horas.</li>
       <li>A Atos pode desligar ou apagar um aplicativo usado para fraude, para enganar quem entra ou para atacar o serviço. O motivo do desligamento aparece para você no registro do aplicativo.</li>
@@ -73,6 +77,7 @@
     <h3 id="email-atos">E-mail Atos</h3>
     <p>Com o Atos Workspace ativo, você pode reservar um endereço <code>nome@atos.dev.br</code> (um por conta) que encaminha o que chega para um e-mail seu. Ao usar:</p>
     <ul>
+      <li><strong>Também é um jeito de entrar.</strong> O endereço entra na sua conta Atos com a mesma senha, enquanto existir e não estiver suspenso (não depende de o encaminhamento estar ligado). “Esqueci a senha” pelo endereço manda o código para o e-mail cadastrado da conta, nunca para ele, e a tela mostra esse e-mail mascarado (por exemplo, p***@gmail.com). O “Continuar com Google” não vale para o endereço @atos.dev.br. Endereços @atos.dev.br não servem para criar uma conta nova.</li>
       <li><strong>Não é uma caixa de entrada.</strong> A Atos não guarda as mensagens: cada uma é passada ao seu destino na hora da entrega, pela Cloudflare (o serviço de e-mail da Atos). Não dá para enviar nem responder como o endereço @atos.dev.br.</li>
       <li>O destino precisa ser confirmado duas vezes: com o código que a Atos manda para ele e com o e-mail de verificação da Cloudflare. Só então você liga o encaminhamento. Trocar o destino desliga o encaminhamento até o novo ser confirmado.</li>
       <li>O encaminhamento começa desligado. Desligado, com o destino ainda não confirmado, com o endereço suspenso ou com o Atos Workspace desativado, as mensagens são <strong>recusadas na entrega</strong>: quem mandou recebe o aviso de falha do próprio provedor. A Atos não responde a ninguém e a recusa não diz para onde iria.</li>

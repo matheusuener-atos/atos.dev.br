@@ -50,7 +50,7 @@
       <div>
         <h3>O que inclui hoje</h3>
         <p>O Login Atos para os seus sistemas: até 5 aplicativos por conta, 5 acessos por aplicativo e 500 pessoas liberadas por aplicativo, em Atos Workspace › Integrações.</p>
-        <p>Em preparação: o e-mail Atos, um endereço @atos.dev.br que encaminha para o seu e-mail (não é caixa de entrada).</p>
+        <p>O e-mail Atos (em preparação na Atos): um endereço @atos.dev.br que encaminha para o seu e-mail (não é caixa de entrada) e que também entra na sua Conta Atos, com a mesma senha. Cadastrar um sistema pede o e-mail Atos com o destino confirmado; enquanto ele estiver em preparação, a área do Workspace avisa e o cadastro de sistemas espera.</p>
       </div>
       <div>
         <h3>Preço</h3>
@@ -101,12 +101,12 @@
       </figure>
       <figure class="captura">
         <img src="/assets/integracao/consentimento.webp" width="720" height="900" loading="lazy" decoding="async"
-          alt="Tela de consentimento: “Loja da Maria quer entrar com a sua conta Atos”, o aviso “Cadastrado por maria@exemplo.test. Não é um aplicativo da Atos”, a conta que está entrando (João Exemplo), a lista do que o sistema poderá (saber que é você, ver o e-mail, ver o nome) e os botões Cancelar e Permitir.">
-        <figcaption><strong>2. Permitir</strong>Na primeira vez, a Atos mostra o seu sistema, quem o cadastrou e o que ele vai receber, com os links da política de privacidade e dos termos dele. Nada segue sem o “Permitir”.</figcaption>
+          alt="Tela de consentimento: “Loja da Maria quer entrar com a sua conta Atos”, o aviso “Cadastrado por maria.doces@atos.dev.br. Não é um aplicativo da Atos”, a conta que está entrando (João Exemplo), a lista do que o sistema poderá (saber que é você, ver o e-mail, ver o nome) e os botões Cancelar e Permitir.">
+        <figcaption><strong>2. Permitir</strong>Na primeira vez, a Atos mostra o seu sistema, quem o cadastrou (o seu e-mail Atos, nunca o pessoal) e o que ele vai receber, com os links da política de privacidade e dos termos dele. Nada segue sem o “Permitir”.</figcaption>
       </figure>
       <figure class="captura larga">
-        <img src="/assets/integracao/aplicativos.webp" width="1200" height="200" loading="lazy" decoding="async"
-          alt="Minha conta da Atos, seção Aplicativos com acesso: a Loja da Maria, com o que ela recebe, quem a cadastrou (maria@exemplo.test, não é da Atos), a data em que foi permitida, o último acesso e o botão Tirar o acesso.">
+        <img src="/assets/integracao/aplicativos.webp" width="812" height="130" loading="lazy" decoding="async"
+          alt="Minha conta da Atos, seção Aplicativos com acesso: a Loja da Maria, com o que ela recebe, quem a cadastrou (maria.doces@atos.dev.br, não é da Atos), a data em que foi permitida, o último acesso e o botão Tirar o acesso.">
         <figcaption><strong>3. Tirar o acesso</strong>Em Minha conta › Aplicativos com acesso, a pessoa vê os sistemas que permitiu e tira o acesso de qualquer um. Na próxima vez, o sistema pede a permissão de novo.</figcaption>
       </figure>
     </div>
@@ -120,6 +120,12 @@
         <div>
           <h3>Crie sua Conta Atos e ative o Atos Workspace</h3>
           <p>É a mesma conta com que as pessoas vão entrar no seu sistema. Entre (ou crie a conta) e, em atos.dev.br/workspace, aceite os termos do Workspace e ative: é gratuito. <a href="/entrar/?volta=/workspace/">Ativar o Atos Workspace</a>.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Crie o seu e-mail Atos e entre por ele</h3>
+          <p>Em Atos Workspace › E-mail Atos, escolha o seu endereço <code>nome@atos.dev.br</code> e confirme o destino (o código que a Atos manda e o e-mail de verificação da Cloudflare). Depois, entre com esse endereço e a senha da sua conta: é a mesma conta. Cadastrar sistemas pede isso, e é esse endereço que quem entra no seu sistema vê como quem o cadastrou; o seu e-mail pessoal não aparece. Se você esquecer a senha, o código vai para o e-mail cadastrado da conta, nunca para o endereço @atos.dev.br.</p>
         </div>
       </li>
       <li>
@@ -650,9 +656,15 @@ end
     <ol class="pratica">
       <li>
         <h4>A Maria cadastra a loja na Atos</h4>
-        <p>Ela ativa o Atos Workspace e, em Atos Workspace › Integrações, cria o aplicativo “Loja da Maria” e, em “Quem pode entrar”, escolhe “Qualquer Conta Atos”. Depois cria um acesso confidencial, porque a loja tem servidor, com o endereço de volta da loja. A Atos mostra o segredo do acesso uma vez só, e ela o guarda.</p>
+        <p>Ela ativa o Atos Workspace e cria o e-mail Atos dela, <code>maria.doces@atos.dev.br</code>, confirmando o destino. Com ele confirmado, a Atos pede que ela entre pelo endereço novo (a mesma senha), e as Integrações abrem.</p>
         <figure class="captura">
-          <img src="/assets/integracao/pratica-integracoes-aberta.webp" width="796" height="919" loading="lazy" decoding="async"
+          <img src="/assets/integracao/pratica-email-atos.webp" width="772" height="473" loading="lazy" decoding="async"
+            alt="Atos Workspace › E-mail Atos da Maria: o endereço maria.doces@atos.dev.br encaminhando, o destino maria@exemplo.test e o aviso “Destino confirmado. Para cadastrar sistemas nas Integrações, entre com maria.doces@atos.dev.br (a mesma senha da conta)”, com o botão Entrar com maria.doces@atos.dev.br.">
+          <figcaption>Ela tinha entrado com o e-mail pessoal: o botão sai e volta à tela de entrar com o endereço Atos preenchido. No ambiente de teste, a verificação da Cloudflare é simulada.</figcaption>
+        </figure>
+        <p>Já entrando por <code>maria.doces@atos.dev.br</code>, em Atos Workspace › Integrações, ela cria o aplicativo “Loja da Maria” e, em “Quem pode entrar”, escolhe “Qualquer Conta Atos”. Depois cria um acesso confidencial, porque a loja tem servidor, com o endereço de volta da loja. A Atos mostra o segredo do acesso uma vez só, e ela o guarda.</p>
+        <figure class="captura">
+          <img src="/assets/integracao/pratica-integracoes-aberta.webp" width="772" height="1009" loading="lazy" decoding="async"
             alt="Atos Workspace › Integrações da Maria: o aplicativo Loja da Maria com “Quem pode entrar” em “Qualquer Conta Atos” (qualquer pessoa com Conta Atos entra, cadastro aberto), a lista de liberados vazia e um acesso confidencial ligado com o endereço de volta da loja.">
           <figcaption>O aplicativo, quem pode entrar e o acesso. O endereço de volta é <code>127.0.0.1</code> porque é o ambiente de teste; num site publicado, é o endereço <code>https</code> dele.</figcaption>
         </figure>
@@ -741,8 +753,8 @@ app.get(new URL(atos.voltaPara).pathname, async (req, res) =&gt; {
         <h4>Ele permite</h4>
         <p>Como a loja aceita qualquer Conta Atos, a conta nova entra sem ninguém liberar. É a primeira vez, então a Atos mostra quem cadastrou a loja, avisa que ela não é um aplicativo da Atos e diz o que a loja vai receber. Ele permite.</p>
         <figure class="captura">
-          <img src="/assets/integracao/pratica-permitir-pedro.webp" width="720" height="711" loading="lazy" decoding="async"
-            alt="A tela de consentimento: “Loja da Maria quer entrar com a sua conta Atos”, “Cadastrado por maria@exemplo.test. Não é um aplicativo da Atos”, a conta do Pedro Exemplo, o que a loja poderá (saber que é você, ver o e-mail, ver o nome) e os botões Cancelar e Permitir.">
+          <img src="/assets/integracao/pratica-permitir-pedro.webp" width="720" height="712" loading="lazy" decoding="async"
+            alt="A tela de consentimento: “Loja da Maria quer entrar com a sua conta Atos”, “Cadastrado por maria.doces@atos.dev.br. Não é um aplicativo da Atos”, a conta do Pedro Exemplo, o que a loja poderá (saber que é você, ver o e-mail, ver o nome) e os botões Cancelar e Permitir.">
           <figcaption>O consentimento aparece só na primeira vez, com quem cadastrou a loja e o que ela vai receber.</figcaption>
         </figure>
       </li>
@@ -764,7 +776,7 @@ app.get(new URL(atos.voltaPara).pathname, async (req, res) =&gt; {
         <h4>A Maria escolhe “Só as pessoas liberadas”</h4>
         <p>Em “Quem pode entrar”, ela escolhe “Só as pessoas liberadas” (o modo padrão) e libera o e-mail do João. Ela, que cadastrou, sempre entra.</p>
         <figure class="captura">
-          <img src="/assets/integracao/pratica-integracoes.webp" width="796" height="936" loading="lazy" decoding="async"
+          <img src="/assets/integracao/pratica-integracoes.webp" width="772" height="1026" loading="lazy" decoding="async"
             alt="Atos Workspace › Integrações da Maria: o aplicativo Loja da Maria, “Quem pode entrar” em “Só as pessoas liberadas” com joao@exemplo.test na lista, e um acesso confidencial ligado com o endereço de volta da loja.">
           <figcaption>A lista de quem pode entrar. Um e-mail liberado que ainda não tem Conta Atos entra quando a pessoa cria a conta com ele.</figcaption>
         </figure>
@@ -779,8 +791,8 @@ app.get(new URL(atos.voltaPara).pathname, async (req, res) =&gt; {
             <figcaption>Na Atos: “Para continuar em Loja da Maria”. A senha fica na Atos; a loja não a recebe.</figcaption>
           </figure>
           <figure class="captura">
-            <img src="/assets/integracao/pratica-permitir.webp" width="720" height="710" loading="lazy" decoding="async"
-              alt="A tela de consentimento: “Loja da Maria quer entrar com a sua conta Atos”, “Cadastrado por maria@exemplo.test. Não é um aplicativo da Atos”, a conta do João Exemplo, o que a loja poderá (saber que é você, ver o e-mail, ver o nome) e os botões Cancelar e Permitir.">
+            <img src="/assets/integracao/pratica-permitir.webp" width="720" height="711" loading="lazy" decoding="async"
+              alt="A tela de consentimento: “Loja da Maria quer entrar com a sua conta Atos”, “Cadastrado por maria.doces@atos.dev.br. Não é um aplicativo da Atos”, a conta do João Exemplo, o que a loja poderá (saber que é você, ver o e-mail, ver o nome) e os botões Cancelar e Permitir.">
             <figcaption>O consentimento aparece só na primeira vez.</figcaption>
           </figure>
         </div>
@@ -799,8 +811,8 @@ app.get(new URL(atos.voltaPara).pathname, async (req, res) =&gt; {
         <p>O Pedro tem Conta Atos, mas a Maria não liberou o e-mail dele. A Atos não pede consentimento nem entrega código: avisa que a conta dele não tem acesso. Quando ele volta à loja, a volta traz <code>error=access_denied</code>, o <code>concluir()</code> lança esse erro e a loja mostra a página de “sem acesso” dela. Neste modo, o “Criar conta” não abre a porta: quem cria a Conta Atos sem estar na lista fica com a conta, mas chega a esta mesma tela.</p>
         <div class="capturas">
           <figure class="captura">
-            <img src="/assets/integracao/pratica-atos-sem-acesso.webp" width="720" height="540" loading="lazy" decoding="async"
-              alt="A tela da Atos “Sem acesso a este aplicativo”: a Loja da Maria, cadastrada por maria@exemplo.test, a conta Pedro Exemplo, o aviso “Sua Conta Atos não tem acesso a este aplicativo. Peça a quem o administra.” e os botões Voltar ao aplicativo e Entrar com outra conta.">
+            <img src="/assets/integracao/pratica-atos-sem-acesso.webp" width="720" height="533" loading="lazy" decoding="async"
+              alt="A tela da Atos “Sem acesso a este aplicativo”: a Loja da Maria, cadastrada por maria.doces@atos.dev.br, a conta Pedro Exemplo, o aviso “Sua Conta Atos não tem acesso a este aplicativo. Peça a quem o administra.” e os botões Voltar ao aplicativo e Entrar com outra conta.">
             <figcaption>Na Atos: a conta do Pedro não está na lista da Loja da Maria.</figcaption>
           </figure>
           <figure class="captura larga">

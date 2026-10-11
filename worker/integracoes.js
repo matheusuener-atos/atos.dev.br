@@ -1,5 +1,6 @@
 // Atos Workspace > Integracoes (atos.dev.br/workspace/integracoes; a tela e public/assets/workspace-integracoes.js): quem
-// tem o Atos Workspace ativo (worker/workspace.js) cadastra os proprios sistemas no "Entrar com Atos" (o Login Atos) e
+// tem o Atos Workspace ativo (worker/workspace.js) e o e-mail Atos com o destino confirmado, e entrou pelo endereco
+// Atos (estadoDoAlias; 403 com codigo sem_alias, alias_nao_confirmado ou entrar_pelo_alias), cadastra os proprios sistemas no "Entrar com Atos" (o Login Atos) e
 // diz quem pode entrar neles. Sem o Workspace ativo, toda rota daqui responde 403 (workspace: false); os aplicativos ja
 // cadastrados continuam funcionando para quem entra (worker/oidc.js nao olha o Workspace), so a gestao fica parada. O aplicativo pertence a
 // conta que o criou (dono: sub e e-mail). As mudancas do dono valem na hora (sem a fila da equipe), e cada uma fica
@@ -35,7 +36,8 @@
 
 import { aleatorio, json, kv, lerJson, sha256 } from "./comum.js";
 import { sessaoDe } from "./contas.js";
-import { SEM_WORKSPACE, WORKSPACE_FORA, vistaDoWorkspace, workspaceAtivo, workspaceDe } from "./workspace.js";
+import { SEM_WORKSPACE, WORKSPACE_FORA, estadoDoAlias, recusaDoAlias, vistaDoWorkspace, workspaceAtivo, workspaceDe } from "./workspace.js";
+import { aliasDaConta, emailAtosLigado } from "./email-atos.js";
 import { ID_APP_TERCEIRO, KO, appDoCliente, appTerceiro, dadosParaIntegrar, indiceDeTerceiros } from "./oidc.js";
 import { LIBERADOS_MAX, camposDoApp, camposDoCliente, emailsLimpos, modoDeAcesso } from "./oidc-campos.js";
 
@@ -165,8 +167,15 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
   let ativo;
   try { ativo = await workspaceAtivo(env, sessao.sub); } catch { return WORKSPACE_FORA(); }
   if (!ativo) return SEM_WORKSPACE();
+  // O e-mail Atos (worker/workspace.js, estadoDoAlias): o alias ativo, com o destino confirmado, e a sessao aberta por
+  // ele. Faltando um, 403 com o codigo (sem_alias, alias_nao_confirmado, entrar_pelo_alias); os aplicativos ja
+  // cadastrados continuam funcionando para quem entra neles, so a gestao para.
+  let alias;
+  try { alias = await estadoDoAlias(env, sessao); } catch { return WORKSPACE_FORA(); }
+  if (alias.pendencia) return recusaDoAlias(alias, emailAtosLigado(env));
   const p = url.pathname;
-  if (p === "/api/integracoes" && request.method === "GET") return json(await telaDoDono(env, sessao, agora));
+  // email_atos: o endereco que quem entra ve como "Cadastrado por" (a tela diz isso).
+  if (p === "/api/integracoes" && request.method === "GET") return json({ ...(await telaDoDono(env, sessao, agora)), email_atos: alias.alias.endereco });
   if (request.method !== "POST") return json({ erro: "use POST" }, 405);
   if (!(agora / 1000 - sessao.auth_time < RECENTE_S)) return json({ erro: "para mudar as integrações, entre de novo (o login precisa ser das últimas 12 horas)", reentrar: true }, 401);
   const d = await lerJson(request);
@@ -325,17 +334,25 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
 
 // ------------------------------------------------------------ a equipe (painel, Login Atos)
 
-/* Todos os aplicativos de terceiros, com o dono de cada um (o painel) e se ele tem o Atos Workspace ativo
-   (dono_workspace: {ativo, ativado, desativado} ou null quando nao deu para conferir). */
+/* Todos os aplicativos de terceiros, com o dono de cada um (o painel: o e-mail e o sub reais), se ele tem o Atos
+   Workspace ativo (dono_workspace: {ativo, ativado, desativado} ou null quando nao deu para conferir) e o e-mail Atos
+   dele (dono_alias: {endereco, suspenso, confirmado} ou null; dono_alias_lido false quando nao deu para ver). */
 export async function terceirosParaPainel(env) {
   const l = [];
   const doDono = new Map();
   for (const id of Object.keys(await indiceDeTerceiros(env))) {
     const a = await appTerceiro(env, id);
     if (!a) continue;
-    if (!doDono.has(a.dono.sub)) doDono.set(a.dono.sub, await workspaceDe(env, a.dono.sub).then(vistaDoWorkspace, () => null));
-    const w = doDono.get(a.dono.sub);
-    l.push({ ...(await vista(env, a, 10)), dono_workspace: w ? { ativo: w.ativo, ativado: w.ativado, desativado: w.desativado } : null });
+    if (!doDono.has(a.dono.sub)) {
+      doDono.set(a.dono.sub, {
+        w: await workspaceDe(env, a.dono.sub).then(vistaDoWorkspace, () => null),
+        // O e-mail Atos do dono (o que quem entra ve como "Cadastrado por"); null sem alias, "?" se nao deu para ver.
+        alias: await aliasDaConta(env, a.dono.sub).then((x) => x ? { endereco: x.endereco, suspenso: x.suspenso, confirmado: x.confirmado } : null, () => "?"),
+      });
+    }
+    const { w, alias } = doDono.get(a.dono.sub);
+    l.push({ ...(await vista(env, a, 10)), dono_sub: a.dono.sub, dono_workspace: w ? { ativo: w.ativo, ativado: w.ativado, desativado: w.desativado } : null,
+      dono_alias: alias === "?" ? null : alias, dono_alias_lido: alias !== "?" });
   }
   return l.sort((x, y) => String(y.criado || "").localeCompare(String(x.criado || "")));
 }
