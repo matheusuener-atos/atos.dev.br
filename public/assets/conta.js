@@ -56,7 +56,8 @@
     return '<nav class="guias" aria-label="Minha conta">' + GUIAS.map(function (g) {
       if (!g) return '<span class="sep" aria-hidden="true"></span>';
       return '<a href="' + g[2] + '" data-secao="' + g[0] + '"' + (g[0] === sec ? ' aria-current="page"' : "") + ">" + g[1] + "</a>";
-    }).join("") + '<button type="button" class="fim" data-acao="sair">Sair</button></nav>';
+    }).join("") + (S.painel ? '<a class="fim" href="/admin/">Painel</a>' : "") +
+      '<button type="button"' + (S.painel ? "" : ' class="fim"') + ' data-acao="sair">Sair</button></nav>';
   }
   function titulo(t, descricao) { return "<h1>" + t + "</h1>" + (descricao ? '<p class="descricao">' + descricao + "</p>" : "") + guias(); }
   function h2(t) { return '<h2 class="titulo-secao">' + t + "</h2>"; }
@@ -370,6 +371,14 @@
       desenhar();
     });
   }
+  /* O atalho do painel: so para quem esta na equipe (o servidor responde 200, ou 401 pedindo um login recente).
+     Para os outros, nada aparece - a mesma recusa calada do /admin. */
+  function carregarPainel() {
+    api("/api/admin/eu").then(function (d) {
+      S.painel = d._status === 200 || (d._status === 401 && Boolean(d.reentrar));
+      if (S.painel) desenhar();
+    });
+  }
   function carregarAtos() {
     return api("/api/cobranca/v1/conta").then(function (d) {
       if (d.erro || !d.produtos) { S.atosErro = d.erro || "não deu para carregar a cobrança agora"; S.atos = null; }
@@ -487,5 +496,6 @@
     desenhar();
     carregarApps();
     carregarAtos();
+    carregarPainel();
   });
 })();

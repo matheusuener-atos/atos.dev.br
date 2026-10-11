@@ -179,6 +179,12 @@ let eq = (await pedir("GET", "/api/admin/equipe", sup)).d;
 checar(eq.membros.length === 2 && eq.matriz.length >= 3 && eq.liberacao.ligado, "a tela Equipe: os membros (da semente) e a matriz", eq);
 const pedirFila = (cookie, tipo, dados, texto = tipo) => pedir("POST", "/api/admin/alteracoes", cookie, { corpo: { tela: "equipe", tipo, alvo: dados.email || "", dados, texto } });
 const publicar = (cookie = dono, confirmacao = "comitar e pushar") => pedir("POST", "/api/admin/publicar", cookie, { corpo: { confirmacao } });
+// So se libera o painel a uma Conta Atos que ja existe.
+r = await pedirFila(dono, "equipe.membro", { acao: "criar", nome: "Sem Conta", email: "semconta@atos.dev.br", papel: "suporte", areas: ["atos"] });
+checar(r.status === 400 && /ainda não tem Conta Atos/.test(r.d.erro), "e-mail sem Conta Atos: recusado, dizendo para criar a conta primeiro", r);
+for (const e of ["bia@atos.dev.br", "caio@atos.dev.br", "beatriz@atos.dev.br", "duda@atos.dev.br", "eva@atos.dev.br", "x@atos.dev.br"]) {
+  if (!guardados.has("id:conta:" + e)) guardados.set("id:conta:" + e, JSON.stringify({ sub: "sub-" + e, nome: "Nome" }));
+}
 r = await pedirFila(sup, "equipe.membro", { acao: "criar", nome: "Xavier", email: "x@atos.dev.br", papel: "dono" });
 checar(r.status === 403, "o suporte não mexe na equipe");
 r = await pedirFila(dono, "equipe.membro", { acao: "criar", nome: "Ana", email: "sup@atos.dev.br", papel: "suporte", areas: ["atos"] });

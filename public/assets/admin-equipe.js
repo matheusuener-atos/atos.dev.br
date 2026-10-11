@@ -59,7 +59,7 @@
     if (!S.dados) return h + '<div class="card pv-topo"><p class="vazio">' + (S.erro ? "Não consegui ler a equipe agora: " + esc(S.erro) + ' <button type="button" class="link" data-eq="recarregar">Tentar de novo</button>' : "Carregando…") + "</p></div>";
     if (S.erro) h += '<p class="nf-aviso"><span>Não consegui atualizar a equipe agora: ' + esc(S.erro) + ". Mostrando a última leitura.</span></p>";
     var d = S.dados, pode = podeMudar(), fila = F();
-    h += '<h2 class="titulo-secao pv-h2"><span>Pessoas</span>' + (pode ? '<button type="button" class="btn p primario" data-eq="convidar">Convidar</button>' : "") + "</h2>";
+    h += '<h2 class="titulo-secao pv-h2"><span>Pessoas</span>' + (pode ? '<button type="button" class="btn p primario" data-eq="convidar">Liberar acesso</button>' : "") + "</h2>";
     h += '<div class="card">' + (d.membros || []).map(function (m) {
       var naFila = fila && fila.naFila("equipe.membro", m.email);
       if (m.convite) {
@@ -94,8 +94,8 @@
   /* ------------------------------------------------------------ os pop-ups */
   function modalConvite() {
     var C = S.conv;
-    return '<h2 id="modal-titulo">Convidar para a equipe</h2>' +
-      "<p>Entra na fila e vale quando você confirmar as alterações. Publicado, a pessoa já está na equipe e entra no painel com a Conta Atos deste e-mail (quem não tem cria em atos.dev.br/entrar, com o mesmo e-mail); vai um e-mail de aviso para ela.</p>" +
+    return '<h2 id="modal-titulo">Liberar o painel</h2>' +
+      "<p>Só para uma Conta Atos que já existe: a pessoa cria a conta em atos.dev.br/entrar primeiro, e você libera aqui com o mesmo e-mail. Entra na fila e vale quando você confirmar as alterações; publicado, ela vê o atalho Painel na Minha conta e recebe um e-mail de aviso.</p>" +
       '<label class="campo"><span class="rotulo">Nome</span><input id="eq-nome" data-eq-in="nome" value="' + esc(C.nome) + '" autocomplete="off"></label>' +
       '<label class="campo"><span class="rotulo">E-mail</span><input id="eq-email" type="email" data-eq-in="email" value="' + esc(C.email) + '" autocomplete="off" spellcheck="false"' + (C.erro ? ' aria-invalid="true"' : "") + "></label>" +
       '<div class="campo"><span class="rotulo">Papel</span>' + opcoesPapel("conv-papel", C.papel, false) + "</div>" +

@@ -432,6 +432,11 @@ async function conferirMembro(c, d) {
     }
   }
   if (acao === "criar" && naEquipe(email)) return email + " já está na equipe";
+  // So se libera o painel a uma Conta Atos que ja existe: a pessoa cria a conta primeiro (atos.dev.br/entrar).
+  const precisaConta = acao === "criar" || (acao === "editar" && normal(d.de) !== email);
+  if (precisaConta && !(await kv(c.env, "id:conta:" + email))) {
+    return email + " ainda não tem Conta Atos: a pessoa cria a conta em atos.dev.br/entrar e depois você libera o painel";
+  }
   if (acao === "editar") {
     const de = normal(d.de);
     if (!naEquipe(de)) return (de || "essa pessoa") + " não está na equipe";
