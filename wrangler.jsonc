@@ -55,7 +55,12 @@
   // A conexao com a Sefin (mTLS): todo pedido a Sefin/ADN sai pelo Worker auxiliar atos-nfse-mtls, que apresenta o
   // certificado A1 (worker/nfse/MTLS.md, worker/nfse/sefin.js, fetchPeloMtls). Veja a nota no topo: o auxiliar
   // precisa existir antes do deploy.
-  "services": [{ "binding": "SEFIN_MTLS", "service": "atos-nfse-mtls" }],
+  //
+  // O painel do PAVLVS (atos.dev.br/admin; worker/admin.js, encaminharAoPavlvs): /api/admin/pavlvs/* vai ao Worker
+  // "paulus" (o de paulus.ia.br) por este binding, com quem pede assinado pelo segredo PAINEL_SEGREDO_PAVLVS (o
+  // MESMO valor nos dois Workers: npx wrangler secret put PAINEL_SEGREDO_PAVLVS; openssl rand -hex 32). Sem o
+  // binding (o --env teste) ou sem o segredo, o painel do PAVLVS responde 503.
+  "services": [{ "binding": "SEFIN_MTLS", "service": "atos-nfse-mtls" }, { "binding": "PAVLVS", "service": "paulus" }],
   // O Cron de cada minuto: o PDF (e o e-mail) da NFS-e emitida que ainda nao tem (worker/index.js, scheduled ->
   // worker/nfse/api.js, depoisPendentes; sem nota esperando, uma leitura do KV).
   "triggers": { "crons": ["* * * * *"] },
@@ -66,8 +71,14 @@
   // PRODUTOS_ABERTOS: os produtos que ja vendem pela Atos ("pavlvs,..."); vazio = nenhum cobra ainda.
   // CF_ACCOUNT_ID: a conta Cloudflare onde o painel cadastra o certificado A1 como mTLS e republica o auxiliar
   // atos-nfse-mtls (worker/nfse/mtls.js; o token de API fica cifrado no KV). Identificador, nao segredo.
+  // A equipe do painel: no KV (atos:admin:equipe), mudada pela fila do painel. ATOS_EQUIPE (segredo, JSON
+  // [{"email","nome","papel"}]) e so a semente: vale enquanto a lista do KV nao existe.
+  // GITHUB_CLIENT_ID: o OAuth App "PAVLVS Admin" (o mesmo de antes no PAVLVS), com a URL de retorno
+  // https://atos.dev.br/api/admin/github/retorno; o secret e segredo (npx wrangler secret put GITHUB_CLIENT_SECRET).
+  // So para comitar e pushar ou retroagir no painel do PAVLVS.
   "vars": {
     "APP_URL": "https://atos.dev.br",
+    "GITHUB_CLIENT_ID": "Ov23li63aRJVcRPb4QhE",
     "MP_PUBLIC_KEY": "APP_USR-0bb20e6b-f846-4b8e-a267-12bfc8c7fc1a",
     "PRODUTOS_ABERTOS": "pavlvs",
     "CF_ACCOUNT_ID": "54164f67b5d5eb33c0a1d325dfebb449"
@@ -91,6 +102,8 @@
   // Segredo proprio, com --env teste: NFSE_CHAVE_MESTRA (sem ele o emissor de teste fica desligado).
   // ATOS_EQUIPE (abaixo, SO no teste): quem entra no painel de teste (atos-teste.<conta>.workers.dev/admin/), as
   // Contas Atos do dono. E texto JSON (worker/admin.js faz JSON.parse). A equipe da producao NAO vem daqui.
+  // E a semente da equipe de teste: a guardada fica em "atos-teste:admin:equipe" (a da producao, em
+  // "atos:admin:equipe"; o KV e o mesmo). Sem PAVLVS de teste: sem o binding PAVLVS, /api/admin/pavlvs/* da 503.
   "env": {
     "teste": {
       "name": "atos-teste",

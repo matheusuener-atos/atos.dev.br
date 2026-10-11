@@ -279,7 +279,7 @@ checar(saidas.length === 0, "e nenhum pedido à rede em todo o teste", saidas);
 console.log("9. a equipe do painel de teste (wrangler.jsonc)");
 {
   const { readFileSync } = await import("node:fs");
-  const { equipe } = await import("./admin.js");
+  const { equipeDaSemente: equipe } = await import("./admin.js");
   // JSONC: tira os comentarios fora das strings e as virgulas antes de } ou ].
   const bruto = readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8");
   let limpo = "";

@@ -120,7 +120,8 @@ export default {
         if (url.pathname.startsWith("/api/") && !mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
         return comCabecalhos(await atenderOIDC(request, env, url, { dentroDoLimite }));
       }
-      // O painel da Atos (worker/admin.js): a equipe, pela Conta Atos com login recente; as notas no emissor.
+      // O painel da Atos (worker/admin.js): a equipe, pela Conta Atos com login recente; as notas no emissor; o
+      // painel do PAVLVS (/api/admin/pavlvs/*), encaminhado ao Worker dele pelo binding PAVLVS.
       if (ehRotaDoAdmin(url)) {
         if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
         const emissor = (req, e, u, quem) => atenderEmissor(req, e, u, quem, { ctx });
