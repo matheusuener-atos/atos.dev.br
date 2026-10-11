@@ -67,7 +67,7 @@ async function codigoPara(cliente, volta, e = env) {
 }
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 const APP = { acao: "criar", id: "plantare", nome: "Plantare Maps", descricao: "mapas de plantio", site: "https://plantare.example", privacidade: "https://plantare.example/privacidade",
-  termos: "https://plantare.example/termos", icone: PNG };
+  termos: "https://plantare.example/termos", icone: PNG, liberados: ["Joao@Escritorio.adv.br"] };
 const WEB = "https://plantare.example/entrar/volta";
 const SRV = "https://plantare.example/srv/volta";
 
@@ -94,10 +94,17 @@ await recusa("oauth.app", { ...APP, icone: "https://plantare.example/icone.png" 
 await recusa("oauth.app", { ...APP, icone: "data:image/svg+xml;base64,PHN2Zz4=" }, "ícone", "ícone SVG: recusado");
 await recusa("oauth.app", { ...APP, acao: "editar" }, "não existe", "editar o que não existe: recusado");
 await recusa("oauth.cliente", { acao: "criar", id: "plantare-web", app: "plantare", tipo: "publico", voltas: [WEB] }, "não existe", "cliente de aplicativo que ainda não existe (na fila não conta): recusado");
+await recusa("oauth.app", { ...APP, id: "u-abcdefghij" }, "Minha conta", "id com u- (dos aplicativos da Minha conta): recusado");
+await recusa("oauth.app", { ...APP, liberados: ["não é e-mail"] }, "e-mail", "lista de liberados com e-mail inválido: recusada");
 r = await fila("oauth.app", APP);
 checar(r.status === 200 && !guardados.has("atos:oidc:registro"), "o aplicativo entra na fila; nada muda antes de publicar");
 r = await publicar();
-checar(r.d.ok && JSON.parse(guardados.get("atos:oidc:registro")).apps.plantare.nome === "Plantare Maps", "publicado: o aplicativo vai para o KV", r.d);
+const plantare = JSON.parse(guardados.get("atos:oidc:registro")).apps.plantare;
+checar(r.d.ok && plantare.nome === "Plantare Maps" && plantare.acesso === "liberados" && plantare.liberados.join() === "joao@escritorio.adv.br",
+  "publicado: o aplicativo vai para o KV, só para os liberados (o e-mail normalizado)", plantare);
+r = await chamar("/api/admin/oauth", { metodo: "GET", cookie: dono });
+checar(r.d.apps.find((a) => a.id === "plantare").acesso === "liberados" && r.d.apps.find((a) => a.id === "pavlvs").acesso === "todos" && Array.isArray(r.d.terceiros),
+  "a tela mostra quem pode entrar (o PAVLVS: qualquer Conta Atos) e a lista de terceiros", r.d.apps);
 
 console.log("validações do cliente");
 const CW = { acao: "criar", id: "plantare-web", app: "plantare", tipo: "publico", voltas: [WEB], origens: ["https://plantare.example"] };
@@ -140,6 +147,20 @@ checar(r.status === 401 && r.d.error === "invalid_client", "cliente público com
 p = await pkce();
 r = await chamar("/api/pedido", { cookie: joao, corpo: { consulta: consulta("plantare-app", "http://127.0.0.1:50123/qualquer", p.desafio) } });
 checar(r.status === 200 && r.d.permitido === true, "o programa (loopback) volta a qualquer porta de 127.0.0.1, já com a permissão do aplicativo", r.d);
+
+console.log("quem pode entrar (aplicativo da equipe)");
+const maria = await sessao("maria@outra.com.br");
+p = await pkce();
+r = await chamar("/api/pedido", { cookie: maria, corpo: { consulta: consulta("plantare-web", WEB, p.desafio) } });
+checar(r.status === 200 && r.d.negado === true && r.d.permitido === false && r.d.voltar.includes("error=access_denied"), "fora da lista: /entrar recusa antes do consentimento", r.d);
+r = await chamar("/api/autorizar", { cookie: maria, corpo: { consulta: consulta("plantare-web", WEB, p.desafio), permitir: true } });
+checar(r.status === 403 && !r.d.ir, "e o permitir não emite código", r.d);
+r = await chamar("/api/pedido", { cookie: dono, corpo: { consulta: consulta("plantare-web", WEB, p.desafio) } });
+checar(r.status === 200 && r.d.negado === false, "quem criou o aplicativo (o por) entra sem estar na lista", r.d);
+checar((await fila("oauth.app", { ...APP, acao: "editar", acesso: "todos", liberados: [] })).status === 200 && (await publicar()).d.ok, "a equipe abre o cadastro (pela fila)");
+r = await chamar("/api/pedido", { cookie: maria, corpo: { consulta: consulta("plantare-web", WEB, p.desafio) } });
+checar(r.status === 200 && r.d.negado === false, "qualquer Conta Atos: a maria entra", r.d);
+checar((await fila("oauth.app", { ...APP, acao: "editar" })).status === 200 && (await publicar()).d.ok, "e fecha de novo (só os liberados)");
 
 console.log("o confidencial: o segredo");
 cod = await codigoPara("plantare-srv", SRV);

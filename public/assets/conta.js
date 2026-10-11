@@ -1,5 +1,6 @@
 /* A Minha conta (/conta/ e /conta/<secao>): Resumo e Dados da conta Atos;
-   Assinaturas, Faturamento e Carteira do que a pessoa assina com a Atos.
+   Assinaturas, Faturamento e Carteira do que a pessoa assina com a Atos;
+   Integracoes, os sistemas que ela cadastra no Entrar com Atos (conta-integracoes.js).
 
    A conta (nome, e-mail, aplicativos) vem da Atos (/api/eu, /api/apps). A
    cobranca tambem: a Atos e quem cobra (docs/COBRANCA.md), e a tela le
@@ -10,7 +11,7 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var SECOES = ["resumo", "dados", "assinaturas", "faturamento", "carteira"];
+  var SECOES = ["resumo", "dados", "assinaturas", "faturamento", "carteira", "integracoes"];
   var S = {
     conta: null, apps: null, appsErro: "", editando: false, nomeErro: "",
     atos: null, atosErro: "",
@@ -50,7 +51,7 @@
     return m && SECOES.indexOf(m[1]) > 0 ? m[1] : "resumo";
   }
   var GUIAS = [["resumo", "Resumo", "/conta/"], ["dados", "Dados", "/conta/dados"], null, ["assinaturas", "Assinaturas", "/conta/assinaturas"],
-    ["faturamento", "Faturamento", "/conta/faturamento"], ["carteira", "Carteira", "/conta/carteira"]];
+    ["faturamento", "Faturamento", "/conta/faturamento"], ["carteira", "Carteira", "/conta/carteira"], null, ["integracoes", "Integrações", "/conta/integracoes"]];
   function guias() {
     var sec = secaoAtual();
     return '<nav class="guias" aria-label="Minha conta">' + GUIAS.map(function (g) {
@@ -165,6 +166,7 @@
     else {
       h += '<div class="card">' + S.apps.map(function (x) {
         var partes = [resumoEscopos(x.escopos)];
+        if (x.terceiro && x.cadastrado_por) partes.push("Cadastrado por " + x.cadastrado_por + " (não é da Atos)");
         if (x.quando) partes.push("Permitido em " + data(x.quando));
         if (x.ultimo) partes.push("Último acesso em " + data(x.ultimo));
         var logo = x.icone ? '<img class="logo" src="' + esc(x.icone) + '" alt="" width="32" height="32">'
@@ -340,7 +342,28 @@
       'escreva para <a href="mailto:contato@atos.dev.br">contato@atos.dev.br</a>.</p>';
   }
 
-  var DESENHO = { resumo: resumo, dados: dados, assinaturas: assinaturas, faturamento: faturamento, carteira: carteira };
+  /* Integracoes: os sistemas que a pessoa cadastra no Entrar com Atos. A tela mora em conta-integracoes.js (com o
+     cartao "Como integrar" do integrar.js, o mesmo do painel), carregados so quando a guia abre. */
+  function integracoes() {
+    return titulo("Integrações", "Os seus sistemas que usam o Entrar com Atos, e quem pode entrar em cada um.") + '<div id="ig-raiz"><div class="card"><p class="vazio">Carregando…</p></div></div>';
+  }
+  var scripts = {};
+  function script(src, cb) {
+    if (scripts[src] === true) { cb(); return; }
+    if (scripts[src]) { scripts[src].push(cb); return; }
+    scripts[src] = [cb];
+    var s = document.createElement("script");
+    s.src = src;
+    s.onload = function () { var l = scripts[src]; scripts[src] = true; l.forEach(function (f) { f(); }); };
+    document.head.appendChild(s);
+  }
+  function montarIntegracoes() {
+    script("/assets/integrar.js", function () {
+      script("/assets/conta-integracoes.js", function () { var r = $("ig-raiz"); if (r && window.ContaIntegracoes) window.ContaIntegracoes.montar(r); });
+    });
+  }
+
+  var DESENHO = { resumo: resumo, dados: dados, assinaturas: assinaturas, faturamento: faturamento, carteira: carteira, integracoes: integracoes };
 
   function desenhar() {
     var sec = secaoAtual();
@@ -348,6 +371,7 @@
     var foco = ativo && (ativo.name || (ativo.getAttribute && ativo.getAttribute("data-filtro")));
     var pos = ativo && ativo.selectionStart;
     $("secao").innerHTML = DESENHO[sec]();
+    if (sec === "integracoes") { montarIntegracoes(); return; }
     if (S.editando) { var i = $("secao").querySelector("input[name=nome]"); if (i) i.focus(); }
     else if (foco) {
       var j = $("secao").querySelector('input[name="' + foco + '"], [data-filtro="' + foco + '"]');

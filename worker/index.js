@@ -14,6 +14,7 @@ import { atenderCobrancaV1, ehRotaDaCobrancaV1 } from "./cobranca/api.js";
 import { ehAmbienteDeTeste } from "./cobranca/eventos.js";
 import { atenderEmissor, depoisPendentes } from "./nfse/api.js";
 import { atenderAdmin, ehRotaDoAdmin } from "./admin.js";
+import { atenderIntegracoes, ehRotaDasIntegracoes } from "./integracoes.js";
 
 // O registro de cada cliente da Atos Cobranca (docs/COBRANCA.md): o Durable Object precisa sair do modulo principal.
 export { ClienteCobranca } from "./cobranca/cliente.js";
@@ -127,6 +128,11 @@ export default {
         const emissor = (req, e, u, quem) => atenderEmissor(req, e, u, quem, { ctx });
         return comCabecalhos(await atenderAdmin(request, env, url, { emissor }), true);
       }
+      // Minha conta > Integracoes: os sistemas que a pessoa cadastra no Entrar com Atos (worker/integracoes.js).
+      if (ehRotaDasIntegracoes(url)) {
+        if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
+        return comCabecalhos(await atenderIntegracoes(request, env, url, { dentroDoLimite }));
+      }
       if (ehRotaDaConta(url)) {
         if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
         return comCabecalhos(await atenderConta(request, env, url, { dentroDoLimite }));
@@ -147,7 +153,7 @@ export default {
     // O painel (/admin) tem a CSP da conta: so scripts da propria Atos.
     const conta = /^\/(entrar|conta|admin)(\/|$)/.test(url.pathname);
     // Cada secao da Minha conta tem o proprio endereco; a pagina e uma so.
-    if (/^\/conta\/(dados|assinaturas|faturamento|carteira)\/?$/.test(url.pathname)) {
+    if (/^\/conta\/(dados|assinaturas|faturamento|carteira|integracoes)\/?$/.test(url.pathname)) {
       return comCabecalhos(await env.ASSETS.fetch(new Request(new URL("/conta/", url), request)), true);
     }
     return comCabecalhos(await env.ASSETS.fetch(request), conta);

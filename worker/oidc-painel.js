@@ -7,16 +7,24 @@
 // valor aparece uma vez so, e nao poderia esperar na fila): fica so o hash, com quem e quando.
 //
 // Rotas (atras de /api/admin, so o dono):
-//   GET  /api/admin/oauth                          {emissor, descoberta, endpoints, escopos, token_s, apps, clientes}
+//   GET  /api/admin/oauth                          {emissor, descoberta, endpoints, escopos, token_s, apps, clientes,
+//                                                   terceiros}
 //   POST /api/admin/oauth/clientes/:id/segredo     {confirmar: true} -> {segredo, quando} (uma vez so)
+//   POST /api/admin/oauth/terceiros/:id/desligar   {motivo} um aplicativo de terceiro (Minha conta > Integracoes), por
+//   POST /api/admin/oauth/terceiros/:id/ligar      abuso: na hora, sem a fila, com registro (worker/integracoes.js)
+//   POST /api/admin/oauth/terceiros/:id/apagar     {confirmar: true, motivo?}
 //
 // O registro no KV ("atos:oidc:registro"; "atos-teste:oidc:registro" no Worker de teste):
-//   {apps: {<id>: {nome, descricao, site, privacidade, termos, icone, criado, por, mudado?}},
+//   {apps: {<id>: {nome, descricao, site, privacidade, termos, icone, acesso: "liberados"|"todos", liberados: [e-mails],
+//                  criado, por, mudado?}},  (sem acesso: "liberados"; quem criou, o "por", entra sempre)
 //    clientes: {<id>: {app, tipo: "publico"|"confidencial", voltas, loopback, origens, ativo, criado, por, mudado?}}}
 
-import { EMISSOR, aleatorio, json, kv, lerJson, limparNome, sha256 } from "./comum.js";
-import { APPS, CLIENTES, ESCOPOS, KO, TOKEN_S, registroDoKV } from "./oidc.js";
+import { aleatorio, json, kv, lerJson, sha256 } from "./comum.js";
+import { APPS, CLIENTES, KO, dadosParaIntegrar, registroDoKV } from "./oidc.js";
+import { camposDoApp as camposBasicos, camposDoCliente, emailsLimpos, modoDeAcesso } from "./oidc-campos.js";
+import { acaoDaEquipe, terceirosParaPainel } from "./integracoes.js";
 
+export { origemValida, voltaValida } from "./oidc-campos.js";
 export const TIPOS_OAUTH = ["oauth.app", "oauth.cliente"];
 export const chaveDoRegistro = (env) => KO(env).registro;
 
@@ -24,91 +32,17 @@ const temChave = (o, k) => Boolean(o) && Object.prototype.hasOwnProperty.call(o,
 const iso = (ms) => new Date(ms).toISOString();
 const ID_APP = /^[a-z0-9][a-z0-9-]{1,30}$/;
 const ID_CLIENTE = /^[a-z0-9][a-z0-9-]{2,62}$/;
-// O icone: so imagem embutida (data:), porque a CSP de /entrar e /conta (img-src 'self' data:) nao carrega imagem de
-// fora. Sem icone, as paginas mostram a inicial do nome.
-const ICONE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
-const ICONE_MAX = 40000;
+// "u-..." e dos aplicativos cadastrados na Minha conta (worker/integracoes.js).
+const DE_TERCEIRO = /^u-/;
 
-const ehLoopback = (h) => h === "127.0.0.1" || h === "[::1]";
-
-/* Um endereco https para mostrar (site, privacidade, termos): sem usuario/senha. "" se nao vale. */
-function urlHttps(s) {
-  s = String(s || "").trim();
-  if (!s || s.length > 300) return "";
-  try {
-    const u = new URL(s);
-    return u.protocol === "https:" && !u.username && !u.password ? u.href : "";
-  } catch {
-    return "";
-  }
-}
-
-/* Um endereco de volta exato: https, ou http so em 127.0.0.1 / [::1]; sem fragmento nem usuario. Volta o texto como
-   foi digitado (a comparacao no login e exata) ou "". */
-export function voltaValida(s) {
-  s = String(s || "").trim();
-  if (!s || s.length > 500) return "";
-  try {
-    const u = new URL(s);
-    if (u.username || u.password || u.hash || s.includes("#")) return "";
-    if (u.protocol === "https:") return u.href === s || u.href === s + "/" ? u.href : "";
-    if (u.protocol === "http:" && ehLoopback(u.hostname)) return u.href === s || u.href === s + "/" ? u.href : "";
-    return "";
-  } catch {
-    return "";
-  }
-}
-
-/* Uma origem para CORS (so o esquema, o host e a porta): https, ou http em 127.0.0.1 / [::1]. */
-export function origemValida(s) {
-  s = String(s || "").trim().replace(/\/$/, "");
-  try {
-    const u = new URL(s);
-    if (u.origin !== s) return "";
-    return u.protocol === "https:" || (u.protocol === "http:" && ehLoopback(u.hostname)) ? u.origin : "";
-  } catch {
-    return "";
-  }
-}
-
-const listaDe = (x) => (Array.isArray(x) ? x : typeof x === "string" ? x.split(/\s+/) : []).map((s) => String(s).trim()).filter(Boolean);
-
-/* Os campos de um aplicativo, limpos, ou {erro}. */
+/* Os campos de um aplicativo da equipe: os de todo aplicativo e quem pode entrar (sem dizer, "liberados": so quem o
+   criou e a lista). */
 function camposDoApp(d) {
-  const nome = limparNome(d.nome).slice(0, 60);
-  if (nome.length < 2) return { erro: "diga o nome do aplicativo" };
-  const descricao = limparNome(d.descricao).slice(0, 140);
-  if (descricao.length < 3) return { erro: "diga em poucas palavras o que o aplicativo faz (aparece para quem entra)" };
-  const site = urlHttps(d.site), privacidade = urlHttps(d.privacidade), termos = urlHttps(d.termos);
-  if (!site) return { erro: "o site precisa ser um endereço https" };
-  if (!privacidade) return { erro: "a política de privacidade precisa ser um endereço https (aparece para quem entra)" };
-  if (!termos) return { erro: "os termos de uso precisam ser um endereço https (aparecem para quem entra)" };
-  const icone = String(d.icone || "");
-  if (icone && (icone.length > ICONE_MAX || !ICONE.test(icone))) return { erro: "o ícone precisa ser uma imagem PNG, JPEG ou WebP de até 30 KB (ou nenhum)" };
-  return { nome, descricao, site, privacidade, termos, icone };
-}
-
-/* Os campos de um cliente, limpos, ou {erro}. */
-function camposDoCliente(d) {
-  const voltasDadas = listaDe(d.voltas);
-  if (voltasDadas.length > 10) return { erro: "no máximo 10 endereços de volta" };
-  const voltas = [];
-  for (const v of voltasDadas) {
-    const ok = voltaValida(v);
-    if (!ok) return { erro: "endereço de volta inválido: " + v.slice(0, 80) + " (https exato; http só em 127.0.0.1 ou [::1]; sem #)" };
-    if (!voltas.includes(ok)) voltas.push(ok);
-  }
-  const loopback = d.loopback === true;
-  if (!voltas.length && !loopback) return { erro: "diga pelo menos um endereço de volta (ou marque o programa instalado, que volta a 127.0.0.1)" };
-  const origensDadas = listaDe(d.origens);
-  if (origensDadas.length > 10) return { erro: "no máximo 10 origens" };
-  const origens = [];
-  for (const o of origensDadas) {
-    const ok = origemValida(o);
-    if (!ok) return { erro: "origem inválida: " + o.slice(0, 80) + " (só esquema, host e porta, como https://exemplo.com.br)" };
-    if (!origens.includes(ok)) origens.push(ok);
-  }
-  return { voltas, loopback, origens };
+  const f = camposBasicos(d);
+  if (f.erro) return f;
+  const e = emailsLimpos(d.liberados);
+  if (e.erro) return { erro: e.erro };
+  return { ...f, acesso: modoDeAcesso(d.acesso), liberados: e.emails };
 }
 
 /* O que um oauth.app ou oauth.cliente pede faz sentido agora? "" se sim; senao, o motivo. */
@@ -119,6 +53,7 @@ export async function conferirOAuth(env, tipo, d, reg) {
   if (tipo === "oauth.app") {
     if (!["criar", "editar", "apagar"].includes(acao)) return "o que fazer com o aplicativo? (criar, editar ou apagar)";
     if (!ID_APP.test(id)) return "o id do aplicativo: 2 a 31 letras minúsculas, números e hífen";
+    if (DE_TERCEIRO.test(id)) return "ids que começam com u- são dos aplicativos cadastrados na Minha conta: escolha outro";
     if (temChave(APPS, id)) return "o aplicativo " + id + " é do código: não muda por aqui";
     if (acao === "criar" && temChave(reg.apps, id)) return "já existe um aplicativo " + id;
     if (acao !== "criar" && !temChave(reg.apps, id)) return "o aplicativo " + id + " não existe";
@@ -130,6 +65,7 @@ export async function conferirOAuth(env, tipo, d, reg) {
   if (tipo === "oauth.cliente") {
     if (!["criar", "editar", "ligar", "desligar", "apagar"].includes(acao)) return "o que fazer com o cliente? (criar, editar, ligar, desligar ou apagar)";
     if (!ID_CLIENTE.test(id)) return "o client_id: 3 a 63 letras minúsculas, números e hífen";
+    if (DE_TERCEIRO.test(id)) return "client_ids que começam com u- são dos aplicativos cadastrados na Minha conta: escolha outro";
     if (temChave(CLIENTES, id)) return "o cliente " + id + " é do código: não muda por aqui";
     if (acao === "criar") {
       if (temChave(reg.clientes, id)) return "já existe um cliente " + id;
@@ -202,23 +138,14 @@ export async function aplicarOAuth(env, tipo, d, por, agora) {
 
 // ------------------------------------------------------------------ as rotas
 
-function endpoints() {
-  return {
-    descoberta: EMISSOR + "/.well-known/openid-configuration",
-    autorizacao: EMISSOR + "/entrar",
-    token: EMISSOR + "/oauth/token",
-    userinfo: EMISSOR + "/oauth/userinfo",
-    jwks: EMISSOR + "/oauth/jwks",
-    revogacao: EMISSOR + "/oauth/revogar",
-  };
-}
-
 async function tela(env) {
   const doKV = await registroDoKV(env);
   const apps = [
-    ...Object.entries(APPS).map(([id, a]) => ({ id, nome: a.nome, descricao: a.descricao, site: a.site, privacidade: a.privacidade, termos: a.termos, icone: a.icone, codigo: true })),
+    ...Object.entries(APPS).map(([id, a]) => ({ id, nome: a.nome, descricao: a.descricao, site: a.site, privacidade: a.privacidade, termos: a.termos, icone: a.icone, codigo: true,
+      acesso: modoDeAcesso(a.acesso), liberados: [] })),
     ...Object.entries(doKV.apps).filter(([id]) => !temChave(APPS, id)).map(([id, a]) => ({
       id, nome: a.nome, descricao: a.descricao, site: a.site, privacidade: a.privacidade, termos: a.termos, icone: a.icone || "", criado: a.criado || null, por: a.por || "", mudado: a.mudado || null, codigo: false,
+      acesso: modoDeAcesso(a.acesso), liberados: Array.isArray(a.liberados) ? a.liberados : [],
     })),
   ];
   const clientes = Object.entries(CLIENTES).map(([id, c]) => ({
@@ -232,9 +159,8 @@ async function tela(env) {
       criado: c.criado || null, por: c.por || "", mudado: c.mudado || null, codigo: false, segredo: s ? { quando: s.quando, por: s.por } : null,
     });
   }
-  return {
-    emissor: EMISSOR, ...endpoints(), escopos: Object.entries(ESCOPOS).map(([id, texto]) => ({ id, texto })), token_s: TOKEN_S, apps, clientes,
-  };
+  // Os de terceiros (Minha conta > Integracoes), com o dono de cada um: a equipe desliga ou apaga por abuso.
+  return { ...dadosParaIntegrar(), apps, clientes, terceiros: await terceirosParaPainel(env) };
 }
 
 /* Gera (ou troca) o segredo de um cliente confidencial do KV: o valor volta uma vez so; fica o hash. */
@@ -263,5 +189,7 @@ export async function atenderOAuthPainel(request, env, url, c) {
   if (p === "/api/admin/oauth/log" && m === "GET") return json({ log: (await kv(env, KO(env).log)) || [] });
   const r = p.match(/^\/api\/admin\/oauth\/clientes\/([a-z0-9-]{3,63})\/segredo$/);
   if (r && m === "POST") return gerarSegredo(env, r[1], (await lerJson(request)) || {}, c);
+  const t = p.match(/^\/api\/admin\/oauth\/terceiros\/(u-[a-z0-9]{10})\/(desligar|ligar|apagar)$/);
+  if (t && m === "POST") return acaoDaEquipe(env, t[1], t[2], (await lerJson(request)) || {}, c.quem, c.agora);
   return json({ erro: "rota não existe" }, 404);
 }

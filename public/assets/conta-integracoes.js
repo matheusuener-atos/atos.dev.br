@@ -1,0 +1,379 @@
+/* Minha conta > Integracoes (/conta/integracoes): os sistemas que a pessoa cadastra no Entrar com Atos. O servidor e
+   worker/integracoes.js; o cartao "Como integrar" e o integrar.js (o mesmo do painel).
+
+     GET  /api/integracoes                       os aplicativos da conta, os limites e o que precisa para integrar
+     POST /api/integracoes/apps                  criar um aplicativo
+     POST /api/integracoes/apps/:id              {acao: editar|acesso|liberar|tirar|apagar}
+     POST /api/integracoes/apps/:id/acessos      criar um acesso
+     POST /api/integracoes/acessos/:cid          {acao: editar|ligar|desligar|apagar|segredo}
+
+   A conta.js desenha o titulo e as guias e chama ContaIntegracoes.montar(raiz) a cada desenho; o estado fica aqui.
+   Os atributos sao data-ic* (a conta.js escuta data-acao, data-app, data-fechar e data-form). */
+(function () {
+  "use strict";
+  var S = { raiz: null, dados: null, erro: "", carregando: false, aberto: "", modal: null, aviso: "" };
+  var ICONE_MAX = 30 * 1024;
+  var ONDE = "atos.dev.br/conta/integracoes";
+  var VOLTA_ENTRAR = "/entrar/?modo=entrar&volta=" + encodeURIComponent("/conta/integracoes");
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
+  }
+  function api(caminho, corpo) {
+    var op = corpo === undefined ? { credentials: "same-origin" } :
+      { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) };
+    return fetch(caminho, op).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (d) { d._status = r.status; return d; });
+    }, function () { return { erro: "sem conexão com o servidor", _status: 0 }; });
+  }
+  function quando(iso) {
+    if (!iso) return "";
+    var d = new Date(iso);
+    if (isNaN(d)) return "";
+    return d.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+  function icone(a) {
+    if (a.icone) return '<img class="logo" src="' + esc(a.icone) + '" alt="" width="32" height="32">';
+    return '<span class="logo inicial" aria-hidden="true">' + esc(String(a.nome || "?").trim().charAt(0).toUpperCase()) + "</span>";
+  }
+  function app(id) { return ((S.dados || {}).apps || []).filter(function (a) { return a.id === id; })[0] || null; }
+  function acessoDe(cid) {
+    var r = null;
+    ((S.dados || {}).apps || []).forEach(function (a) { a.acessos.forEach(function (c) { if (c.id === cid) r = { app: a, c: c }; }); });
+    return r;
+  }
+  function linhas(t) { return String(t || "").split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean); }
+
+  // ------------------------------------------------------------ carregar
+
+  function carregar() {
+    S.carregando = true;
+    api("/api/integracoes").then(function (d) {
+      S.carregando = false;
+      if (d._status === 401) { location.replace("/entrar/?volta=" + encodeURIComponent("/conta/integracoes")); return; }
+      if (d.erro || !d.apps) { S.erro = d.erro || "não deu para carregar as integrações agora"; pintar(); return; }
+      S.erro = ""; S.dados = d; pintar();
+    });
+  }
+  /* Uma mudanca: o servidor devolve o aplicativo como ficou. */
+  function mudar(caminho, corpo, depois) {
+    return api(caminho, corpo).then(function (d) {
+      if (d._status === 401 && d.reentrar) { S.dados.recente = false; S.aviso = ""; pintar(); return d; }
+      if (d.erro) return d;
+      if (d.app) S.dados.apps = S.dados.apps.map(function (a) { return a.id === d.app.id ? d.app : a; });
+      if (d.apagado) S.dados.apps = S.dados.apps.filter(function (a) { return a.id !== d.apagado; });
+      if (depois) depois(d);
+      pintar();
+      return d;
+    });
+  }
+
+  // ------------------------------------------------------------ a tela
+
+  function situacao(c, a) {
+    if (a.bloqueado || !c.ativo) return '<span class="ig-sit perigo">desligado</span>';
+    if (c.tipo === "confidencial" && !c.segredo) return '<span class="ig-sit atencao">sem segredo</span>';
+    return '<span class="ig-sit ok">ligado</span>';
+  }
+
+  function blocoQuem(a) {
+    var todos = a.acesso === "todos";
+    var h = '<div class="ig-bloco"><h3 class="titulo-secao">Quem pode entrar</h3>' +
+      '<div class="opcoes" role="group" aria-label="Quem pode entrar">' +
+      '<button type="button" data-ic="modo" data-id="' + esc(a.id) + '" data-v="liberados" aria-pressed="' + !todos + '">Só as pessoas liberadas</button>' +
+      '<button type="button" data-ic="modo" data-id="' + esc(a.id) + '" data-v="todos" aria-pressed="' + todos + '">Qualquer Conta Atos</button></div>' +
+      '<p class="dica">' + (todos
+        ? "Qualquer pessoa com Conta Atos entra (cadastro aberto). A lista abaixo fica guardada, mas não vale enquanto o cadastro estiver aberto."
+        : "Entram você (" + esc(a.dono) + ") e os e-mails da lista. Um e-mail que ainda não tem Conta Atos entra quando a pessoa criar a conta com ele (o e-mail é confirmado por código).") + "</p>";
+    h += '<div class="ig-lista">' + (a.liberados.length ? a.liberados.map(function (e) {
+      return '<div class="ig-pessoa"><span>' + esc(e) + '</span><button type="button" class="btn mini" data-ic="tirar" data-id="' + esc(a.id) + '" data-email="' + esc(e) + '">Tirar</button></div>';
+    }).join("") : '<p class="vazio">Ninguém na lista ainda.</p>') + "</div>";
+    h += '<form class="ig-liberar" data-ic-form="liberar" data-id="' + esc(a.id) + '"><label class="campo"><span class="rotulo">Liberar e-mails (um por linha, ou separados por vírgula)</span>' +
+      '<textarea name="emails" rows="2" spellcheck="false" autocomplete="off" placeholder="pessoa@empresa.com"></textarea></label>' +
+      '<div class="ig-linha-botoes"><span class="erro" role="alert" data-ic-erro="liberar-' + esc(a.id) + '"></span><button type="submit" class="btn p">Liberar</button></div></form>' +
+      '<p class="dica">' + a.liberados.length + " de " + S.dados.limites.liberados + " pessoas. Tirar alguém da lista corta o próximo login e o userinfo na hora; o id_token que o sistema já recebeu vale até vencer (até " +
+      Math.round(S.dados.token_s / 60) + " minutos), e a sessão que o seu sistema criou é dele: encerre por lá.</p></div>";
+    return h;
+  }
+
+  function blocoAcessos(a) {
+    var lim = S.dados.limites.acessos;
+    var h = '<div class="ig-bloco"><h3 class="titulo-secao ig-h"><span>Acessos (' + a.acessos.length + " de " + lim + ")</span>" +
+      (a.acessos.length < lim && !a.bloqueado ? '<button type="button" class="btn mini" data-ic="novo-acesso" data-id="' + esc(a.id) + '">Novo acesso</button>' : "") + "</h3>" +
+      '<p class="dica">Um acesso é um jeito de o sistema pedir o login: o site, o programa instalado, o servidor. Cada um tem o seu client_id; a permissão que a pessoa dá vale para o aplicativo todo.</p>';
+    if (!a.acessos.length) return h + '<p class="vazio">Nenhum acesso ainda: crie um para ter o client_id.</p></div>';
+    h += a.acessos.map(function (c) {
+      var conf = c.tipo === "confidencial", aberto = S.aberto === c.id;
+      var acoes = '<button type="button" class="btn mini" data-ic="integrar" data-cid="' + esc(c.id) + '" aria-expanded="' + aberto + '">Como integrar</button>' +
+        '<button type="button" class="btn mini" data-ic="editar-acesso" data-cid="' + esc(c.id) + '">Editar</button>' +
+        (conf && !a.bloqueado ? '<button type="button" class="btn mini" data-ic="segredo" data-cid="' + esc(c.id) + '">' + (c.segredo ? "Trocar o segredo" : "Gerar o segredo") + "</button>" : "") +
+        (a.bloqueado ? "" : '<button type="button" class="btn mini" data-ic="' + (c.ativo ? "desligar" : "ligar") + '" data-cid="' + esc(c.id) + '">' + (c.ativo ? "Desligar" : "Ligar") + "</button>") +
+        '<button type="button" class="btn mini perigo" data-ic="apagar-acesso" data-cid="' + esc(c.id) + '">Apagar</button>';
+      return '<div class="ig-acesso"><div class="ig-acesso-topo"><span class="nome"><strong><code>' + esc(c.id) + "</code> " + situacao(c, a) + "</strong>" +
+        "<small>" + (conf ? "Confidencial (servidor, com segredo)" : "Público (página ou programa, com PKCE)") +
+        (c.segredo ? " · segredo de " + esc(quando(c.segredo.quando)) : "") + "</small>" +
+        "<small>" + window.IntegrarAtos.voltas(c).map(esc).join(" · ") + "</small></span>" +
+        '<span class="ig-acoes">' + acoes + "</span></div>" +
+        (aberto ? window.IntegrarAtos.cartao(c, S.dados, a.nome, ONDE) : "") + "</div>";
+    }).join("");
+    return h + "</div>";
+  }
+
+  function blocoRegistro(a) {
+    if (!a.registro || !a.registro.length) return "";
+    return '<details class="ig-registro"><summary>Registro de mudanças</summary><ul>' + a.registro.map(function (x) {
+      return "<li><span>" + esc(quando(x.quando)) + "</span> " + esc(x.quem === "equipe" ? "Atos (" + x.por + ")" : x.por) + ": " + esc(x.oque) + "</li>";
+    }).join("") + "</ul></details>";
+  }
+
+  function cartaoDoApp(a) {
+    var h = '<div class="card ig-app">' +
+      '<div class="item">' + icone(a) + '<span class="nome"><strong>' + esc(a.nome) + "</strong><small>" + esc(a.descricao) + " · " + esc(a.site) + "</small>" +
+      "<small>Criado em " + esc(quando(a.criado)) + (a.mudado ? " · mudado em " + esc(quando(a.mudado)) : "") + "</small></span>" +
+      '<span class="ig-acoes"><button type="button" class="btn mini" data-ic="editar-app" data-id="' + esc(a.id) + '">Editar</button>' +
+      '<button type="button" class="btn mini perigo" data-ic="apagar-app" data-id="' + esc(a.id) + '">Apagar</button></span></div>';
+    if (a.bloqueado) {
+      h += '<p class="ig-aviso">A Atos desligou este aplicativo em ' + esc(quando(a.bloqueado.quando)) + (a.bloqueado.motivo ? ": " + esc(a.bloqueado.motivo) : "") +
+        ". Ninguém entra por ele enquanto estiver assim. Para conversar, escreva para contato@atos.dev.br.</p>";
+    }
+    return h + blocoQuem(a) + blocoAcessos(a) + blocoRegistro(a) + "</div>";
+  }
+
+  function tela() {
+    if (!S.dados) {
+      return '<div class="card"><p class="vazio">' + (S.erro ? esc(S.erro) + ' <button type="button" class="link" data-ic="recarregar">Tentar de novo</button>' : "Carregando…") + "</p></div>";
+    }
+    var D = S.dados, h = "";
+    if (S.erro) h += '<p class="erro" role="alert">' + esc(S.erro) + "</p>";
+    if (!D.recente) h += '<p class="ig-aviso">Para criar ou mudar integrações, o login precisa ser das últimas ' + D.limites.recente_h + ' horas. <a href="' + VOLTA_ENTRAR + '">Entrar de novo</a></p>';
+    if (S.aviso) h += '<p class="ok ig-ok">' + esc(S.aviso) + "</p>";
+    h += '<h2 class="titulo-secao ig-h"><span>Seus aplicativos (' + D.apps.length + " de " + D.limites.apps + ")</span>" +
+      (D.apps.length < D.limites.apps ? '<button type="button" class="btn p primario" data-ic="novo-app">Novo aplicativo</button>' : "") + "</h2>";
+    if (!D.apps.length) {
+      h += '<div class="card"><p class="vazio">Nenhum aplicativo. Cadastre o seu sistema para as pessoas entrarem nele com a Conta Atos: você recebe o client_id e diz quem pode entrar.</p></div>';
+    } else h += D.apps.map(cartaoDoApp).join("");
+    h += '<p class="nota">O aplicativo é seu e você responde por ele: a Atos só confirma quem é a pessoa e, com a permissão dela, passa ao seu sistema o identificador da conta, o nome e o e-mail. ' +
+      "Na tela de permitir, quem entra vê que o aplicativo foi cadastrado por " + esc(D.conta.email) + " e não é da Atos. A Atos pode desligar um aplicativo usado para abuso. " +
+      'Limites: ' + D.limites.apps + " aplicativos por conta, " + D.limites.acessos + " acessos por aplicativo e " + D.limites.liberados + ' pessoas liberadas por aplicativo. Veja os <a href="/termos/">termos</a> e a <a href="/privacidade/">política de privacidade</a>.</p>';
+    return h;
+  }
+
+  function pintar() {
+    if (!S.raiz || !document.body.contains(S.raiz)) return;
+    if (!window.IntegrarAtos) { S.raiz.innerHTML = '<div class="card"><p class="vazio">Carregando…</p></div>'; return; }
+    S.raiz.innerHTML = tela();
+  }
+
+  // ------------------------------------------------------------ os pop-ups
+
+  function camada() {
+    var c = document.getElementById("ig-camada");
+    if (!c) { c = document.createElement("div"); c.id = "ig-camada"; document.body.appendChild(c); }
+    return c;
+  }
+  function pintarModal() {
+    var c = camada();
+    if (!S.modal) { c.innerHTML = ""; return; }
+    var velho = c.querySelector(".modal"), rolagem = velho ? velho.scrollTop : 0;
+    c.innerHTML = '<div class="fundo-modal ig-fundo" data-ic-fundo><div class="modal ig-modal" role="dialog" aria-modal="true" aria-labelledby="ig-modal-titulo">' + S.modal.html() + "</div></div>";
+    var caixa = c.querySelector(".modal");
+    caixa.scrollTop = rolagem;
+    if (!S.modal.focado) {
+      S.modal.focado = true;
+      var alvo = caixa.querySelector("input:not([type=file]):not([type=checkbox]), textarea") || caixa.querySelector("[data-ic-foco]") || caixa.querySelector("button");
+      if (alvo) alvo.focus();
+    }
+  }
+  function abrir(M) { S.modal = M; pintarModal(); }
+  function fechar() { S.modal = null; pintarModal(); }
+
+  function campo(rotulo, k, v, extra) {
+    return '<label class="campo"><span class="rotulo">' + esc(rotulo) + '</span><input data-ic-in="' + k + '" value="' + esc(v || "") + '" autocomplete="off" spellcheck="false"' + (extra || "") + "></label>";
+  }
+  function area(rotulo, k, v, dica) {
+    return '<label class="campo"><span class="rotulo">' + esc(rotulo) + '</span><textarea data-ic-in="' + k + '" rows="3" spellcheck="false">' + esc(v || "") + "</textarea>" +
+      (dica ? '<span class="dica">' + esc(dica) + "</span>" : "") + "</label>";
+  }
+  function pe(rotulo, perigo) {
+    var M = S.modal;
+    return (M.erro ? '<p class="erro" role="alert">' + esc(M.erro) + "</p>" : "") +
+      '<div class="botoes"><button type="button" class="btn p" data-ic="fechar">' + (M.valor ? "Fechar" : "Cancelar") + "</button>" +
+      '<button type="button" class="btn p ' + (perigo ? "perigo" : "primario") + '" data-ic="ok" data-ic-foco' + (M.enviando ? " disabled" : "") + ">" + esc(M.enviando ? "Um momento…" : rotulo) + "</button></div>";
+  }
+
+  function modalApp() {
+    var M = S.modal, v = M.v;
+    return '<h2 id="ig-modal-titulo">' + (M.id ? "Editar " + esc(v.nome) : "Novo aplicativo") + "</h2>" +
+      "<p>Quem entra vê o nome, a descrição, o ícone, quem cadastrou e os links da política de privacidade e dos termos do seu sistema na tela de permitir.</p>" +
+      campo("Nome", "nome", v.nome, ' maxlength="60"') + campo("Descrição curta (ex.: controle de canteiros)", "descricao", v.descricao, ' maxlength="140"') +
+      campo("Site (https)", "site", v.site, ' type="url"') + campo("Política de privacidade (https)", "privacidade", v.privacidade, ' type="url"') +
+      campo("Termos de uso (https)", "termos", v.termos, ' type="url"') +
+      '<div class="campo"><span class="rotulo">Ícone (opcional)</span><div class="ig-icone">' + icone({ icone: v.icone, nome: v.nome }) +
+      '<label class="btn mini ig-arquivo"><span>Escolher imagem</span><input type="file" accept="image/png,image/jpeg,image/webp" data-ic-arq="icone"></label>' +
+      (v.icone ? '<button type="button" class="btn mini" data-ic="sem-icone">Tirar o ícone</button>' : "") + "</div>" +
+      '<span class="dica">PNG, JPEG ou WebP de até 30 KB, quadrada. Fica guardada junto do aplicativo. Sem ícone, aparece a inicial do nome.</span></div>' +
+      (M.id ? "" : '<p class="dica">O aplicativo nasce fechado: só você entra, até liberar outras pessoas ou abrir para qualquer Conta Atos.</p>') +
+      pe(M.id ? "Salvar" : "Criar");
+  }
+  function modalAcesso() {
+    var M = S.modal, v = M.v;
+    return '<h2 id="ig-modal-titulo">' + (M.cid ? "Editar o acesso " + esc(M.cid) : "Novo acesso") + "</h2>" +
+      (M.cid ? "<p><strong>" + (v.tipo === "confidencial" ? "Confidencial (servidor)" : "Público (página ou programa)") + "</strong>. O tipo não muda: para outro, crie outro acesso.</p>"
+        : '<div class="campo"><span class="rotulo">Tipo</span><div class="opcoes" role="group" aria-label="Tipo">' +
+          '<button type="button" data-ic="tipo" data-v="publico" aria-pressed="' + (v.tipo === "publico") + '">Público (página ou programa)</button>' +
+          '<button type="button" data-ic="tipo" data-v="confidencial" aria-pressed="' + (v.tipo === "confidencial") + '">Confidencial (servidor)</button></div>' +
+          '<span class="dica">' + (v.tipo === "confidencial" ? "Troca o código no servidor, com PKCE e um segredo. O segredo você gera depois, e ele aparece uma vez só." :
+            "Troca o código com PKCE, sem segredo: uma página que roda no navegador ou um programa instalado.") + "</span></div>") +
+      area("Endereços de volta (um por linha)", "voltas", v.voltas, "Exatamente como o sistema manda em redirect_uri: https; http só em 127.0.0.1 ou [::1]; sem #.") +
+      '<label class="ig-marcar"><input type="checkbox" data-ic-in="loopback"' + (v.loopback ? " checked" : "") + "><span>Programa instalado: aceita a volta em qualquer porta de http://127.0.0.1 e http://[::1] (RFC 8252)</span></label>" +
+      area("Origens para CORS (uma por linha, opcional)", "origens", v.origens, "Só se uma página troca o código no navegador: o esquema, o host e a porta (ex.: https://exemplo.com.br).") +
+      pe(M.cid ? "Salvar" : "Criar");
+  }
+  function modalApagar() {
+    var M = S.modal;
+    if (M.tipo === "app") {
+      var a = app(M.id) || { nome: "", acessos: [] };
+      return '<h2 id="ig-modal-titulo">Apagar ' + esc(a.nome) + "</h2>" +
+        "<p>O aplicativo sai do Entrar com Atos na hora, com " + (a.acessos.length === 1 ? "o acesso" : "os " + a.acessos.length + " acessos") +
+        " e os segredos. Ninguém entra mais por ele; quem permitiu deixa de vê-lo na Minha conta. Não tem volta: para usar de novo, crie outro (com outro client_id).</p>" + pe("Apagar", true);
+    }
+    return '<h2 id="ig-modal-titulo">Apagar o acesso ' + esc(M.cid) + "</h2><p>Os logins com este client_id param na hora" + (M.conf ? " e o segredo dele é apagado" : "") +
+      ". Não tem volta. O id_token já emitido vale até vencer.</p>" + pe("Apagar", true);
+  }
+  function modalSegredo() {
+    var M = S.modal, x = acessoDe(M.cid);
+    if (M.valor) {
+      return '<h2 id="ig-modal-titulo">O segredo de ' + esc(M.cid) + "</h2>" +
+        "<p><strong>Ele aparece só agora.</strong> A Atos guarda só um resumo dele e não consegue mostrá-lo de novo; se perder, gere outro.</p>" +
+        '<pre class="ig-pre ig-segredo" data-ic-segredo>' + esc(M.valor) + "</pre>" +
+        '<p class="dica">Guarde-o no servidor do sistema, na variável de ambiente <code>ATOS_CLIENT_SECRET</code>. Nunca no código, no repositório, na página ou num pedido para um assistente.</p>' +
+        '<div class="botoes"><button type="button" class="btn p" data-ic="copiar-segredo">Copiar</button><button type="button" class="btn p primario" data-ic="fechar" data-ic-foco>Já guardei</button></div>';
+    }
+    var tem = x && x.c.segredo;
+    return '<h2 id="ig-modal-titulo">' + (tem ? "Trocar o segredo de " : "Gerar o segredo de ") + esc(M.cid) + "</h2>" +
+      "<p>Vale na hora" + (tem ? ": <strong>o segredo de agora para de valer</strong>, e o servidor que o usa não troca códigos até receber o novo" : "") +
+      ". O novo aparece uma vez só, na próxima tela. Fica no registro do aplicativo que você gerou e quando (sem o valor).</p>" + pe(tem ? "Trocar o segredo" : "Gerar o segredo", tem);
+  }
+
+  function enviarModal() {
+    var M = S.modal;
+    if (!M || M.enviando) return;
+    var caminho, corpo, depois;
+    if (M.html === modalApp) {
+      var v = M.v;
+      corpo = { nome: v.nome.trim(), descricao: v.descricao.trim(), site: v.site.trim(), privacidade: v.privacidade.trim(), termos: v.termos.trim(), icone: v.icone || "" };
+      if (M.id) { caminho = "/api/integracoes/apps/" + M.id; corpo.acao = "editar"; }
+      else { caminho = "/api/integracoes/apps"; depois = function (d) { S.aviso = "Aplicativo criado. Agora crie um acesso para ter o client_id."; if (d.app) S.dados.apps.push(d.app); }; }
+    } else if (M.html === modalAcesso) {
+      corpo = { voltas: linhas(M.v.voltas), loopback: Boolean(M.v.loopback), origens: linhas(M.v.origens) };
+      if (M.cid) { caminho = "/api/integracoes/acessos/" + M.cid; corpo.acao = "editar"; }
+      else { caminho = "/api/integracoes/apps/" + M.id + "/acessos"; corpo.tipo = M.v.tipo; depois = function (d) { S.aberto = d.acesso || ""; }; }
+    } else if (M.html === modalApagar) {
+      caminho = M.tipo === "app" ? "/api/integracoes/apps/" + M.id : "/api/integracoes/acessos/" + M.cid;
+      corpo = { acao: "apagar", confirmar: true };
+    } else if (M.html === modalSegredo) {
+      caminho = "/api/integracoes/acessos/" + M.cid;
+      corpo = { acao: "segredo", confirmar: true };
+    }
+    M.enviando = true; M.erro = ""; pintarModal();
+    mudar(caminho, corpo, depois).then(function (d) {
+      if (S.modal !== M) return;
+      M.enviando = false;
+      if (d._status === 401 && d.reentrar) { fechar(); return; }
+      if (d.erro) { M.erro = d.erro; pintarModal(); return; }
+      if (M.html === modalSegredo) { M.valor = d.segredo; pintarModal(); return; }
+      fechar();
+    });
+  }
+
+  // ------------------------------------------------------------ os eventos
+
+  document.addEventListener("click", function (e) {
+    if (e.target.hasAttribute && e.target.hasAttribute("data-ic-fundo")) { fechar(); return; }
+    var b = e.target.closest && e.target.closest("[data-ic]");
+    if (!b || b.disabled) return;
+    var a = b.getAttribute("data-ic"), id = b.getAttribute("data-id"), cid = b.getAttribute("data-cid");
+    if (a === "recarregar") { S.erro = ""; pintar(); carregar(); return; }
+    if (a === "fechar") { fechar(); return; }
+    if (a === "ok") { enviarModal(); return; }
+    if (a === "integrar") { S.aberto = S.aberto === cid ? "" : cid; pintar(); return; }
+    if (a === "novo-app") { S.aviso = ""; abrir({ html: modalApp, v: { nome: "", descricao: "", site: "", privacidade: "", termos: "", icone: "" }, erro: "" }); return; }
+    if (a === "editar-app") {
+      var x = app(id); if (!x) return;
+      abrir({ html: modalApp, id: id, v: { nome: x.nome, descricao: x.descricao, site: x.site, privacidade: x.privacidade, termos: x.termos, icone: x.icone || "" }, erro: "" }); return;
+    }
+    if (a === "apagar-app") { abrir({ html: modalApagar, tipo: "app", id: id, erro: "" }); return; }
+    if (a === "novo-acesso") { abrir({ html: modalAcesso, id: id, v: { tipo: "publico", voltas: "", loopback: false, origens: "" }, erro: "" }); return; }
+    if (a === "editar-acesso") {
+      var y = acessoDe(cid); if (!y) return;
+      abrir({ html: modalAcesso, cid: cid, v: { tipo: y.c.tipo, voltas: y.c.voltas.join("\n"), loopback: y.c.loopback, origens: y.c.origens.join("\n") }, erro: "" }); return;
+    }
+    if (a === "apagar-acesso") { var z = acessoDe(cid); abrir({ html: modalApagar, tipo: "acesso", cid: cid, conf: Boolean(z && z.c.tipo === "confidencial"), erro: "" }); return; }
+    if (a === "segredo") { abrir({ html: modalSegredo, cid: cid, erro: "" }); return; }
+    if (a === "tipo") { if (S.modal) { S.modal.v.tipo = b.getAttribute("data-v"); pintarModal(); } return; }
+    if (a === "sem-icone") { if (S.modal) { S.modal.v.icone = ""; pintarModal(); } return; }
+    if (a === "copiar-segredo") {
+      var M = S.modal; if (!M || !M.valor) return;
+      var feito = function (ok) { b.textContent = ok ? "Copiado" : "Selecione e copie"; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(M.valor).then(function () { feito(true); }, function () { feito(false); });
+      else feito(false);
+      return;
+    }
+    if (a === "modo") {
+      b.disabled = true;
+      mudar("/api/integracoes/apps/" + id, { acao: "acesso", acesso: b.getAttribute("data-v") }).then(function (d) { if (d.erro) { S.erro = d.erro; pintar(); } });
+      return;
+    }
+    if (a === "tirar") {
+      b.disabled = true;
+      mudar("/api/integracoes/apps/" + id, { acao: "tirar", email: b.getAttribute("data-email") }).then(function (d) { if (d.erro) { S.erro = d.erro; pintar(); } });
+      return;
+    }
+    if (a === "ligar" || a === "desligar") {
+      b.disabled = true;
+      mudar("/api/integracoes/acessos/" + cid, { acao: a }).then(function (d) { if (d.erro) { S.erro = d.erro; pintar(); } });
+    }
+  });
+  document.addEventListener("submit", function (e) {
+    var f = e.target.closest && e.target.closest("form[data-ic-form]");
+    if (!f) return;
+    e.preventDefault();
+    var id = f.getAttribute("data-id"), t = f.querySelector("textarea[name=emails]"), botao = f.querySelector("button[type=submit]");
+    var erro = f.querySelector("[data-ic-erro]");
+    var emails = String(t.value || "").trim();
+    if (!emails) { erro.textContent = "diga pelo menos um e-mail"; return; }
+    botao.disabled = true;
+    mudar("/api/integracoes/apps/" + id, { acao: "liberar", emails: emails }).then(function (d) {
+      if (d.erro) { botao.disabled = false; erro.textContent = d.erro; }
+    });
+  });
+  document.addEventListener("input", function (e) {
+    var el = e.target.closest && e.target.closest("[data-ic-in]");
+    if (!el || !S.modal || !S.modal.v) return;
+    S.modal.v[el.getAttribute("data-ic-in")] = el.type === "checkbox" ? el.checked : el.value;
+  });
+  document.addEventListener("change", function (e) {
+    var el = e.target;
+    if (!el || !el.getAttribute || !S.modal) return;
+    if (el.getAttribute("data-ic-in") === "loopback") { S.modal.v.loopback = el.checked; return; }
+    if (el.getAttribute("data-ic-arq") !== "icone") return;
+    var arq = el.files && el.files[0];
+    if (!arq) return;
+    if (["image/png", "image/jpeg", "image/webp"].indexOf(arq.type) < 0) { S.modal.erro = "o ícone precisa ser PNG, JPEG ou WebP"; pintarModal(); return; }
+    if (arq.size > ICONE_MAX) { S.modal.erro = "o ícone tem " + Math.ceil(arq.size / 1024) + " KB; o limite é 30 KB"; pintarModal(); return; }
+    var leitor = new FileReader();
+    leitor.onload = function () { if (S.modal) { S.modal.v.icone = String(leitor.result || ""); S.modal.erro = ""; pintarModal(); } };
+    leitor.onerror = function () { if (S.modal) { S.modal.erro = "não consegui ler a imagem"; pintarModal(); } };
+    leitor.readAsDataURL(arq);
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && S.modal) fechar(); });
+  document.addEventListener("integrar-atos", pintar);
+
+  window.ContaIntegracoes = {
+    montar: function (raiz) {
+      S.raiz = raiz;
+      pintar();
+      if (!S.dados && !S.carregando) carregar();
+    },
+  };
+})();

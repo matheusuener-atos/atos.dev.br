@@ -57,6 +57,17 @@
   function cabeca(titulo, sub, longo) { return '<div class="cabeca"><h1>' + titulo + "</h1>" + (sub ? (longo ? '<p class="longo">' : "<p>") + sub + "</p>" : "") + "</div>"; }
   function pe(conteudo) { return '<div class="pe">' + conteudo + "</div>"; }
   function maiuscula(t) { t = String(t || ""); return t.charAt(0).toUpperCase() + t.slice(1); }
+  function linhaDoApp(a) {
+    return '<div class="linha app">' + (a.icone ? '<img class="logo" src="' + esc(a.icone) + '" alt="" width="36" height="36">'
+      : '<span class="logo inicial" aria-hidden="true">' + esc(String(a.nome || "?").trim().charAt(0).toUpperCase()) + "</span>") +
+      '<span class="nome"><strong>' + esc(a.nome) + "</strong><small>" + esc(maiuscula(a.descricao)) + "</small></span></div>";
+  }
+  /* Um aplicativo cadastrado por alguem na Minha conta (nao pela Atos): diz quem cadastrou e que nao e da Atos. */
+  function linhaDeTerceiro(a) {
+    if (!a.terceiro) return "";
+    // "linha app": a linha de baixo quebra em vez de cortar (conta.css).
+    return '<div class="linha app terceiro"><span class="nome"><small>Cadastrado por ' + esc(a.cadastrado_por) + ". Não é um aplicativo da Atos: a Atos só confirma quem é você.</small></span></div>";
+  }
   var COD = 'inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required';
 
   function desenhar() {
@@ -101,13 +112,21 @@
         campo("senha", "Nova senha", "password", 'autocomplete="new-password" maxlength="200" required') +
         campo("senha2", "Confirmar a nova senha", "password", 'autocomplete="new-password" maxlength="200" required') +
         botao("Trocar a senha") + "</form>" + pe(link("esqueci", "Voltar"));
+    } else if (S.modo === "negado") {
+      // A Conta Atos nao esta entre as que podem entrar neste aplicativo: nada de consentimento nem codigo.
+      var pn = S.pedido, nomeN = esc(pn.app.nome);
+      h = cabeca("Sem acesso ao " + nomeN) +
+        '<div class="card">' + linhaDoApp(pn.app) + linhaDeTerceiro(pn.app) +
+        '<div class="linha"><span class="nome"><strong>' + esc(pn.conta.nome || pn.conta.email) + "</strong>" + (pn.conta.nome ? "<small>" + esc(pn.conta.email) + "</small>" : "") + "</span></div></div>" +
+        '<p class="erro" role="alert">Sua Conta Atos não tem acesso ao ' + nomeN + ". Peça a quem administra o " + nomeN + ".</p>" +
+        '<p class="nota">Quem decide quem entra é quem administra o ' + nomeN + ". Se você tem outra Conta Atos com acesso, entre com ela.</p>" +
+        '<div class="dois">' + (pn.voltar ? '<button type="button" class="btn" data-acao="voltar-app">Voltar ao ' + nomeN + "</button>" : "<span></span>") +
+        '<button type="button" class="btn primario" data-acao="trocar">Entrar com outra conta</button></div>';
     } else if (S.modo === "consentir") {
       var p = S.pedido;
       var nome = esc(p.app.nome);
       h = cabeca("O " + nome + " quer entrar com a sua conta Atos", "Confira antes de permitir") +
-        '<div class="card">' +
-        '<div class="linha app">' + (p.app.icone ? '<img class="logo" src="' + esc(p.app.icone) + '" alt="" width="36" height="36">'
-          : '<span class="logo inicial" aria-hidden="true">' + esc(String(p.app.nome || "?").trim().charAt(0).toUpperCase()) + "</span>") + '<span class="nome"><strong>' + nome + "</strong><small>" + esc(maiuscula(p.app.descricao)) + "</small></span></div>" +
+        '<div class="card">' + linhaDoApp(p.app) + linhaDeTerceiro(p.app) +
         '<div class="linha"><span class="nome"><strong>' + esc(p.conta.nome || p.conta.email) + "</strong>" + (p.conta.nome ? "<small>" + esc(p.conta.email) + "</small>" : "") + "</span>" + link("trocar", "Trocar de conta") + "</div>" +
         '<div class="escopos"><span class="titulo-secao">O ' + nome + " poderá</span>" +
         p.escopos.map(function (e) { return '<div><span aria-hidden="true">✓</span><span>' + esc(e.texto) + "</span></div>"; }).join("") + "</div></div>" +
@@ -137,6 +156,7 @@
       S.pedido = d;
       S.google = Boolean(d.google);
       if (d.entrar) { S.email = S.email || d.dica || (d.conta && d.conta.email) || ""; ir("entrar", S.erro); return; }
+      if (d.negado) { ir("negado"); return; }
       if (d.permitido) { autorizar(true); return; }
       ir("consentir");
     });
@@ -149,6 +169,7 @@
     api("/api/autorizar", { consulta: consulta, permitir: permitir }).then(function (d) {
       if (d.ir) { location.replace(d.ir); return; }
       if (d._status === 401) { ir("entrar", d.erro); return; }
+      if (d._status === 403 && d.negado) { S.pedido.voltar = d.voltar; ir("negado"); return; }
       S.ocupado = false; S.erro = d.erro || "não deu certo: tente de novo"; desenhar();
     });
   }
@@ -182,6 +203,7 @@
     if (a === "permitir") autorizar(true);
     else if (a === "negar") autorizar(false);
     else if (a === "trocar") api("/api/sair", {}).then(function () { S.email = ""; ir("entrar"); });
+    else if (a === "voltar-app") { if (S.pedido && S.pedido.voltar) location.replace(S.pedido.voltar); }
     else if (a === "reenviar") {
       if (!pendente) return;
       S.ocupado = true; S.erro = ""; S.aviso = ""; desenhar();

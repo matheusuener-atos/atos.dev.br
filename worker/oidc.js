@@ -38,8 +38,23 @@
 // O codigo vale 2 minutos e so uma vez. O KV nao e transacional: duas trocas
 // do mesmo codigo no mesmo instante, em dois lugares do mundo, poderiam passar
 // as duas - o PKCE garante que so quem comecou o pedido tem o verifier.
+//
+// Quem pode entrar: cada aplicativo tem um modo de acesso - "liberados" (so o
+// dono do aplicativo e os e-mails da lista dele; o padrao de todo aplicativo
+// novo) ou "todos" (qualquer Conta Atos; os fixos do PAVLVS, que cuida do
+// proprio plano). A Atos confere antes de mostrar o consentimento e de emitir
+// o codigo (/api/pedido e /api/autorizar; com prompt=none, volta com
+// error=access_denied), de novo na troca do codigo (/oauth/token) e em cada
+// /oauth/userinfo: tirar alguem da lista corta o proximo login e o userinfo; o
+// id_token ja emitido vale ate vencer.
+//
+// Os aplicativos de terceiros: qualquer Conta Atos cadastra os proprios em
+// Minha conta > Integracoes (worker/integracoes.js). Ficam um por chave
+// ("atos:oidc:app:<id>", id "u-" + 10 letras; os clientes deles, "<id>-" + 6),
+// fora do registro da equipe, e entram aqui so quando um pedido os cita
+// (comTerceiro).
 
-import { EMISSOR, aleatorio, b64url, b64urlTexto, deB64url, iguais, json, kv, lerJson, sha256 } from "./comum.js";
+import { EMISSOR, aleatorio, b64url, b64urlTexto, deB64url, iguais, json, kv, lerJson, normal, sha256 } from "./comum.js";
 import { sessaoDe } from "./contas.js";
 import { googleLigado } from "./google.js";
 
@@ -59,6 +74,8 @@ export const APPS = {
     termos: "https://paulus.ia.br/termos-de-uso",
     icone: "/assets/paulus-p.png",
     daAtos: true,
+    // Qualquer Conta Atos entra: o PAVLVS cuida do proprio plano.
+    acesso: "todos",
   },
 };
 
@@ -78,6 +95,21 @@ export const ESCOPOS = {
   profile: "Ver o seu nome",
 };
 
+/* O que um sistema precisa para integrar (o painel e a Minha conta mostram no "Como integrar"). */
+export function dadosParaIntegrar() {
+  return {
+    emissor: EMISSOR,
+    descoberta: EMISSOR + "/.well-known/openid-configuration",
+    autorizacao: EMISSOR + "/entrar",
+    token: EMISSOR + "/oauth/token",
+    userinfo: EMISSOR + "/oauth/userinfo",
+    jwks: EMISSOR + "/oauth/jwks",
+    revogacao: EMISSOR + "/oauth/revogar",
+    escopos: Object.entries(ESCOPOS).map(([id, texto]) => ({ id, texto })),
+    token_s: TOKEN_S,
+  };
+}
+
 const lista = (s) => String(s || "").split(/\s+/).filter(Boolean);
 const temChave = (o, k) => Boolean(o) && Object.prototype.hasOwnProperty.call(o, k);
 
@@ -86,7 +118,67 @@ const temChave = (o, k) => Boolean(o) && Object.prototype.hasOwnProperty.call(o,
 /* As chaves do registro no KV CONTAS (o mesmo KV do Worker de teste: prefixo proprio la). */
 export function KO(env) {
   const p = env && env.AMBIENTE === "teste" ? "atos-teste:oidc:" : "atos:oidc:";
-  return { registro: p + "registro", segredo: (id) => p + "segredo:" + id, log: p + "log" };
+  return {
+    registro: p + "registro", segredo: (id) => p + "segredo:" + id, log: p + "log",
+    // Os de terceiros (worker/integracoes.js): o aplicativo, o registro dele, os de cada dono, o indice de todos (o
+    // painel e as origens do CORS) e o ritmo de mudancas de cada conta.
+    app: (id) => p + "app:" + id, appLog: (id) => p + "applog:" + id, dono: (sub) => p + "dono:" + sub, terceiros: p + "terceiros",
+    ritmo: (sub) => p + "ritmo:" + sub,
+  };
+}
+
+export const ID_APP_TERCEIRO = /^u-[a-z0-9]{10}$/;
+const ID_CLIENTE_TERCEIRO = /^(u-[a-z0-9]{10})-[a-z0-9]{6}$/;
+/* O aplicativo de terceiro de um client_id ("u-xxxxxxxxxx-yyyyyy" -> "u-xxxxxxxxxx"), ou "". */
+export const appDoCliente = (id) => { const m = ID_CLIENTE_TERCEIRO.exec(String(id || "")); return m ? m[1] : ""; };
+
+/* O aplicativo de terceiro guardado, ou null. */
+export async function appTerceiro(env, id) {
+  if (!ID_APP_TERCEIRO.test(String(id || ""))) return null;
+  const a = await kv(env, KO(env).app(id));
+  return a && typeof a === "object" && !Array.isArray(a) && a.dono && a.dono.sub ? a : null;
+}
+
+/* O indice dos aplicativos de terceiros: {<id>: {nome, email (do dono), origens, bloqueado}}. */
+export async function indiceDeTerceiros(env) {
+  const i = await kv(env, KO(env).terceiros);
+  return i && typeof i === "object" && !Array.isArray(i) ? i : {};
+}
+
+const textos = (x) => (Array.isArray(x) ? x.map(String) : []);
+
+/* Poe no registro `reg` o aplicativo de terceiro `appId` e os clientes dele (sem passar por cima de um fixo ou da
+   equipe). Bloqueado pela Atos, os clientes ficam desligados. */
+export async function comTerceiro(env, reg, appId) {
+  if (!appId || temChave(reg.apps, appId)) return reg;
+  const a = await appTerceiro(env, appId);
+  if (!a) return reg;
+  reg.apps[appId] = {
+    nome: String(a.nome || appId), descricao: String(a.descricao || ""), site: String(a.site || ""), privacidade: String(a.privacidade || ""),
+    termos: String(a.termos || ""), icone: String(a.icone || ""), criado: String(a.criado || ""), doKV: true, terceiro: true,
+    dono: { sub: String(a.dono.sub), email: String(a.dono.email || "") }, acesso: a.acesso === "todos" ? "todos" : "liberados",
+    liberados: textos(a.liberados), bloqueado: a.bloqueado ? true : false,
+  };
+  const clientes = a.clientes && typeof a.clientes === "object" ? a.clientes : {};
+  for (const [id, c] of Object.entries(clientes)) {
+    if (temChave(reg.clientes, id) || appDoCliente(id) !== appId || !c || typeof c !== "object") continue;
+    reg.clientes[id] = {
+      app: appId, voltas: textos(c.voltas), loopback: c.loopback === true, origens: textos(c.origens), confidencial: c.tipo === "confidencial",
+      ativo: c.ativo !== false && !a.bloqueado, doKV: true, terceiro: true,
+    };
+  }
+  return reg;
+}
+
+/* A pessoa ({sub, email}) pode entrar no aplicativo? "todos": qualquer Conta Atos. "liberados": o dono do aplicativo
+   (de terceiro: a conta que o cadastrou; da equipe: quem o criou) e os e-mails da lista. */
+export function podeEntrar(app, pessoa) {
+  if (!app || !pessoa || !pessoa.sub) return false;
+  if (app.acesso === "todos") return true;
+  const email = normal(pessoa.email);
+  if (app.dono && app.dono.sub && app.dono.sub === pessoa.sub) return true;
+  if (app.por && normal(app.por) === email) return true;
+  return Array.isArray(app.liberados) && app.liberados.includes(email);
 }
 
 /* O registro do KV como esta guardado: {apps: {id: {...}}, clientes: {id: {...}}}. */
@@ -103,8 +195,10 @@ export async function registro(env) {
   const apps = { ...APPS };
   for (const [id, a] of Object.entries(doKV.apps)) {
     if (temChave(APPS, id) || !a || typeof a !== "object") continue;
+    // Sem o campo, "liberados" (o padrao de todo aplicativo novo): so quem o criou e a lista.
     apps[id] = { nome: String(a.nome || id), descricao: String(a.descricao || ""), site: String(a.site || ""), privacidade: String(a.privacidade || ""),
-      termos: String(a.termos || ""), icone: String(a.icone || ""), criado: String(a.criado || ""), doKV: true };
+      termos: String(a.termos || ""), icone: String(a.icone || ""), criado: String(a.criado || ""), doKV: true,
+      acesso: a.acesso === "todos" ? "todos" : "liberados", liberados: textos(a.liberados), por: String(a.por || "") };
   }
   const clientes = { ...CLIENTES };
   for (const [id, c] of Object.entries(doKV.clientes)) {
@@ -213,7 +307,11 @@ async function emitirCodigo(env, pedido, sessao) {
 /* O que a pagina /entrar e a /conta mostram do aplicativo. Sem icone (""), elas mostram a inicial do nome. */
 function publicoDoApp(id, reg = FIXOS) {
   const a = reg.apps[id];
-  return { id, nome: a.nome, descricao: a.descricao, site: a.site, privacidade: a.privacidade, termos: a.termos, icone: a.icone || "", daAtos: Boolean(a.daAtos) };
+  // O de terceiro diz quem o cadastrou (e a pagina diz que nao e da Atos); os da Atos (fixos e da equipe), nao.
+  return {
+    id, nome: a.nome, descricao: a.descricao, site: a.site, privacidade: a.privacidade, termos: a.termos, icone: a.icone || "", daAtos: Boolean(a.daAtos),
+    terceiro: Boolean(a.terceiro), cadastrado_por: a.terceiro && a.dono ? a.dono.email : "",
+  };
 }
 
 // ---------------------------------------------------------- a assinatura
@@ -266,12 +364,20 @@ export function ehRotaDoOIDC(url) {
     ["/api/pedido", "/api/autorizar", "/api/apps", "/api/apps/revogar"].includes(url.pathname);
 }
 
-function cors(request, reg, clienteId) {
+/* Os cabecalhos CORS para a origem do pedido: com clienteId, so as origens daquele cliente; sem, as de todos os
+   clientes ligados (os fixos, os da equipe e, pelo indice, os de terceiros nao bloqueados - `env` dado). */
+async function cors(request, reg, clienteId, env) {
   const origem = request.headers.get("origin") || "";
   if (!origem) return {};
-  const ativos = Object.keys(reg.clientes).map((id) => clienteAtivo(reg, id)).filter(Boolean);
-  const permitidas = clienteId ? (clienteAtivo(reg, clienteId) || {}).origens || [] : ativos.flatMap((c) => c.origens || []);
-  if (!origem || !permitidas.includes(origem)) return {};
+  let permitidas;
+  if (clienteId) permitidas = (clienteAtivo(reg, clienteId) || {}).origens || [];
+  else {
+    permitidas = Object.keys(reg.clientes).map((id) => clienteAtivo(reg, id)).filter(Boolean).flatMap((c) => c.origens || []);
+    if (env && !permitidas.includes(origem)) {
+      for (const x of Object.values(await indiceDeTerceiros(env))) if (x && !x.bloqueado && Array.isArray(x.origens)) permitidas.push(...x.origens);
+    }
+  }
+  if (!permitidas.includes(origem)) return {};
   return { "access-control-allow-origin": origem, "access-control-allow-methods": "GET, POST", "access-control-allow-headers": "authorization, content-type", "access-control-max-age": "600", vary: "origin" };
 }
 
@@ -310,7 +416,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
 
   const reg = await registro(env);
 
-  if (request.method === "OPTIONS" && p.startsWith("/oauth/")) return new Response(null, { status: 204, headers: cors(request, reg) });
+  if (request.method === "OPTIONS" && p.startsWith("/oauth/")) return new Response(null, { status: 204, headers: await cors(request, reg, "", env) });
 
   if (p === "/oauth/token") {
     if (request.method !== "POST") return erroOAuth("invalid_request", "use POST", 405);
@@ -343,7 +449,8 @@ export async function atenderOIDC(request, env, url, deps = {}) {
       clienteId = id;
       segredoDado = seg;
     }
-    const extra = cors(request, reg, clienteId);
+    await comTerceiro(env, reg, appDoCliente(clienteId));
+    const extra = await cors(request, reg, clienteId);
     if (f.get("grant_type") !== "authorization_code") return erroOAuth("unsupported_grant_type", "só authorization_code", 400, extra);
     const cliente = clienteAtivo(reg, clienteId);
     const recusaCliente = (texto) => erroOAuth("invalid_client", texto, 401, basico ? { ...extra, "www-authenticate": 'Basic realm="atos"' } : extra);
@@ -373,6 +480,8 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     if (!conta || conta.sub !== c.sub) return erroOAuth("invalid_grant", "a conta não existe mais", 400, extra);
     const apps = await appsDe(env, c.sub);
     if (!jaPermitiu(apps, { app: cliente.app, escopos: c.escopos }, reg)) return erroOAuth("invalid_grant", "a permissão foi revogada", 400, extra);
+    // Quem pode entrar, de novo: tirada da lista entre o codigo e a troca, a pessoa nao recebe token.
+    if (!podeEntrar(reg.apps[cliente.app], { sub: c.sub, email: c.email })) return erroOAuth("invalid_grant", "esta Conta Atos não tem acesso a este aplicativo", 400, extra);
     const dados = { sub: c.sub, email: c.email, nome: conta.nome || "" };
     const s = Math.floor(agora / 1000);
     const idToken = await assinarJWT(env, {
@@ -388,13 +497,17 @@ export async function atenderOIDC(request, env, url, deps = {}) {
   }
 
   if (p === "/oauth/userinfo") {
-    const extra = cors(request, reg);
     const m = /^Bearer\s+(\S+)$/i.exec(request.headers.get("authorization") || "");
     const a = m ? await kv(env, "atos:acesso:" + (await sha256(m[1]))) : null;
+    if (a) await comTerceiro(env, reg, appDoCliente(a.clienteId));
+    const extra = await cors(request, reg, "", env);
+    const recusa = (descricao) => json({ error: "invalid_token", ...(descricao ? { error_description: descricao } : {}) }, 401, { ...extra, "www-authenticate": 'Bearer error="invalid_token"' });
     // O token de um cliente desligado ou apagado deixa de valer aqui na hora (o id_token vale ate vencer).
-    if (!a || !clienteAtivo(reg, a.clienteId)) return json({ error: "invalid_token" }, 401, { ...extra, "www-authenticate": 'Bearer error="invalid_token"' });
+    if (!a || !clienteAtivo(reg, a.clienteId)) return recusa("");
     const conta = await kv(env, "id:conta:" + a.email);
-    if (!conta || conta.sub !== a.sub) return json({ error: "invalid_token" }, 401, extra);
+    if (!conta || conta.sub !== a.sub) return recusa("");
+    // Tirada da lista do aplicativo: o access_token para de valer aqui na hora.
+    if (!podeEntrar(reg.apps[reg.clientes[a.clienteId].app], { sub: a.sub, email: a.email })) return recusa("esta Conta Atos não tem mais acesso a este aplicativo");
     return json(reivindicacoes(a.escopos, { sub: a.sub, email: a.email, nome: conta.nome || "" }), 200, extra);
   }
 
@@ -408,7 +521,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     }
     const token = f.get("token") || "";
     if (token && token.length <= 100) await env.CONTAS.delete("atos:acesso:" + (await sha256(token)));
-    return new Response(null, { status: 200, headers: cors(request, reg) });
+    return new Response(null, { status: 200, headers: await cors(request, reg, "", env) });
   }
 
   // ------------------------------------------- as da pagina /entrar e /conta
@@ -420,6 +533,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
   if (p === "/api/apps") {
     if (!sessao) return json({ erro: "entre na sua conta" }, 401);
     const apps = await appsDe(env, sessao.sub);
+    for (const id of Object.keys(apps)) if (ID_APP_TERCEIRO.test(id)) await comTerceiro(env, reg, id);
     return json({
       apps: Object.entries(apps).filter(([id, a]) => temChave(reg.apps, id) && permissaoVale(a, reg.apps[id])).map(([id, a]) => ({
         ...publicoDoApp(id, reg), escopos: (a.escopos || []).map((s) => ESCOPOS[s] || s), quando: a.quando || null, ultimo: a.ultimo || null,
@@ -437,17 +551,23 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     return json({ ok: true });
   }
 
+  const idCliente = new URLSearchParams(String(d.consulta || "").replace(/^\?/, "")).get("client_id") || "";
+  await comTerceiro(env, reg, appDoCliente(idCliente));
   const lido = lerPedido(d.consulta, reg);
   if (lido.fatal) return json({ erro: lido.fatal }, 400);
   if (lido.ir) return json({ ir: lido.ir });
   const pedido = lido.pedido;
   const entrar = precisaEntrar(pedido, sessao, agora);
+  // Quem pode entrar: conferido antes do consentimento e antes de qualquer codigo.
+  const negado = Boolean(sessao) && !entrar && !podeEntrar(reg.apps[pedido.app], sessao);
   const apps = sessao ? await appsDe(env, sessao.sub) : {};
-  const permitido = Boolean(sessao) && jaPermitiu(apps, pedido, reg) && !pedido.prompt.includes("consent");
+  const permitido = Boolean(sessao) && !negado && jaPermitiu(apps, pedido, reg) && !pedido.prompt.includes("consent");
+  const semAcesso = () => voltar(pedido.volta, { error: "access_denied", error_description: "esta Conta Atos não tem acesso a este aplicativo", state: pedido.state, iss: EMISSOR });
 
   if (p === "/api/pedido") {
     if (pedido.prompt.includes("none")) {
       if (entrar) return json({ ir: voltar(pedido.volta, { error: "login_required", state: pedido.state, iss: EMISSOR }) });
+      if (negado) return json({ ir: semAcesso() });
       if (!permitido) return json({ ir: voltar(pedido.volta, { error: "consent_required", state: pedido.state, iss: EMISSOR }) });
       return json({ ir: await emitirCodigo(env, pedido, sessao) });
     }
@@ -455,13 +575,16 @@ export async function atenderOIDC(request, env, url, deps = {}) {
       app: publicoDoApp(pedido.app, reg),
       escopos: pedido.escopos.map((s) => ({ id: s, texto: ESCOPOS[s] })),
       conta: sessao ? { email: sessao.email, nome: sessao.nome } : null,
-      entrar, permitido, dica: pedido.dica, google: googleLigado(env),
+      entrar, permitido, negado, dica: pedido.dica, google: googleLigado(env),
+      // Sem acesso: a pagina oferece voltar ao aplicativo com error=access_denied.
+      ...(negado ? { voltar: semAcesso() } : {}),
     });
   }
 
   if (p === "/api/autorizar") {
     if (d.permitir !== true) return json({ ir: voltar(pedido.volta, { error: "access_denied", error_description: "a pessoa não permitiu", state: pedido.state, iss: EMISSOR }) });
     if (!sessao || entrar) return json({ erro: "entre na sua conta de novo" }, 401);
+    if (negado) return json({ erro: "a sua Conta Atos não tem acesso a este aplicativo", negado: true, voltar: semAcesso() }, 403);
     if (!jaPermitiu(apps, pedido, reg) || pedido.prompt.includes("consent")) {
       // A permissao de um aplicativo antigo com o mesmo id (apagado e criado de novo) nao soma: comeca do zero.
       const guardada = temChave(apps, pedido.app) ? apps[pedido.app] : null;

@@ -1,0 +1,84 @@
+/* O cartao "Como integrar" (integrar.js) e a tela Minha conta > Integracoes (conta-integracoes.js). Usa as cores e as
+   pecas de conta.css (card, item, btn, campo, opcoes, modal). Angulos retos: nada de border-radius. */
+
+/* ---------------------------------------------------------------- o cartao */
+.ig-cartao { padding: 4px 16px 16px; background: var(--surface-2); border-top: 1px solid var(--line-soft); }
+.ig-h3 { display: block; padding: 12px 0 0; font-size: 13px; }
+.ig-info { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 6px 16px; margin: 12px 0 4px; font-size: 13px; }
+.ig-info dt { color: var(--muted); }
+.ig-info dd { margin: 0; overflow-wrap: anywhere; }
+.ig-info dd .btn { margin-left: 6px; vertical-align: middle; }
+.ig-cartao code, .ig-app code, .ig-modal code { font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
+.ig-passos { margin: 12px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-soft); }
+.ig-maquina { margin: 12px 0 8px; background: var(--bg); border: 1px solid var(--line); }
+.ig-maquina-cab { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.ig-pre {
+  margin: 0; padding: 12px; max-height: 340px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border-bottom: 1px solid var(--line);
+  font: 12px/1.6 ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace; color: var(--text-soft); user-select: text;
+}
+.ig-pre:last-child { border-bottom: 0; }
+.ig-pre[hidden] { display: none; }
+.ig-segredo { font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--line); }
+.ig-abas span { display: inline-flex; gap: 0; }
+.ig-abas button[role="tab"] { height: 28px; padding: 0 12px; background: transparent; border: 1px solid var(--line); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.ig-abas button[role="tab"] + button[role="tab"] { border-left: 0; }
+.ig-abas button[role="tab"][aria-selected="true"] { background: var(--line); color: var(--text); }
+.ig-cartao > .dica { display: block; margin-top: 10px; }
+
+/* ---------------------------------------------------------------- a tela Integracoes */
+.secao h2.titulo-secao.ig-h, .ig-bloco h3.ig-h { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
+.ig-app { margin-bottom: 16px; }
+.ig-app > .item { flex-wrap: wrap; }
+.ig-app .item .nome small { overflow-wrap: anywhere; }
+.ig-acoes { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.ig-aviso { margin: 12px 0 0; padding: 10px 14px; font-size: 13px; line-height: 1.5; color: var(--warning); background: var(--surface-2); border: 1px solid #4a3d28; }
+.ig-app > .ig-aviso { margin: 0 16px 14px; }
+.ig-aviso a { color: var(--text); }
+.ig-ok { margin-top: 12px; }
+.ig-bloco { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--line); }
+.ig-bloco h3 { font-size: 12px; }
+.ig-bloco .vazio { padding: 0; }
+.ig-lista { display: flex; flex-direction: column; max-height: 260px; overflow-y: auto; background: var(--bg); border: 1px solid var(--line); }
+.ig-lista:has(.vazio) { padding: 10px 12px; }
+.ig-pessoa { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 12px; font-size: 13px; border-bottom: 1px solid var(--line-soft); }
+.ig-pessoa:last-child { border-bottom: 0; }
+.ig-pessoa span { overflow-wrap: anywhere; }
+.ig-liberar { display: flex; flex-direction: column; gap: 8px; }
+.ig-linha-botoes { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.ig-linha-botoes .erro { flex: 1; }
+.campo textarea {
+  width: 100%; min-height: 64px; padding: 8px 12px; background: var(--bg); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 14px; outline: none; resize: vertical;
+}
+.campo textarea:focus { border-color: var(--faint); }
+.ig-acesso { border: 1px solid var(--line); background: var(--surface); }
+.ig-acesso + .ig-acesso { margin-top: -1px; }
+.ig-acesso-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 10px 12px; }
+.ig-acesso-topo .nome { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 220px; }
+.ig-acesso-topo .nome strong { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; }
+.ig-acesso-topo .nome small { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.ig-sit { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--faint); white-space: nowrap; }
+.ig-sit::before { content: ""; width: 7px; height: 7px; flex-shrink: 0; background: currentColor; }
+.ig-sit.ok { color: var(--success); }
+.ig-sit.perigo { color: var(--danger); }
+.ig-sit.atencao { color: var(--warning); }
+.ig-registro { padding: 12px 16px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.ig-registro summary { cursor: pointer; color: var(--silver); font-weight: 600; }
+.ig-registro ul { margin: 10px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.ig-registro li { line-height: 1.5; color: var(--text-2); overflow-wrap: anywhere; }
+.ig-registro li span { color: var(--faint); }
+
+/* os pop-ups */
+.ig-fundo { align-items: flex-start; overflow-y: auto; background: rgba(8, 7, 6, .92); }
+.ig-fundo .modal { margin: auto 0; }
+.ig-modal { max-width: 620px; }
+.ig-icone { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 4px; }
+.ig-arquivo { position: relative; overflow: hidden; display: inline-flex; align-items: center; }
+.ig-arquivo input, .campo .ig-arquivo input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; opacity: 0; cursor: pointer; }
+.ig-arquivo:focus-within { outline: 2px solid var(--text-soft); outline-offset: 2px; }
+.ig-marcar { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text-soft); cursor: pointer; }
+.ig-marcar input { width: 16px; height: 16px; margin: 2px 0 0; flex-shrink: 0; accent-color: var(--text); }
+
+@media (max-width: 640px) {
+  .ig-info { grid-template-columns: 1fr; gap: 2px; }
+  .ig-info dd { margin-bottom: 6px; }
+}
