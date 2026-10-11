@@ -64,3 +64,10 @@ main.integracao { flex: 1; width: 100%; max-width: 920px; margin: 0 auto; paddin
   .passos > li::before { width: 32px; height: 32px; font-size: 13px; }
   .tabela-ref > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
+
+/* as abas "Na sua linguagem" (integrar.css): o texto delas, nao o da pagina */
+.integracao .il { margin-top: 20px; }
+.integracao .il .il-bib { font-size: 13px; line-height: 1.5; }
+.integracao .il .il-nota { font-size: 12px; line-height: 1.5; }
+.integracao .il .il-nota.il-testado { color: var(--success); }
+.integracao .il .il-nota.il-nao-testado { color: var(--warning); }

@@ -133,7 +133,7 @@ async function telaDoDono(env, sessao, agora) {
     const a = await appTerceiro(env, id);
     if (a && a.dono.sub === sessao.sub) apps.push(await vista(env, a));
   }
-  return { conta: { email: sessao.email }, recente: agora / 1000 - sessao.auth_time < RECENTE_S, limites: LIMITES, ...dadosParaIntegrar(), apps };
+  return { conta: { email: sessao.email }, recente: agora / 1000 - sessao.auth_time < RECENTE_S, limites: LIMITES, ...dadosParaIntegrar(env), apps };
 }
 
 // ------------------------------------------------------------ as rotas do dono

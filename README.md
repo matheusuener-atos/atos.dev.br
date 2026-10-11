@@ -12,11 +12,19 @@ Descoberta: `https://atos.dev.br/.well-known/openid-configuration`.
 Código de autorização com PKCE S256 obrigatório para todos, clientes públicos ou confidenciais (client_secret_basic ou client_secret_post), id_token ES256.
 Os aplicativos e clientes: os fixos em `worker/oidc.js` (`APPS`, `CLIENTES`, os do PAVLVS) e os cadastrados no painel, seção Login Atos (`worker/oidc-painel.js`, no KV em `atos:oidc:registro`; só o dono, pela fila).
 
+Para quem integra: `pacotes/entrar/` (o pacote JavaScript `@atos/entrar`, ainda não publicado no npm; a cópia servida fica em `public/pacotes/entrar/<versão>/entrar.js`) e `exemplos/entrar-com-atos/` (Python, C#/.NET e Node, testados contra o Worker local). Os trechos de cada linguagem e os comandos que gravam o `.env` vêm de `public/assets/integrar-linguagens.js`; depois de mudar ali (ou no pacote), rode `node tools/integracao-linguagens.mjs` (a página /integracao/, os exemplos e a cópia do pacote).
+
+No `wrangler dev`, a var `ATOS_EMISSOR_LOCAL=http://127.0.0.1:<porta>` faz a descoberta e os tokens dizerem o endereço local (só aceita 127.0.0.1 ou localhost); sem ela, o emissor é sempre `https://atos.dev.br`.
+
 ## Rodar os testes e publicar
 
     node worker/teste.mjs
     node worker/teste-oauth.mjs
     node worker/teste-admin.mjs
+    node worker/teste-linguagens.mjs
+    cd pacotes/entrar && npm test                       # o pacote, contra o Worker em wrangler dev
+    node exemplos/entrar-com-atos/testar.mjs --python <python com authlib e flask> --dotnet <EntrarComAtos.dll> --node <pasta com express>
+    node exemplos/entrar-com-atos/testar-env.mjs        # os comandos do .env no PowerShell 5.1/7 e no bash
     npx wrangler deploy
 
 Segredos: `ATOS_CHAVE` (`node tools/gerar-chave.mjs`) e `RESEND_API_KEY`.

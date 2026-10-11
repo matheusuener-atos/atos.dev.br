@@ -54,7 +54,7 @@
 // fora do registro da equipe, e entram aqui so quando um pedido os cita
 // (comTerceiro).
 
-import { EMISSOR, aleatorio, b64url, b64urlTexto, deB64url, iguais, json, kv, lerJson, normal, sha256 } from "./comum.js";
+import { EMISSOR, aleatorio, emissorDe, b64url, b64urlTexto, deB64url, iguais, json, kv, lerJson, normal, sha256 } from "./comum.js";
 import { sessaoDe } from "./contas.js";
 import { googleLigado } from "./google.js";
 
@@ -96,7 +96,8 @@ export const ESCOPOS = {
 };
 
 /* O que um sistema precisa para integrar (o painel e a Minha conta mostram no "Como integrar"). */
-export function dadosParaIntegrar() {
+export function dadosParaIntegrar(env) {
+  const EMISSOR = emissorDe(env);
   return {
     emissor: EMISSOR,
     descoberta: EMISSOR + "/.well-known/openid-configuration",
@@ -243,7 +244,7 @@ function voltar(volta, campos) {
 /* O pedido de autorizacao, conferido. {fatal} quando nao da para voltar ao
    aplicativo (cliente ou endereco desconhecido); {ir} quando o erro volta a ele;
    senao {pedido}. */
-export function lerPedido(consulta, reg = FIXOS) {
+export function lerPedido(consulta, reg = FIXOS, emissor = EMISSOR) {
   const q = new URLSearchParams(String(consulta || "").replace(/^\?/, ""));
   const clienteId = q.get("client_id") || "";
   const registrado = temChave(reg.clientes, clienteId) ? reg.clientes[clienteId] : null;
@@ -253,7 +254,7 @@ export function lerPedido(consulta, reg = FIXOS) {
   const volta = q.get("redirect_uri") || "";
   if (!voltaPermitida(cliente, volta)) return { fatal: "O endereço de volta não pertence a este aplicativo." };
   const state = (q.get("state") || "").slice(0, 500);
-  const erro = (error, error_description) => ({ ir: voltar(volta, { error, error_description, state, iss: EMISSOR }) });
+  const erro = (error, error_description) => ({ ir: voltar(volta, { error, error_description, state, iss: emissor }) });
   if (q.get("response_type") !== "code") return erro("unsupported_response_type", "só response_type=code");
   if ((q.get("response_mode") || "query") !== "query") return erro("invalid_request", "só response_mode=query");
   const desafio = q.get("code_challenge") || "";
@@ -301,7 +302,7 @@ async function emitirCodigo(env, pedido, sessao) {
     clienteId: pedido.clienteId, volta: pedido.volta, desafio: pedido.desafio, nonce: pedido.nonce, escopos: pedido.escopos,
     sub: sessao.sub, email: sessao.email, auth_time: sessao.auth_time,
   }), { expirationTtl: CODIGO_S });
-  return voltar(pedido.volta, { code: codigo, state: pedido.state, iss: EMISSOR });
+  return voltar(pedido.volta, { code: codigo, state: pedido.state, iss: emissorDe(env) });
 }
 
 /* O que a pagina /entrar e a /conta mostram do aplicativo. Sem icone (""), elas mostram a inicial do nome. */
@@ -386,6 +387,8 @@ const erroOAuth = (error, error_description, status = 400, extra = {}) => json({
 export async function atenderOIDC(request, env, url, deps = {}) {
   const p = url.pathname;
   const agora = (deps.agora || Date.now)();
+  // O de producao; so o `wrangler dev` com ATOS_EMISSOR_LOCAL troca (comum.js, emissorDe).
+  const EMISSOR = emissorDe(env);
 
   if (p === "/.well-known/openid-configuration") {
     return new Response(JSON.stringify({
@@ -553,7 +556,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
 
   const idCliente = new URLSearchParams(String(d.consulta || "").replace(/^\?/, "")).get("client_id") || "";
   await comTerceiro(env, reg, appDoCliente(idCliente));
-  const lido = lerPedido(d.consulta, reg);
+  const lido = lerPedido(d.consulta, reg, EMISSOR);
   if (lido.fatal) return json({ erro: lido.fatal }, 400);
   if (lido.ir) return json({ ir: lido.ir });
   const pedido = lido.pedido;

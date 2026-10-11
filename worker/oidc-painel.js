@@ -160,7 +160,7 @@ async function tela(env) {
     });
   }
   // Os de terceiros (Minha conta > Integracoes), com o dono de cada um: a equipe desliga ou apaga por abuso.
-  return { ...dadosParaIntegrar(), apps, clientes, terceiros: await terceirosParaPainel(env) };
+  return { ...dadosParaIntegrar(env), apps, clientes, terceiros: await terceirosParaPainel(env) };
 }
 
 /* Gera (ou troca) o segredo de um cliente confidencial do KV: o valor volta uma vez so; fica o hash. */

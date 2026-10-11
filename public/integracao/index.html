@@ -14,9 +14,11 @@
 <link rel="canonical" href="https://atos.dev.br/integracao/">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/assets/conta.css">
+<link rel="stylesheet" href="/assets/integrar.css">
 <link rel="stylesheet" href="/assets/integracao.css">
 <script src="/assets/tema.js"></script>
 <script src="/assets/topo.js" defer></script>
+<script src="/assets/integrar-linguagens.js" defer></script>
 </head>
 <body>
 <header class="topo">
@@ -113,7 +115,7 @@
       <li>
         <div>
           <h3>Integre</h3>
-          <p>O bloco “Como integrar” da Integrações traz o seu <code>client_id</code>, os endereços e um pedido pronto para colar no Claude Code, além de comandos para PowerShell e Linux/macOS (o segredo nunca entra no pedido nem nos comandos). Ou siga a <a href="#referencia">referência técnica</a> abaixo com a biblioteca OpenID Connect da sua linguagem.</p>
+          <p>O bloco “Como integrar” da Integrações traz o seu <code>client_id</code> e os endereços, um comando (PowerShell ou Linux/macOS) que grava no <code>.env</code> do seu projeto o emissor, o <code>client_id</code> e a volta (o segredo, você cola; ele nunca vai no comando), o código <a href="#linguagens">na sua linguagem</a> e um pedido pronto para colar no Claude Code. Ou siga a <a href="#referencia">referência técnica</a> abaixo com a biblioteca OpenID Connect da sua linguagem.</p>
         </div>
       </li>
       <li>
@@ -123,6 +125,481 @@
         </div>
       </li>
     </ol>
+  </section>
+
+  <section id="linguagens" aria-labelledby="linguagens-titulo">
+    <h2 id="linguagens-titulo">Na sua linguagem</h2>
+    <div class="corpo">
+      <p>O mínimo para entrar com a Atos em cada linguagem, com a biblioteca OpenID Connect consagrada dela: a biblioteca confere a assinatura e os campos do <code>id_token</code>, sem criptografia escrita à mão. Os exemplos de servidor são de um acesso confidencial e leem do <code>.env</code> <code>ATOS_ISSUER</code>, <code>ATOS_CLIENT_ID</code>, <code>ATOS_CLIENT_SECRET</code> e <code>ATOS_REDIRECT_URI</code>; no de navegador, troque <code>SEU_CLIENT_ID</code> e a volta pelos do seu acesso.</p>
+      <p>JavaScript, Python e C#/.NET foram testados contra a Atos: quem está liberado entra, e quem não está volta com <code>error=access_denied</code> e vê o aviso. PHP, Java, Go e Ruby foram escritos pela documentação de cada biblioteca e ainda não rodaram aqui; estão marcados.</p>
+    </div>
+<!-- linguagens:inicio -->
+<div class="il"><div class="il-abas" role="tablist" aria-label="Escolha a linguagem"><button type="button" role="tab" id="pg-ling-js-aba" aria-controls="pg-ling-js" aria-selected="true" data-il="aba">JavaScript</button><button type="button" role="tab" id="pg-ling-python-aba" aria-controls="pg-ling-python" aria-selected="false" tabindex="-1" data-il="aba">Python</button><button type="button" role="tab" id="pg-ling-dotnet-aba" aria-controls="pg-ling-dotnet" aria-selected="false" tabindex="-1" data-il="aba">C#/.NET</button><button type="button" role="tab" id="pg-ling-php-aba" aria-controls="pg-ling-php" aria-selected="false" tabindex="-1" data-il="aba">PHP <span class="il-marca">não testado</span></button><button type="button" role="tab" id="pg-ling-java-aba" aria-controls="pg-ling-java" aria-selected="false" tabindex="-1" data-il="aba">Java <span class="il-marca">não testado</span></button><button type="button" role="tab" id="pg-ling-go-aba" aria-controls="pg-ling-go" aria-selected="false" tabindex="-1" data-il="aba">Go <span class="il-marca">não testado</span></button><button type="button" role="tab" id="pg-ling-ruby-aba" aria-controls="pg-ling-ruby" aria-selected="false" tabindex="-1" data-il="aba">Ruby <span class="il-marca">não testado</span></button></div><div class="il-painel" role="tabpanel" id="pg-ling-js" aria-labelledby="pg-ling-js-aba"><p class="il-bib">Biblioteca: <strong>@atos/entrar (o pacote da Atos, sem dependências)</strong></p><p class="il-nota il-testado">Testado contra a Atos: o pacote no Node e num navegador simulado (state, iss, access_denied e id_token forjados recusados), e o servidor Express abaixo.</p><div class="il-bloco"><div class="il-cab"><span>Instalação</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Instalação em JavaScript"># Ainda não está no npm (em breve: npm install @atos/entrar).
+# Por enquanto, baixe o arquivo (um só, sem dependências, licença MIT) e ponha ao lado do seu código:
+#   https://atos.dev.br/pacotes/entrar/0.1.0/entrar.js
+# No servidor Node, também:
+npm install express express-session</pre></div><div class="il-bloco"><div class="il-cab"><span>Código no navegador (acesso público)</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Código no navegador (acesso público) em JavaScript">// Navegador (cliente público, sem segredo). entrar.js: o pacote @atos/entrar.
+import { entrarComAtos } from &quot;./entrar.js&quot;;
+
+const atos = entrarComAtos({
+  clientId: &quot;SEU_CLIENT_ID&quot;,
+  voltaPara: &quot;https://seusistema.com.br/retorno&quot;, // exatamente como cadastrada
+});
+
+// O botão: gera state, nonce e code_verifier, guarda em sessionStorage e vai à Atos.
+document.querySelector(&quot;#entrar-com-atos&quot;).addEventListener(&quot;click&quot;, () =&gt; atos.entrar());
+
+// Na página de volta: confere state e iss, troca o código e confere o id_token (ES256 pela JWKS).
+try {
+  const pessoa = await atos.retorno(); // null quando a página não é uma volta
+  if (pessoa) console.log(pessoa.id, pessoa.nome, pessoa.email); // identifique pelo id (o sub)
+} catch (e) {
+  if (e.codigo === &quot;access_denied&quot;) alert(e.message); // a conta não tem acesso ou não permitiu
+  else throw e;
+}</pre></div><div class="il-bloco"><div class="il-cab"><span>Código no servidor Node (acesso confidencial)</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Código no servidor Node (acesso confidencial) em JavaScript">// Servidor Node com Express (cliente confidencial). entrar.js: o pacote @atos/entrar.
+// O segredo fica só em ATOS_CLIENT_SECRET (o pacote lê de lá). Rode com: node --env-file=.env servidor.mjs
+import express from &quot;express&quot;;
+import session from &quot;express-session&quot;;
+import { entrarComAtos } from &quot;./entrar.js&quot;;
+
+const atos = entrarComAtos({
+  clientId: process.env.ATOS_CLIENT_ID,
+  voltaPara: process.env.ATOS_REDIRECT_URI,
+  emissor: process.env.ATOS_ISSUER, // vazio: https://atos.dev.br
+});
+const app = express();
+app.use(session({ secret: process.env.SESSION_SECRET, resave: false, saveUninitialized: false, cookie: { httpOnly: true, sameSite: &quot;lax&quot; } }));
+
+app.get(&quot;/&quot;, (req, res) =&gt; {
+  const p = req.session.pessoa;
+  res.type(&quot;text&quot;).send(p ? &quot;Olá, &quot; + p.nome + &quot; (&quot; + p.email + &quot;). id: &quot; + p.id : &quot;Entre em /entrar&quot;);
+});
+
+app.get(&quot;/entrar&quot;, async (req, res) =&gt; {
+  const { url, guardar } = await atos.comecar(); // state, nonce e code_verifier
+  req.session.atos = guardar;
+  res.redirect(url);
+});
+
+app.get(new URL(atos.voltaPara).pathname, async (req, res) =&gt; {
+  const guardado = req.session.atos;
+  delete req.session.atos;
+  try {
+    const pessoa = await atos.concluir(req.originalUrl, guardado); // confere tudo e troca o código
+    req.session.pessoa = { id: pessoa.id, nome: pessoa.nome, email: pessoa.email };
+    res.redirect(&quot;/&quot;);
+  } catch (e) {
+    // access_denied: a conta não tem acesso ou a pessoa não permitiu
+    res.status(e.codigo === &quot;access_denied&quot; ? 403 : 400).type(&quot;text&quot;).send(e.message);
+  }
+});
+
+app.listen(Number(new URL(atos.voltaPara).port) || 3000);
+</pre></div></div><div class="il-painel" role="tabpanel" id="pg-ling-python" aria-labelledby="pg-ling-python-aba" hidden><p class="il-bib">Biblioteca: <strong>Authlib (com Flask)</strong></p><p class="il-nota il-testado">Testado contra a Atos: Authlib 1.8.0, Flask 3.1.3, Python 3.14 (quem entra e quem não tem acesso).</p><div class="il-bloco"><div class="il-cab"><span>Instalação</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Instalação em Python">pip install authlib flask requests</pre></div><div class="il-bloco"><div class="il-cab"><span>Código</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Código em Python"># Entrar com Atos num servidor Python (Flask) com o Authlib: cliente confidencial, PKCE S256.
+# O Authlib le a descoberta, gera state, nonce e code_verifier, troca o codigo (client_secret_basic) e confere o
+# id_token (ES256 pela JWKS, iss, aud, exp, nonce).
+#
+#   pip install authlib flask requests
+#   ATOS_CLIENT_ID=... ATOS_CLIENT_SECRET=... ATOS_REDIRECT_URI=http://127.0.0.1:5000/retorno FLASK_SECRET_KEY=... python app.py
+import os
+from urllib.parse import urlsplit
+
+from authlib.integrations.flask_client import OAuth, OAuthError
+from flask import Flask, redirect, session
+from markupsafe import escape
+
+ISSUER = os.environ.get(&quot;ATOS_ISSUER&quot;, &quot;https://atos.dev.br&quot;)
+VOLTA = os.environ[&quot;ATOS_REDIRECT_URI&quot;]
+
+app = Flask(__name__)
+app.secret_key = os.environ[&quot;FLASK_SECRET_KEY&quot;]  # assina o cookie da sessao do Flask
+oauth = OAuth(app)
+oauth.register(
+    &quot;atos&quot;,
+    server_metadata_url=ISSUER + &quot;/.well-known/openid-configuration&quot;,
+    client_id=os.environ[&quot;ATOS_CLIENT_ID&quot;],
+    client_secret=os.environ[&quot;ATOS_CLIENT_SECRET&quot;],  # so no servidor, nunca no repositorio
+    client_kwargs={&quot;scope&quot;: &quot;openid email profile&quot;, &quot;code_challenge_method&quot;: &quot;S256&quot;},
+)
+
+
+@app.route(&quot;/&quot;)
+def inicio():
+    p = session.get(&quot;pessoa&quot;)
+    if not p:
+        return &#39;&lt;a href=&quot;/entrar&quot;&gt;Entrar com Atos&lt;/a&gt;&#39;
+    return f&quot;Olá, {escape(p[&#39;nome&#39;])} ({escape(p[&#39;email&#39;])}). id: {escape(p[&#39;id&#39;])}. &lt;a href=\&quot;/sair\&quot;&gt;Sair&lt;/a&gt;&quot;
+
+
+@app.route(&quot;/entrar&quot;)
+def entrar():
+    return oauth.atos.authorize_redirect(VOLTA)
+
+
+@app.route(urlsplit(VOLTA).path)
+def retorno():
+    try:
+        token = oauth.atos.authorize_access_token()  # confere state, troca o codigo e confere o id_token
+    except OAuthError as e:
+        if e.error == &quot;access_denied&quot;:
+            return &quot;Sua Conta Atos não tem acesso a este sistema (ou o acesso não foi permitido). Peça a quem administra.&quot;, 403
+        return &quot;Não deu para entrar: &quot; + escape(e.error), 400
+    claims = token[&quot;userinfo&quot;]  # o corpo do id_token, ja conferido
+    # Opcional: pergunta a Atos (userinfo) se o acesso ainda vale.
+    dados = oauth.atos.userinfo(token=token)
+    if dados[&quot;sub&quot;] != claims[&quot;sub&quot;]:
+        return &quot;Resposta inconsistente da Atos.&quot;, 400
+    session[&quot;pessoa&quot;] = {&quot;id&quot;: claims[&quot;sub&quot;], &quot;nome&quot;: claims.get(&quot;name&quot;, &quot;&quot;), &quot;email&quot;: claims.get(&quot;email&quot;, &quot;&quot;)}
+    return redirect(&quot;/&quot;)
+
+
+@app.route(&quot;/sair&quot;)
+def sair():
+    session.clear()
+    return redirect(&quot;/&quot;)
+
+
+if __name__ == &quot;__main__&quot;:
+    app.run(host=&quot;127.0.0.1&quot;, port=urlsplit(VOLTA).port or 5000)
+</pre></div></div><div class="il-painel" role="tabpanel" id="pg-ling-dotnet" aria-labelledby="pg-ling-dotnet-aba" hidden><p class="il-bib">Biblioteca: <strong>Microsoft.AspNetCore.Authentication.OpenIdConnect</strong></p><p class="il-nota il-testado">Testado contra a Atos: .NET 10 e o pacote 10.0.11 (quem entra e quem não tem acesso).</p><div class="il-bloco"><div class="il-cab"><span>Instalação</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Instalação em C#/.NET">dotnet add package Microsoft.AspNetCore.Authentication.OpenIdConnect</pre></div><div class="il-bloco"><div class="il-cab"><span>Código</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Código em C#/.NET">// Entrar com Atos num servidor ASP.NET Core com o Microsoft.AspNetCore.Authentication.OpenIdConnect: cliente
+// confidencial, PKCE S256. O handler le a descoberta, gera state, nonce e code_verifier, troca o codigo e confere o
+// id_token (ES256 pela JWKS, iss, aud, exp, nonce); depois le o userinfo.
+//
+//   dotnet add package Microsoft.AspNetCore.Authentication.OpenIdConnect
+//   ATOS_CLIENT_ID=... ATOS_CLIENT_SECRET=... ATOS_REDIRECT_URI=https://seusistema.com.br/signin-oidc dotnet run
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+
+static string Env(string nome) =&gt; Environment.GetEnvironmentVariable(nome) ?? throw new InvalidOperationException(&quot;Falta a variável &quot; + nome);
+
+var issuer = Environment.GetEnvironmentVariable(&quot;ATOS_ISSUER&quot;) ?? &quot;https://atos.dev.br&quot;;
+var volta = new Uri(Env(&quot;ATOS_REDIRECT_URI&quot;));
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddAuthentication(o =&gt;
+{
+    o.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    o.DefaultChallengeScheme = &quot;Atos&quot;;
+})
+.AddCookie()
+.AddOpenIdConnect(&quot;Atos&quot;, o =&gt;
+{
+    o.Authority = issuer;
+    o.ClientId = Env(&quot;ATOS_CLIENT_ID&quot;);
+    o.ClientSecret = Env(&quot;ATOS_CLIENT_SECRET&quot;); // só no servidor, nunca no repositório
+    o.ResponseType = OpenIdConnectResponseType.Code;
+    o.ResponseMode = OpenIdConnectResponseMode.Query; // a Atos volta na consulta (o padrão do handler é form_post)
+    o.UsePkce = true;
+    o.CallbackPath = volta.AbsolutePath;
+    o.Scope.Clear();
+    o.Scope.Add(&quot;openid&quot;);
+    o.Scope.Add(&quot;email&quot;);
+    o.Scope.Add(&quot;profile&quot;);
+    o.GetClaimsFromUserInfoEndpoint = true;
+    o.MapInboundClaims = false; // os nomes do OpenID Connect (sub, name, email)
+    o.TokenValidationParameters.NameClaimType = &quot;name&quot;;
+    o.AccessDeniedPath = &quot;/sem-acesso&quot;; // error=access_denied: a conta não tem acesso ou a pessoa não permitiu
+    o.RequireHttpsMetadata = issuer.StartsWith(&quot;https://&quot;); // http só no teste local
+});
+builder.Services.AddAuthorization();
+
+var app = builder.Build();
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapGet(&quot;/&quot;, (HttpContext c) =&gt; c.User.Identity?.IsAuthenticated == true
+    ? Results.Text($&quot;Olá, {c.User.FindFirst(&quot;name&quot;)?.Value} ({c.User.FindFirst(&quot;email&quot;)?.Value}). id: {c.User.FindFirst(&quot;sub&quot;)?.Value}&quot;)
+    : Results.Text(&quot;Entre em /entrar&quot;));
+app.MapGet(&quot;/entrar&quot;, () =&gt; Results.Challenge(new AuthenticationProperties { RedirectUri = &quot;/&quot; }, [&quot;Atos&quot;]));
+app.MapGet(&quot;/sem-acesso&quot;, () =&gt; Results.Text(&quot;Sua Conta Atos não tem acesso a este sistema (ou o acesso não foi permitido). Peça a quem administra.&quot;, statusCode: 403));
+app.MapGet(&quot;/sair&quot;, async (HttpContext c) =&gt; { await c.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme); return Results.Redirect(&quot;/&quot;); });
+
+app.Run();
+</pre></div></div><div class="il-painel" role="tabpanel" id="pg-ling-php" aria-labelledby="pg-ling-php-aba" hidden><p class="il-bib">Biblioteca: <strong>league/oauth2-client e firebase/php-jwt</strong></p><p class="il-nota il-nao-testado">Não testado aqui: escrito pela documentação das bibliotecas. (A jumbojett/openid-connect-php não confere ES256, a assinatura da Atos.)</p><div class="il-bloco"><div class="il-cab"><span>Instalação</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Instalação em PHP">composer require league/oauth2-client firebase/php-jwt</pre></div><div class="il-bloco"><div class="il-cab"><span>Código</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Código em PHP">&lt;?php
+// Entrar com Atos em PHP: league/oauth2-client (PKCE S256) e firebase/php-jwt (o id_token ES256 pela JWKS).
+// Este arquivo é a ida e a volta: ATOS_REDIRECT_URI aponta para ele (ex.: https://seusistema.com.br/entrar.php).
+// Não testado aqui: escrito pela documentação das duas bibliotecas.
+require __DIR__ . &#39;/vendor/autoload.php&#39;;
+
+use Firebase\JWT\JWK;
+use Firebase\JWT\JWT;
+use League\OAuth2\Client\Provider\GenericProvider;
+
+session_start();
+$issuer = getenv(&#39;ATOS_ISSUER&#39;) ?: &#39;https://atos.dev.br&#39;;
+$clientId = getenv(&#39;ATOS_CLIENT_ID&#39;);
+$d = json_decode(file_get_contents($issuer . &#39;/.well-known/openid-configuration&#39;), true);
+if (($d[&#39;issuer&#39;] ?? &#39;&#39;) !== $issuer) { http_response_code(502); exit(&#39;A descoberta não é da Atos.&#39;); }
+
+$atos = new GenericProvider([
+    &#39;clientId&#39; =&gt; $clientId,
+    &#39;clientSecret&#39; =&gt; getenv(&#39;ATOS_CLIENT_SECRET&#39;), // só no servidor, nunca no repositório
+    &#39;redirectUri&#39; =&gt; getenv(&#39;ATOS_REDIRECT_URI&#39;),
+    &#39;urlAuthorize&#39; =&gt; $d[&#39;authorization_endpoint&#39;],
+    &#39;urlAccessToken&#39; =&gt; $d[&#39;token_endpoint&#39;],
+    &#39;urlResourceOwnerDetails&#39; =&gt; $d[&#39;userinfo_endpoint&#39;],
+    &#39;scopes&#39; =&gt; [&#39;openid&#39;, &#39;email&#39;, &#39;profile&#39;],
+    &#39;scopeSeparator&#39; =&gt; &#39; &#39;,
+    &#39;pkceMethod&#39; =&gt; GenericProvider::PKCE_METHOD_S256,
+]);
+
+if (!isset($_GET[&#39;code&#39;]) &amp;&amp; !isset($_GET[&#39;error&#39;])) {
+    // A ida: state, nonce e code_verifier ficam na sessão.
+    $nonce = bin2hex(random_bytes(16));
+    $url = $atos-&gt;getAuthorizationUrl([&#39;nonce&#39; =&gt; $nonce]);
+    $_SESSION[&#39;atos&#39;] = [&#39;state&#39; =&gt; $atos-&gt;getState(), &#39;pkce&#39; =&gt; $atos-&gt;getPkceCode(), &#39;nonce&#39; =&gt; $nonce];
+    header(&#39;Location: &#39; . $url);
+    exit;
+}
+
+// A volta.
+$ida = $_SESSION[&#39;atos&#39;] ?? null;
+unset($_SESSION[&#39;atos&#39;]);
+if (!$ida || !hash_equals($ida[&#39;state&#39;], $_GET[&#39;state&#39;] ?? &#39;&#39;)) { http_response_code(400); exit(&#39;O state não confere.&#39;); }
+if (($_GET[&#39;error&#39;] ?? &#39;&#39;) === &#39;access_denied&#39;) {
+    http_response_code(403);
+    exit(&#39;Sua Conta Atos não tem acesso a este sistema (ou o acesso não foi permitido). Peça a quem administra.&#39;);
+}
+$atos-&gt;setPkceCode($ida[&#39;pkce&#39;]);
+$token = $atos-&gt;getAccessToken(&#39;authorization_code&#39;, [&#39;code&#39; =&gt; $_GET[&#39;code&#39;]]);
+
+JWT::$leeway = 60;
+$jwks = json_decode(file_get_contents($d[&#39;jwks_uri&#39;]), true);
+$c = JWT::decode($token-&gt;getValues()[&#39;id_token&#39;], JWK::parseKeySet($jwks)); // assinatura pelo kid e exp
+if ($c-&gt;iss !== $issuer || $c-&gt;aud !== $clientId || !hash_equals($ida[&#39;nonce&#39;], $c-&gt;nonce ?? &#39;&#39;)) {
+    http_response_code(400);
+    exit(&#39;O id_token não confere.&#39;);
+}
+session_regenerate_id(true);
+$_SESSION[&#39;pessoa&#39;] = [&#39;id&#39; =&gt; $c-&gt;sub, &#39;nome&#39; =&gt; $c-&gt;name ?? &#39;&#39;, &#39;email&#39; =&gt; $c-&gt;email ?? &#39;&#39;];
+header(&#39;Location: /&#39;);
+</pre></div></div><div class="il-painel" role="tabpanel" id="pg-ling-java" aria-labelledby="pg-ling-java-aba" hidden><p class="il-bib">Biblioteca: <strong>Spring Security OAuth2 Client (Spring Boot 3)</strong></p><p class="il-nota il-nao-testado">Não testado aqui: escrito pela documentação do Spring Security.</p><div class="il-bloco"><div class="il-cab"><span>Instalação</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Instalação em Java">&lt;!-- pom.xml --&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+  &lt;artifactId&gt;spring-boot-starter-oauth2-client&lt;/artifactId&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+  &lt;artifactId&gt;spring-boot-starter-web&lt;/artifactId&gt;
+&lt;/dependency&gt;</pre></div><div class="il-bloco"><div class="il-cab"><span>Código</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Código em Java">// Entrar com Atos em Spring Boot 3 com o Spring Security OAuth2 Client: cliente confidencial, PKCE S256.
+// Não testado aqui: escrito pela documentação do Spring Security.
+//
+// application.yml (a volta é https://seusistema.com.br/login/oauth2/code/atos):
+//
+//   spring.security.oauth2.client:
+//     provider.atos:
+//       issuer-uri: ${ATOS_ISSUER:https://atos.dev.br}
+//       user-name-attribute: sub
+//     registration.atos:
+//       client-id: ${ATOS_CLIENT_ID}
+//       client-secret: ${ATOS_CLIENT_SECRET}
+//       client-authentication-method: client_secret_basic
+//       authorization-grant-type: authorization_code
+//       redirect-uri: &quot;{baseUrl}/login/oauth2/code/{registrationId}&quot;
+//       scope: openid,email,profile
+package br.com.seusistema;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenDecoderFactory;
+import org.springframework.security.oauth2.client.registration.ClientRegistration;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestCustomizers;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
+import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@Configuration
+class SegurancaAtos {
+    @Bean
+    SecurityFilterChain seguranca(HttpSecurity http, ClientRegistrationRepository clientes) throws Exception {
+        var resolver = new DefaultOAuth2AuthorizationRequestResolver(clientes, &quot;/oauth2/authorization&quot;);
+        resolver.setAuthorizationRequestCustomizer(OAuth2AuthorizationRequestCustomizers.withPkce()); // PKCE S256 também no confidencial
+        http.authorizeHttpRequests(a -&gt; a.requestMatchers(&quot;/sem-acesso&quot;).permitAll().anyRequest().authenticated())
+            .oauth2Login(o -&gt; o.authorizationEndpoint(e -&gt; e.authorizationRequestResolver(resolver))
+                .failureUrl(&quot;/sem-acesso&quot;)); // error=access_denied cai aqui
+        return http.build();
+    }
+
+    // A Atos assina o id_token em ES256 (o padrão do Spring é RS256).
+    @Bean
+    JwtDecoderFactory&lt;ClientRegistration&gt; idTokenDecoderFactory() {
+        var f = new OidcIdTokenDecoderFactory();
+        f.setJwsAlgorithmResolver(c -&gt; SignatureAlgorithm.ES256);
+        return f;
+    }
+}
+
+@RestController
+class Inicio {
+    @GetMapping(&quot;/&quot;)
+    String inicio(@AuthenticationPrincipal OidcUser p) {
+        return &quot;Olá, &quot; + p.getFullName() + &quot; (&quot; + p.getEmail() + &quot;). id: &quot; + p.getSubject();
+    }
+
+    @GetMapping(&quot;/sem-acesso&quot;)
+    String semAcesso() {
+        return &quot;Sua Conta Atos não tem acesso a este sistema (ou o acesso não foi permitido). Peça a quem administra.&quot;;
+    }
+}
+</pre></div></div><div class="il-painel" role="tabpanel" id="pg-ling-go" aria-labelledby="pg-ling-go-aba" hidden><p class="il-bib">Biblioteca: <strong>coreos/go-oidc e golang.org/x/oauth2</strong></p><p class="il-nota il-nao-testado">Não testado aqui: escrito pela documentação das bibliotecas.</p><div class="il-bloco"><div class="il-cab"><span>Instalação</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Instalação em Go">go get github.com/coreos/go-oidc/v3/oidc golang.org/x/oauth2</pre></div><div class="il-bloco"><div class="il-cab"><span>Código</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Código em Go">// Entrar com Atos em Go com github.com/coreos/go-oidc/v3 e golang.org/x/oauth2: cliente confidencial, PKCE S256.
+// Não testado aqui: escrito pela documentação das duas bibliotecas.
+package main
+
+import (
+	&quot;context&quot;
+	&quot;crypto/rand&quot;
+	&quot;encoding/base64&quot;
+	&quot;fmt&quot;
+	&quot;log&quot;
+	&quot;net/http&quot;
+	&quot;net/url&quot;
+	&quot;os&quot;
+
+	&quot;github.com/coreos/go-oidc/v3/oidc&quot;
+	&quot;golang.org/x/oauth2&quot;
+)
+
+func aleatorio() string {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func main() {
+	issuer := os.Getenv(&quot;ATOS_ISSUER&quot;)
+	if issuer == &quot;&quot; {
+		issuer = &quot;https://atos.dev.br&quot;
+	}
+	provider, err := oidc.NewProvider(context.Background(), issuer) // lê a descoberta e confere o issuer
+	if err != nil {
+		log.Fatal(err)
+	}
+	conf := oauth2.Config{
+		ClientID:     os.Getenv(&quot;ATOS_CLIENT_ID&quot;),
+		ClientSecret: os.Getenv(&quot;ATOS_CLIENT_SECRET&quot;), // só no servidor, nunca no repositório
+		RedirectURL:  os.Getenv(&quot;ATOS_REDIRECT_URI&quot;),
+		Endpoint:     provider.Endpoint(),
+		Scopes:       []string{oidc.ScopeOpenID, &quot;email&quot;, &quot;profile&quot;},
+	}
+	verificador := provider.Verifier(&amp;oidc.Config{ClientID: conf.ClientID}) // ES256 pela JWKS, iss, aud, exp
+	volta, err := url.Parse(conf.RedirectURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	guardar := func(w http.ResponseWriter, nome, valor string) {
+		http.SetCookie(w, &amp;http.Cookie{Name: nome, Value: valor, Path: &quot;/&quot;, MaxAge: 600, HttpOnly: true,
+			Secure: volta.Scheme == &quot;https&quot;, SameSite: http.SameSiteLaxMode})
+	}
+
+	http.HandleFunc(&quot;/entrar&quot;, func(w http.ResponseWriter, r *http.Request) {
+		state, nonce, verifier := aleatorio(), aleatorio(), oauth2.GenerateVerifier()
+		guardar(w, &quot;atos_state&quot;, state)
+		guardar(w, &quot;atos_nonce&quot;, nonce)
+		guardar(w, &quot;atos_verifier&quot;, verifier)
+		http.Redirect(w, r, conf.AuthCodeURL(state, oidc.Nonce(nonce), oauth2.S256ChallengeOption(verifier)), http.StatusFound)
+	})
+
+	http.HandleFunc(volta.Path, func(w http.ResponseWriter, r *http.Request) {
+		lido := func(nome string) string {
+			c, err := r.Cookie(nome)
+			if err != nil {
+				return &quot;&quot;
+			}
+			return c.Value
+		}
+		q := r.URL.Query()
+		if lido(&quot;atos_state&quot;) == &quot;&quot; || q.Get(&quot;state&quot;) != lido(&quot;atos_state&quot;) {
+			http.Error(w, &quot;O state não confere.&quot;, http.StatusBadRequest)
+			return
+		}
+		if q.Get(&quot;error&quot;) == &quot;access_denied&quot; {
+			http.Error(w, &quot;Sua Conta Atos não tem acesso a este sistema (ou o acesso não foi permitido). Peça a quem administra.&quot;, http.StatusForbidden)
+			return
+		}
+		tok, err := conf.Exchange(r.Context(), q.Get(&quot;code&quot;), oauth2.VerifierOption(lido(&quot;atos_verifier&quot;)))
+		if err != nil {
+			http.Error(w, &quot;A Atos recusou a troca do código.&quot;, http.StatusBadRequest)
+			return
+		}
+		bruto, _ := tok.Extra(&quot;id_token&quot;).(string)
+		idt, err := verificador.Verify(r.Context(), bruto)
+		if err != nil || idt.Nonce != lido(&quot;atos_nonce&quot;) {
+			http.Error(w, &quot;O id_token não confere.&quot;, http.StatusBadRequest)
+			return
+		}
+		var c struct{ Name, Email string }
+		if err := idt.Claims(&amp;c); err != nil {
+			http.Error(w, &quot;id_token ilegível.&quot;, http.StatusBadRequest)
+			return
+		}
+		// Crie aqui a sua sessão, identificando a pessoa por idt.Subject (o sub).
+		w.Header().Set(&quot;Content-Type&quot;, &quot;text/plain; charset=utf-8&quot;)
+		fmt.Fprintf(w, &quot;Olá, %s (%s). id: %s&quot;, c.Name, c.Email, idt.Subject)
+	})
+
+	porta := os.Getenv(&quot;PORT&quot;)
+	if porta == &quot;&quot; {
+		porta = &quot;8080&quot;
+	}
+	log.Fatal(http.ListenAndServe(&quot;:&quot;+porta, nil))
+}
+</pre></div></div><div class="il-painel" role="tabpanel" id="pg-ling-ruby" aria-labelledby="pg-ling-ruby-aba" hidden><p class="il-bib">Biblioteca: <strong>omniauth_openid_connect (Rails)</strong></p><p class="il-nota il-nao-testado">Não testado aqui: escrito pela documentação da gem.</p><div class="il-bloco"><div class="il-cab"><span>Instalação</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Instalação em Ruby">bundle add omniauth_openid_connect omniauth-rails_csrf_protection</pre></div><div class="il-bloco"><div class="il-cab"><span>Código</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Código em Ruby"># Entrar com Atos em Rails com o omniauth_openid_connect: cliente confidencial, PKCE S256.
+# Não testado aqui: escrito pela documentação da gem. A volta é https://seusistema.com.br/auth/atos/callback.
+
+# config/initializers/omniauth.rb
+Rails.application.config.middleware.use OmniAuth::Builder do
+  provider :openid_connect,
+    name: :atos,
+    issuer: ENV.fetch(&quot;ATOS_ISSUER&quot;, &quot;https://atos.dev.br&quot;),
+    discovery: true, # lê a descoberta e a JWKS; confere o id_token (ES256, iss, aud, exp, nonce)
+    scope: [:openid, :email, :profile],
+    response_type: :code,
+    pkce: true,
+    client_auth_method: :basic,
+    client_options: {
+      identifier: ENV.fetch(&quot;ATOS_CLIENT_ID&quot;),
+      secret: ENV.fetch(&quot;ATOS_CLIENT_SECRET&quot;), # só no servidor, nunca no repositório
+      redirect_uri: ENV.fetch(&quot;ATOS_REDIRECT_URI&quot;),
+    }
+end
+OmniAuth.config.on_failure = proc { |env| OmniAuth::FailureEndpoint.new(env).redirect_to_failure }
+
+# config/routes.rb
+#   get &quot;/auth/atos/callback&quot;, to: &quot;sessoes#criar&quot;
+#   get &quot;/auth/failure&quot;, to: &quot;sessoes#falha&quot;
+
+# app/controllers/sessoes_controller.rb
+class SessoesController &lt; ApplicationController
+  def criar
+    auth = request.env[&quot;omniauth.auth&quot;]
+    reset_session
+    session[:pessoa] = { id: auth.uid, nome: auth.info.name, email: auth.info.email } # uid é o sub
+    redirect_to root_path
+  end
+
+  def falha
+    if params[:message] == &quot;access_denied&quot;
+      render plain: &quot;Sua Conta Atos não tem acesso a este sistema (ou o acesso não foi permitido). Peça a quem administra.&quot;, status: :forbidden
+    else
+      render plain: &quot;Não deu para entrar.&quot;, status: :bad_request
+    end
+  end
+end
+
+# O botão (POST, com o token CSRF; gem omniauth-rails_csrf_protection):
+#   &lt;%= button_to &quot;Entrar com Atos&quot;, &quot;/auth/atos&quot;, data: { turbo: false } %&gt;
+</pre></div></div></div>
+<!-- linguagens:fim -->
   </section>
 
   <section id="referencia" aria-labelledby="referencia-titulo">

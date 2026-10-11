@@ -1,6 +1,7 @@
-/* "Como integrar" um sistema ao Entrar com Atos: o cartao com os dados do provedor, o fluxo em 5 passos, um pedido
-   pronto para colar num assistente de codigo (Claude Code etc.) e os comandos (PowerShell e Linux/macOS) que conferem o
-   discovery e abrem o Claude Code com o pedido. O segredo nunca entra no pedido nem nos comandos.
+/* "Como integrar" um sistema ao Entrar com Atos: o cartao com os dados do provedor, o fluxo em 5 passos, o comando que
+   grava o .env (PowerShell e Linux/macOS), o trecho minimo em cada linguagem (integrar-linguagens.js, carregado aqui),
+   um pedido pronto para colar num assistente de codigo (Claude Code etc.) e os comandos que abrem o Claude Code com o
+   pedido. O segredo nunca entra no pedido, no .env gravado nem nos comandos.
 
    Usado pelo painel da equipe (admin-oauth.js, Login Atos) e pela Minha conta (conta-integracoes.js, Integracoes):
 
@@ -10,8 +11,10 @@
        onde:   onde se muda quem pode entrar (ex.: "atos.dev.br/conta/integracoes")
      IntegrarAtos.voltas(acesso) -> [texto]
 
-   Copiar e trocar de aba sao tratados aqui (data-ig="copiar" | "aba"), sem estilo inline (a CSP das paginas e
-   style-src 'self'). O estilo esta em integrar.css, que este arquivo poe na pagina. */
+   Copiar (data-ig="copiar", os dados do topo) e tratado aqui; as abas e o copiar dos blocos (data-il), no
+   integrar-linguagens.js. Sem estilo inline (a CSP das paginas e style-src 'self'). O estilo esta em integrar.css, que
+   este arquivo poe na pagina. window.IntegrarAtos so existe (e o evento "integrar-atos" so sai) depois que o
+   integrar-linguagens.js carregou. */
 (function () {
   "use strict";
   if (window.IntegrarAtos) return;
@@ -86,18 +89,22 @@
     return l.concat(sh ? ["claude \"$(cat <<'PEDIDO'", pedido, "PEDIDO", ")\""] : ["$pedido = @'", pedido, "'@", "claude $pedido"]).join("\n");
   }
 
+  /* A volta que vai no .env: a primeira cadastrada (ou um exemplo, no programa instalado). */
+  function voltaDoEnv(c) {
+    if (c.voltas && c.voltas.length) return c.voltas[0];
+    if (c.loopback) return "http://127.0.0.1:8765/retorno";
+    return c.padrao || "";
+  }
+
   function cartao(c, D, nomeApp, onde) {
+    var L = window.IntegrarLinguagens;
     var conf = c.tipo === "confidencial";
     var pedido = pedidoPara(c, D, nomeApp, onde || "na Atos");
-    textos["pedido:" + c.id] = pedido;
-    textos["ps:" + c.id] = comandos(c, D, pedido, false);
-    textos["sh:" + c.id] = comandos(c, D, pedido, true);
     textos["disc:" + c.id] = D.descoberta;
     textos["id:" + c.id] = c.id;
+    var base = "ig-" + c.id;
+    var v = { emissor: D.emissor, clientId: c.id, volta: voltaDoEnv(c), confidencial: conf };
     var linha = function (rotulo, valor) { return "<dt>" + esc(rotulo) + "</dt><dd><code>" + esc(valor) + "</code></dd>"; };
-    var aba = function (v, rotulo, sel) {
-      return '<button type="button" role="tab" data-ig="aba" data-v="' + v + '" data-id="' + esc(c.id) + '" aria-selected="' + sel + '">' + rotulo + "</button>";
-    };
     return '<div class="ig-cartao" data-ig-cartao="' + esc(c.id) + '">' +
       '<h3 class="titulo-secao ig-h3">Como integrar</h3>' +
       '<dl class="ig-info">' +
@@ -107,7 +114,7 @@
       linha("Autorização", D.autorizacao) + linha("Token", D.token) + linha("Userinfo", D.userinfo) + linha("JWKS", D.jwks) + linha("Revogação", D.revogacao) +
       linha("Escopos", D.escopos.map(function (s) { return s.id; }).join(" ")) +
       "<dt>Autenticação</dt><dd>" + (conf ? "PKCE S256 e o <code>client_secret</code> (client_secret_basic ou client_secret_post), só no servidor" : "PKCE S256, sem segredo (cliente público)") + "</dd>" +
-      "<dt>Volta</dt><dd>" + voltasDe(c).map(function (v) { return "<code>" + esc(v) + "</code>"; }).join("<br>") + "</dd>" +
+      "<dt>Volta</dt><dd>" + voltasDe(c).map(function (x) { return "<code>" + esc(x) + "</code>"; }).join("<br>") + "</dd>" +
       "</dl>" +
       '<ol class="ig-passos">' +
       "<li>O sistema gera <code>code_verifier</code>, <code>state</code> e <code>nonce</code> e abre <code>" + esc(D.autorizacao) + "</code> com o <code>client_id</code>, a volta, os escopos e o <code>code_challenge</code> (S256).</li>" +
@@ -116,14 +123,21 @@
       "<li>O sistema troca o <code>code</code> em <code>" + esc(D.token) + "</code> com o <code>code_verifier</code>" + (conf ? " e o segredo (no servidor)" : "") + ".</li>" +
       "<li>O sistema valida o <code>id_token</code> (ES256 pelo JWKS; <code>iss</code>, <code>aud</code>, <code>exp</code>, <code>nonce</code>) e cria a sessão pelo <code>sub</code>. Os tokens valem " + Math.round(D.token_s / 60) + " minutos; não há refresh_token.</li>" +
       "</ol>" +
-      '<div class="ig-maquina">' +
-      '<div class="ig-maquina-cab"><span>Pedido para um assistente de código</span>' + botaoCopiar("pedido:" + c.id) + "</div>" +
-      '<pre class="ig-pre" data-texto="pedido:' + esc(c.id) + '">' + esc(pedido) + "</pre>" +
-      '<div class="ig-maquina-cab ig-abas" role="tablist" aria-label="Sistema"><span>' + aba("ps", "PowerShell", true) + aba("sh", "Linux e macOS", false) + "</span>" +
-      '<span data-ig-copiar-aba="' + esc(c.id) + '">' + botaoCopiar("ps:" + c.id) + "</span></div>" +
-      '<pre class="ig-pre" role="tabpanel" data-aba="ps" data-texto="ps:' + esc(c.id) + '">' + esc(textos["ps:" + c.id]) + "</pre>" +
-      '<pre class="ig-pre" role="tabpanel" data-aba="sh" data-texto="sh:' + esc(c.id) + '" hidden>' + esc(textos["sh:" + c.id]) + "</pre>" +
-      "</div>" +
+      '<h4 class="ig-h4">1. Grave o .env</h4>' +
+      '<p class="dica">Rode na pasta do seu projeto. O comando lê a descoberta da Atos só para conferir que ela responde e grava no <code>.env</code> <code>ATOS_ISSUER</code>, <code>ATOS_CLIENT_ID</code> e <code>ATOS_REDIRECT_URI</code> (<code>' + esc(v.volta) + "</code>)" +
+      (conf ? ", e a linha <code>ATOS_CLIENT_SECRET=</code> vazia, para você colar o segredo (ele não vai no comando)" : "") +
+      ". Não baixa nem executa nada, mantém as outras linhas, não duplica chaves e avisa se o <code>.env</code> não estiver no <code>.gitignore</code>.</p>" +
+      L.envHtml(v, base + "-env") +
+      '<h4 class="ig-h4">2. Escolha a linguagem</h4>' +
+      '<p class="dica">' + (conf ? "Os exemplos de servidor leem o <code>.env</code>." : "Num acesso público, use o de JavaScript (navegador); os de servidor são para um acesso confidencial e leem o <code>.env</code>.") +
+      " As linguagens marcadas “não testado” foram escritas pela documentação da biblioteca, sem rodar aqui.</p>" +
+      L.linguagensHtml(v, base + "-ling") +
+      '<h4 class="ig-h4">Ou peça a um assistente de código</h4>' +
+      L.blocoHtml("Pedido para um assistente de código", pedido, "Pedido para um assistente de código") +
+      L.abasHtml(base + "-claude", "Sistema", [
+        { id: "ps", rotulo: "PowerShell", html: L.blocoHtml("Comando", comandos(c, D, pedido, false), "Comando para PowerShell") },
+        { id: "sh", rotulo: "Linux e macOS", html: L.blocoHtml("Comando", comandos(c, D, pedido, true), "Comando para Linux e macOS") },
+      ]) +
       '<p class="dica">O comando abre o Claude Code na pasta onde você está, com o pedido acima; nada é baixado nem executado de fora. ' +
       (conf ? "O segredo não está no pedido nem no comando: guarde-o na variável de ambiente <code>ATOS_CLIENT_SECRET</code> do servidor." : "Este acesso é público: não há segredo a guardar.") + "</p>" +
       "</div>";
@@ -139,34 +153,28 @@
       botao.textContent = texto;
       setTimeout(function () { botao.textContent = antes; }, 1800);
     };
-    var planoB = function () {
-      var pre = document.querySelector('[data-texto="' + chave.replace(/"/g, "") + '"]'), ok = false;
-      if (pre && !pre.hidden) {
-        var r = document.createRange(); r.selectNodeContents(pre);
-        var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-        try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
-      }
-      avisar(ok ? "Copiado" : pre ? "Selecionado: Ctrl+C" : "Selecione e copie");
-    };
+    var planoB = function () { avisar("Selecione e copie"); };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { avisar("Copiado"); }, planoB);
     else planoB();
   }
 
   document.addEventListener("click", function (e) {
-    var b = e.target.closest && e.target.closest("[data-ig]");
-    if (!b) return;
-    var a = b.getAttribute("data-ig");
-    if (a === "copiar") { copiar(b.getAttribute("data-chave"), b); return; }
-    if (a === "aba") {
-      var cartaoEl = b.closest("[data-ig-cartao]"), v = b.getAttribute("data-v"), id = b.getAttribute("data-id");
-      if (!cartaoEl) return;
-      cartaoEl.querySelectorAll('[role="tab"]').forEach(function (x) { x.setAttribute("aria-selected", String(x === b)); });
-      cartaoEl.querySelectorAll("pre[data-aba]").forEach(function (x) { x.hidden = x.getAttribute("data-aba") !== v; });
-      var lugar = cartaoEl.querySelector("[data-ig-copiar-aba]");
-      if (lugar) lugar.innerHTML = botaoCopiar(v + ":" + id);
-    }
+    var b = e.target.closest && e.target.closest('[data-ig="copiar"]');
+    if (b) copiar(b.getAttribute("data-chave"), b);
   });
 
-  window.IntegrarAtos = { cartao: cartao, voltas: voltasDe, pedido: pedidoPara };
-  document.dispatchEvent(new Event("integrar-atos"));
+  // Os trechos de cada linguagem e as abas (integrar-linguagens.js): o cartao so fica pronto depois deles.
+  function pronto() {
+    if (window.IntegrarAtos) return;
+    window.IntegrarAtos = { cartao: cartao, voltas: voltasDe, pedido: pedidoPara };
+    document.dispatchEvent(new Event("integrar-atos"));
+  }
+  if (window.IntegrarLinguagens) { pronto(); return; }
+  var js = document.querySelector('script[src="/assets/integrar-linguagens.js"]');
+  if (!js) {
+    js = document.createElement("script");
+    js.src = "/assets/integrar-linguagens.js";
+    document.head.appendChild(js);
+  }
+  js.addEventListener("load", pronto);
 })();

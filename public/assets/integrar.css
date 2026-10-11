@@ -10,20 +10,41 @@
 .ig-info dd .btn { margin-left: 6px; vertical-align: middle; }
 .ig-cartao code, .ig-app code, .ig-modal code { font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
 .ig-passos { margin: 12px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-soft); }
-.ig-maquina { margin: 12px 0 8px; background: var(--bg); border: 1px solid var(--line); }
-.ig-maquina-cab { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 .ig-pre {
   margin: 0; padding: 12px; max-height: 340px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border-bottom: 1px solid var(--line);
   font: 12px/1.6 ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace; color: var(--text-soft); user-select: text;
 }
-.ig-pre:last-child { border-bottom: 0; }
-.ig-pre[hidden] { display: none; }
 .ig-segredo { font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--line); }
-.ig-abas span { display: inline-flex; gap: 0; }
-.ig-abas button[role="tab"] { height: 28px; padding: 0 12px; background: transparent; border: 1px solid var(--line); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
-.ig-abas button[role="tab"] + button[role="tab"] { border-left: 0; }
-.ig-abas button[role="tab"][aria-selected="true"] { background: var(--line); color: var(--text); }
 .ig-cartao > .dica { display: block; margin-top: 10px; }
+.ig-h4 { margin: 18px 0 6px; font-size: 13px; font-weight: 600; color: var(--text); }
+
+/* ---------------------------------------------------------------- as abas e os blocos (integrar-linguagens.js; tambem na /integracao/) */
+.il { margin: 10px 0 4px; border: 1px solid var(--line); background: var(--bg); min-width: 0; }
+.il-abas { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.il-abas button[role="tab"] {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 12px; background: transparent; border: 0; border-right: 1px solid var(--line);
+  color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
+}
+.il-abas button[role="tab"]:hover { color: var(--text); }
+.il-abas button[role="tab"][aria-selected="true"] { background: var(--bg); color: var(--text); box-shadow: inset 0 -2px 0 var(--text); }
+.il-abas button[role="tab"]:focus-visible { outline: 2px solid var(--text-soft); outline-offset: -2px; }
+.il-marca { font-size: 10px; letter-spacing: .02em; color: var(--warning); border: 1px solid #4a3d28; padding: 0 4px; line-height: 16px; }
+.il-painel { padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.il-painel[hidden] { display: none; }
+.il-bib { margin: 0; font-size: 13px; color: var(--text-soft); }
+.il-bib strong { color: var(--text); font-weight: 600; }
+.il-nota { margin: 0; padding: 8px 10px; font-size: 12px; line-height: 1.5; border: 1px solid var(--line); background: var(--surface-2); }
+.il-nota.il-testado { color: var(--success); border-color: var(--success-line); }
+.il-nota.il-nao-testado { color: var(--warning); border-color: #4a3d28; }
+.il-bloco { border: 1px solid var(--line); min-width: 0; }
+.il-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); background: var(--surface-2); }
+.il-pre {
+  margin: 0; padding: 12px; max-height: 420px; overflow: auto; white-space: pre; tab-size: 4;
+  font: 12px/1.6 ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace; color: var(--text-soft); user-select: text;
+}
+.il-pre:focus-visible { outline: 2px solid var(--text-soft); outline-offset: -2px; }
+.il > .il-painel > .il-bloco + .il-bloco { margin-top: 0; }
+.ig-cartao > .il-bloco { margin: 10px 0 0; background: var(--bg); }
 
 /* ---------------------------------------------------------------- a tela Integracoes */
 .secao h2.titulo-secao.ig-h, .ig-bloco h3.ig-h { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
@@ -82,3 +103,4 @@
   .ig-info { grid-template-columns: 1fr; gap: 2px; }
   .ig-info dd { margin-bottom: 6px; }
 }
+.ig-cartao > .il-bloco .il-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
