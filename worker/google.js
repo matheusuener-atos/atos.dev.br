@@ -27,7 +27,7 @@
 // verificado.
 
 import { EMISSOR, aleatorio, b64url, deB64url, kv, normal, sha256 } from "./comum.js";
-import { abrirSessao } from "./contas.js";
+import { abrirSessao, equipeNoTeste } from "./contas.js";
 import { exigeSegunda, iniciarEtapa } from "./seguranca/etapa.js";
 
 const AUTORIZAR = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -109,6 +109,8 @@ export async function atenderGoogle(request, env, url, deps = {}) {
   if (!valido) return ir(aEntrar(p.consulta, "o Google não confirmou a entrada: tente de novo"));
 
   const email = normal(info.email);
+  // O Worker de teste so aceita a equipe (contas.js, equipeNoTeste): antes de criar ou mexer em qualquer conta.
+  if (!(await equipeNoTeste(env, email))) return ir(aEntrar(p.consulta, "o ambiente de teste da Atos aceita só a equipe"));
   const gsub = String(info.sub);
   const nome = String(info.name || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 80);
   let conta = await kv(env, "id:conta:" + email);

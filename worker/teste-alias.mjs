@@ -65,7 +65,9 @@ function novoEnv(extra = {}) {
 }
 const env = novoEnv();
 // O Worker de teste: a Cloudflare simulada (o e-mail Atos ligado sem token) e os proprios objetos.
-const envT = novoEnv({ AMBIENTE: "teste", EMAIL_CF_SIMULADA: "1" });
+// O Worker de teste so aceita a equipe (contas.js, equipeNoTeste): a Lia e o Pedro estao na equipe do teste.
+const envT = novoEnv({ AMBIENTE: "teste", EMAIL_CF_SIMULADA: "1", ATOS_EQUIPE: JSON.stringify([{ email: "dono@atos.dev.br", nome: "Dono", papel: "dono" },
+  { email: "lia@outlook.com", nome: "Lia", papel: "suporte", areas: ["atos"] }, { email: "pedro@gmail.com", nome: "Pedro", papel: "suporte", areas: ["atos"] }]) });
 const A = "https://atos.dev.br";
 const VERSAO = PRODUTOS.workspace.termos.versao;
 
@@ -360,6 +362,17 @@ checar(t && t.dono === "pedro@gmail.com" && t.dono_sub === pedro.sub && t.dono_a
 console.log("o Worker de teste (a Cloudflare simulada)");
 const GT = (c, k) => GET(c, k, envT);
 const PT = (c, corpo, k) => chamar(c, { corpo, cookie: k, e: envT });
+// So a equipe entra no Worker de teste (as contas sao as da producao, sem a segunda etapa dela).
+{
+  const fora = await criarConta("fora.da.equipe@outlook.com", SENHA, "Fora");
+  checar(Boolean(fora.cookie), "(uma conta de fora da equipe existe na producao)");
+  for (const [rota, corpo] of [["/api/entrar", { email: "fora.da.equipe@outlook.com", senha: SENHA }], ["/api/entrar", { email: "fora.da.equipe@outlook.com", senha: "errada-de-proposito" }],
+    ["/api/entrar", { email: "ninguem@outlook.com", senha: SENHA }], ["/api/cadastrar", { email: "novo@outlook.com", senha: SENHA }],
+    ["/api/esqueci", { email: "fora.da.equipe@outlook.com" }], ["/api/entrar", { email: "pedro.silva@atos.dev.br", senha: SENHA }]]) {
+    const x = await PT(rota, corpo);
+    checar(x.status === 403 && x.d.codigo === "so_equipe" && !x.r.headers.get("set-cookie"), "teste: " + rota + " " + corpo.email + " (fora da equipe) -> 403 so_equipe, sem sessao", { status: x.status, d: x.d });
+  }
+}
 r = await PT("/api/entrar", { email: "lia@outlook.com", senha: SENHA });
 const liaT = cookieDe(r);
 r = await PT("/api/workspace/ativar", { aceito: true, versao: VERSAO }, liaT);

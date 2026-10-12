@@ -57,6 +57,7 @@ import { DOMINIO, aliasDoTexto, aliasParaEntrar } from "./email-atos.js";
 import { AMR, exigeSegunda, iniciarEtapa, respostaDaEtapa } from "./seguranca/etapa.js";
 import { anotar, indexarSessao } from "./seguranca/atividade.js";
 import { avisar } from "./seguranca/avisos.js";
+import { listaDaEquipe } from "./admin.js";
 
 const ITERACOES = 30000;
 const MIN_SENHA = 10;
@@ -126,6 +127,9 @@ export const campoSessoesDesde = (env) => (env && env.AMBIENTE === "teste" ? "se
 /* Abre a sessao de `conta` ({sub, email: o principal, alias?: quando entrou pelo endereco Atos}). `info`: {como, amr,
    mfa, segunda (o metodo da segunda etapa), request (o lugar e o navegador do registro de acessos)}. */
 export async function abrirSessao(env, conta, agora, info = {}) {
+  // O Worker de teste usa as mesmas contas da producao, sem a segunda etapa dela: so a equipe entra la (qualquer
+  // caminho - senha, alias, Google, chave de acesso, redefinir - passa por aqui).
+  if (!(await equipeNoTeste(env, conta.email))) throw new Error("o ambiente de teste aceita só a equipe da Atos");
   const segredo = aleatorio(32);
   const auth_time = Math.floor(agora / 1000);
   const como = info.como || (conta.alias ? "alias" : "senha");
@@ -139,6 +143,15 @@ export async function abrirSessao(env, conta, agora, info = {}) {
   await anotar(env, conta.sub, { tipo: "entrada", como, ...(info.segunda ? { segunda: info.segunda } : {}) }, agora, info.request);
   return COOKIE + "=" + segredo + "; Path=/; Max-Age=" + SESSAO_S + "; HttpOnly; Secure; SameSite=Lax";
 }
+
+/* No Worker de teste (AMBIENTE "teste"), so a equipe dele (worker/admin.js, listaDaEquipe: atos-teste:admin:equipe ou a
+   semente ATOS_EQUIPE do env.teste). Fora do teste, sempre true. */
+export async function equipeNoTeste(env, email) {
+  if (!env || env.AMBIENTE !== "teste") return true;
+  const e = normal(email);
+  return (await listaDaEquipe(env)).some((x) => x.email === e);
+}
+const SO_EQUIPE = () => json({ erro: "o ambiente de teste da Atos aceita só a equipe", codigo: "so_equipe" }, 403);
 
 /* Entra (abre a sessao) ou, se a conta tem a segunda etapa, comeca a etapa. `corpo`: a resposta de quem entrou. */
 async function entrarOuEtapa(env, request, agora, conta, como, corpo) {
@@ -224,6 +237,16 @@ export async function atenderConta(request, env, url, deps = {}) {
   if (deps.dentroDoLimite && !(await deps.dentroDoLimite(request, env))) return json({ erro: "muitas tentativas seguidas - espere um minuto" }, 429);
   const d = await lerJson(request);
   if (!d) return json({ erro: "pedido inválido" }, 400);
+  // O Worker de teste: entrar, criar conta e trocar a senha so para a equipe, antes de olhar senha ou conta (a mesma
+  // resposta para qualquer e-mail de fora - nada se aprende sobre as contas por aqui). O alias (@atos.dev.br de alguem)
+  // nao entra no teste: a equipe usa o e-mail da conta.
+  // O alias (@atos.dev.br de alguem) so se sabe de quem e depois de procurar: em entrar, esqueci e redefinir, a
+  // conferencia e logo depois de achar a conta (antes da senha ou do codigo).
+  const ehDominioAtos = normal(d.email).endsWith("@" + DOMINIO);
+  if (["/api/entrar", "/api/cadastrar", "/api/confirmar", "/api/esqueci", "/api/redefinir"].includes(p) && !(await equipeNoTeste(env, d.email))
+    && !(["/api/entrar", "/api/esqueci", "/api/redefinir"].includes(p) && ehDominioAtos)) {
+    return SO_EQUIPE();
+  }
 
   // O nome da conta (Minha conta > Resumo > Editar): so o de quem esta dentro.
   if (p === "/api/nome") {
@@ -252,6 +275,8 @@ export async function atenderConta(request, env, url, deps = {}) {
     // suspenso responde o mesmo que a senha errada, com o mesmo limite de tentativas.
     let q;
     try { q = await quemDigitou(env, email, soAlias); } catch { return SEM_REGISTRO(); }
+    // O Worker de teste: o alias de quem nao e da equipe recebe a mesma recusa, antes de conferir a senha.
+    if (!(await equipeNoTeste(env, q.email || email))) return SO_EQUIPE();
     if (await bloqueado(env, email, q.peloAlias && q.alias)) return json({ erro: BLOQUEADO }, 429);
     // Conta so com o Google (sem senha) nao entra por senha: "Esqueci a senha" cria uma.
     const c = q.conta && q.conta.hash ? q.conta : null;
@@ -326,6 +351,7 @@ export async function atenderConta(request, env, url, deps = {}) {
     // estar desligado ou apontando para outro lugar); a resposta diz para onde, mascarado.
     let q;
     try { q = await quemDigitou(env, email, soAlias); } catch { return SEM_REGISTRO(); }
+    if (!(await equipeNoTeste(env, q.email || email))) return SO_EQUIPE();
     const destino = q.email;
     const c = q.conta;
     const google = c || q.peloAlias ? null : await kv(env, "id:google:" + destino);
@@ -347,6 +373,7 @@ export async function atenderConta(request, env, url, deps = {}) {
     if (falha) return json({ erro: falha }, 400);
     let q;
     try { q = await quemDigitou(env, email, soAlias); } catch { return SEM_REGISTRO(); }
+    if (!(await equipeNoTeste(env, q.email || email))) return SO_EQUIPE();
     const alvo = q.email;
     const k = q.peloAlias && q.alias;
     if (await bloqueado(env, email, k)) return json({ erro: BLOQUEADO }, 429);

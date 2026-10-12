@@ -141,7 +141,7 @@
         // O comprador de teste da conta (MLB, id 3701347744): o pagador de todo pagamento daqui.
         "MP_PAGADOR_TESTE": "test_user_4004064182913175927@testuser.com",
         // A equipe do painel de TESTE (veja a nota acima): as tres Contas Atos do dono, papel dono.
-        "ATOS_EQUIPE": "[{\"email\":\"matheusueners@hotmail.com\",\"nome\":\"Matheus\",\"papel\":\"dono\"},{\"email\":\"matheusuener.atos@gmail.com\",\"nome\":\"Matheus\",\"papel\":\"dono\"},{\"email\":\"arcaderetrorama@gmail.com\",\"nome\":\"Matheus\",\"papel\":\"dono\"}]"
+        "ATOS_EQUIPE": "[{\"email\":\"master@atos.dev.br\",\"nome\":\"Matheus\",\"papel\":\"dono\"},{\"email\":\"matheusueners@hotmail.com\",\"nome\":\"Matheus\",\"papel\":\"dono\"},{\"email\":\"matheusuener.atos@gmail.com\",\"nome\":\"Matheus\",\"papel\":\"dono\"},{\"email\":\"arcaderetrorama@gmail.com\",\"nome\":\"Matheus\",\"papel\":\"dono\"}]"
       }
     }
   }

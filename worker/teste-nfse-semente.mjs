@@ -292,8 +292,8 @@ console.log("9. a equipe do painel de teste (wrangler.jsonc)");
   }
   const w = JSON.parse(limpo.replace(/,(\s*[}\]])/g, "$1"));
   const eq = equipe({ ATOS_EQUIPE: w.env.teste.vars.ATOS_EQUIPE });
-  checar(eq.length === 3 && eq.every((x) => x.papel === "dono") && eq.map((x) => x.email).sort().join() === "arcaderetrorama@gmail.com,matheusuener.atos@gmail.com,matheusueners@hotmail.com",
-    "env.teste: ATOS_EQUIPE com as três Contas Atos do dono, papel dono", eq);
+  checar(eq.length === 4 && eq.every((x) => x.papel === "dono") && eq.map((x) => x.email).sort().join() === "arcaderetrorama@gmail.com,master@atos.dev.br,matheusuener.atos@gmail.com,matheusueners@hotmail.com",
+    "env.teste: ATOS_EQUIPE com as quatro Contas Atos do dono (master e as pessoais), papel dono", eq);
   checar(!("ATOS_EQUIPE" in (w.vars || {})) && w.env.teste.vars.AMBIENTE === "teste" && !("AMBIENTE" in (w.vars || {})),
     "a produção não recebe ATOS_EQUIPE nem AMBIENTE pelo wrangler.jsonc");
   checar(!w.env.teste.services, "o teste continua sem o SEFIN_MTLS (por isso, a Sefin simulada)");
