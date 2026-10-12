@@ -89,6 +89,9 @@
     var a = x.assinatura, dir = x.direito || {};
     var ate = dir.ate && Date.parse(dir.ate) > Date.now() ? dir.ate : null;
     var mes = a ? centavos(a.centavos) + "/mês" : "";
+    // A concedida pela equipe da Atos: R$ 0,00 por mes, sem cartao; renova sozinha ate ser cancelada.
+    if (a && a.concedida && a.status === "authorized") return { sit: "ativa", linha: centavos(0) + "/mês" + (a.proxima ? " · renova em " + data(a.proxima) : ""), forma: "Concedida pela equipe da Atos, sem cobrança", viva: a, concedida: true };
+    if (a && a.concedida && ate) return { sit: "cancelada", linha: "Assinatura concedida encerrada · vale até " + data(ate), forma: "Concedida pela equipe da Atos (encerrada)" };
     if (a && a.status === "authorized") return { sit: "ativa", linha: (a.proxima ? "Próxima cobrança em " + data(a.proxima) + " · " : "") + mes, forma: "Cartão, todo mês", viva: a };
     if (a && a.status === "pending") return { sit: "pendente", linha: "Esperando o Mercado Pago confirmar o cartão", forma: "Cartão, todo mês", viva: a };
     if (a && a.status === "paused") return { sit: "pausada", linha: "Pausada: nada é cobrado" + (ate ? " · pago até " + data(ate) : ""), forma: "Cartão, todo mês", viva: a };
@@ -146,13 +149,13 @@
     if (S.confirmar && S.confirmar === id) {
       var dir = x.direito || {};
       h += '<div class="confirmar" role="alertdialog" aria-label="Cancelar a assinatura">' +
-        "<p>Cancelar a assinatura do " + esc(x.nome) + "? O Mercado Pago para de cobrar o cartão" +
-        (dir.ate && Date.parse(dir.ate) > Date.now() ? ", e o que já foi pago vale até " + data(dir.ate) + "." : ".") + "</p>" +
+        "<p>Cancelar a assinatura do " + esc(x.nome) + "? " + (s.concedida ? "Ela foi concedida pela equipe da Atos, sem cobrança, e deixa de renovar" : "O Mercado Pago para de cobrar o cartão") +
+        (dir.ate && Date.parse(dir.ate) > Date.now() ? (s.concedida ? ", e o mês concedido vale até " : ", e o que já foi pago vale até ") + data(dir.ate) + "." : ".") + "</p>" +
         '<div class="botoes"><button type="button" class="btn p perigo" data-acao="cancelar-sim" data-id="' + esc(id) + '"' + (ocupado ? " disabled" : "") + ">" +
         (ocupado ? "Cancelando…" : "Cancelar a assinatura") + '</button><button type="button" class="btn p" data-acao="cancelar-nao">Voltar</button></div></div>';
     } else {
       h += '<div class="botoes">';
-      if (s.viva && s.viva.status === "authorized") h += '<button type="button" class="btn p" data-acao="pausar" data-id="' + esc(id) + '"' + (ocupado ? " disabled" : "") + ">Pausar</button>";
+      if (s.viva && s.viva.status === "authorized" && !s.concedida) h += '<button type="button" class="btn p" data-acao="pausar" data-id="' + esc(id) + '"' + (ocupado ? " disabled" : "") + ">Pausar</button>";
       if (s.viva && s.viva.status === "paused") h += '<button type="button" class="btn p" data-acao="reativar" data-id="' + esc(id) + '"' + (ocupado ? " disabled" : "") + ">Reativar</button>";
       if (s.renovar && x.plano) {
         var periodo = (x.direito || {}).periodo === "ano" ? "ano" : "mes";
@@ -364,7 +367,7 @@
   function carteira() {
     var h = titulo("Carteira", "O cartão usado nas assinaturas.");
     if (esperandoAtos()) return h + h2("Cartão") + esperandoAtos();
-    var vivas = S.atos.produtos.filter(function (x) { var a = x.assinatura; return a && ["authorized", "paused", "pending"].indexOf(a.status) >= 0; });
+    var vivas = S.atos.produtos.filter(function (x) { var a = x.assinatura; return a && !a.concedida && ["authorized", "paused", "pending"].indexOf(a.status) >= 0; });
     if (!vivas.length) return h + h2("Cartão") + vazio("Nenhuma assinatura no cartão. Os pagamentos de uma vez (o ano, o mês no Pix) não deixam cartão guardado.");
     h += h2("Cartão") + '<div class="card">' + vivas.map(function (x) {
       var b = bandeira(x.assinatura.bandeira);

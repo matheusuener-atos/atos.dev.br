@@ -425,6 +425,113 @@ console.log("o mes da Atos e o do produto");
     "31/01 mais um mes e 28/02 (29 no bissexto); o dia que existe fica");
 }
 
+console.log("a assinatura concedida pela equipe (R$ 0,00/mes)");
+{
+  const { concederAssinatura, encerrarAssinaturaConcedida, cobrancaDaConta, planosParaConceder } = await import("./api.js");
+  const ck = await contaComSessao("concedida@x.com", "pv-conc");
+  const cidC = await idDoCliente("pv-conc");
+  const comoConc = async (caminho, metodo = "GET", corpo) => {
+    const x = await worker.fetch(new Request(A + caminho, { method: metodo, headers: { cookie: ck, origin: A, ...(corpo ? { "content-type": "application/json" } : {}) },
+      body: corpo ? JSON.stringify(corpo) : undefined }), env, { waitUntil() {} });
+    return { status: x.status, d: await x.json() };
+  };
+  const planos = await planosParaConceder(env);
+  const pvp = planos.find((x) => x.produto === "pavlvs");
+  checar(pvp && pvp.planos.map((x) => x.plano).join(",") === "advogado,escritorio,plus", "os planos que a equipe pode conceder: os mensais do PAVLVS", planos);
+  const pedidosAntes = mp.pedidos.length;
+  const filaAntes = [...kv.keys()].filter((k) => k.startsWith("atos:nfse:pag:")).length;
+  let g = await concederAssinatura(env, { sub: "pv-conc", email: "concedida@x.com", produto: "pavlvs", plano: "plus", por: "dono@atos.dev.br", motivo: "conta da casa" });
+  const umMesC = g.direito && (Date.parse(g.direito.ate) - Date.now()) / 86400000;
+  checar(g.status === 200 && g.assinatura.status === "authorized" && g.assinatura.centavos === 0 && g.assinatura.forma === "concedida" && g.assinatura.concedida
+    && g.assinatura.preco === "pavlvs.plus.mes" && g.direito.plano === "plus" && umMesC > 27 && umMesC < 32 && g.assinatura.proxima === g.direito.ate,
+    "conceder: authorized, R$ 0, o plano plus, em dia por um mes, renova no fim dele", g);
+  checar(mp.pedidos.length === pedidosAntes, "nada vai ao Mercado Pago", mp.pedidos.slice(pedidosAntes).map((x) => x.url));
+  checar([...kv.keys()].filter((k) => k.startsWith("atos:nfse:pag:")).length === filaAntes, "e nada entra na fila da NFS-e (nada foi pago)");
+  const conta = (await comoConc("/api/cobranca/v1/conta")).d;
+  const pvc = conta.produtos.find((x) => x.produto === "pavlvs");
+  checar(pvc && pvc.plano === "plus" && pvc.plano_nome === "Escritório Plus" && pvc.assinatura.status === "authorized" && pvc.assinatura.centavos === 0 && pvc.assinatura.concedida
+    && pvc.direito.pago_por === "concedida" && conta.faturas.length === 0,
+    "a Minha conta (aba Assinaturas): o PAVLVS Escritorio Plus ativo, R$ 0, concedido, e nenhuma fatura", { pvc, faturas: conta.faturas });
+  // O evento para o produto: o direito.atualizado, como de uma assinatura paga, com o plano e o pago ate.
+  const objC = objetos.get(cidC);
+  produto.recebidos.length = 0;
+  await objC.alarm();
+  let evC = produto.recebidos.map((x) => JSON.parse(x.corpo));
+  const d1 = evC.find((e) => e.tipo === "direito.atualizado");
+  checar(evC.length === 1 && d1 && d1.conta.sub === "pv-conc" && d1.conta.email === "concedida@x.com" && d1.dados.plano === "plus" && d1.dados.ate === g.direito.ate
+    && d1.dados.pago_por === "concedida" && d1.dados.periodo === "mes" && d1.dados.assinatura.status === "authorized" && d1.dados.assinatura.concedida === true && d1.dados.assinatura.centavos === 0
+    && d1.dados.metadados.tokens_por_ciclo === 40000000,
+    "o PAVLVS recebe um direito.atualizado: o plano plus, o pago ate, a assinatura authorized concedida (R$ 0)", evC);
+  checar(objC.ctx.storage.alarme && Math.abs(objC.ctx.storage.alarme - (Date.parse(g.direito.ate) - 86400000)) < 1000, "o alarme fica marcado para um dia antes do vencimento", objC.ctx.storage.alarme);
+  // Nunca duas: outra concedida, e o checkout pago por cima dela.
+  g = await concederAssinatura(env, { sub: "pv-conc", email: "concedida@x.com", produto: "pavlvs", plano: "plus", por: "dono@atos.dev.br", motivo: "de novo" });
+  checar(g.status === 409 && g.codigo === "ja_concedida", "conceder de novo com a concedida viva: 409 ja_concedida", g);
+  await comoConc("/api/cobranca/v1/cliente", "POST", PERFIL);
+  let rc = await comoConc("/api/cobranca/v1/assinar", "POST", { preco: "pavlvs.plus.mes", token: "tok".repeat(8) });
+  checar(rc.status === 409 && rc.d.codigo === "ja_assina", "com a concedida viva, o checkout recusa a assinatura paga (ja_assina)", rc.d);
+  rc = await comoConc("/api/cobranca/v1/pagar", "POST", { preco: "pavlvs.plus.ano", forma: "pix" });
+  checar(rc.status === 409 && rc.d.codigo === "ja_assina", "e o ano a parte tambem", rc.d);
+  // Renova sozinha: o relogio passa do dia antes do vencimento, o alarme estende mais um mes, sem cobrar.
+  const agoraReal2 = Date.now;
+  const venc = Date.parse(pvc.direito.ate);
+  Date.now = () => venc - 3600000;
+  produto.recebidos.length = 0;
+  const doMP = () => mp.pedidos.filter((x) => x.url.includes("mercadopago")).length;
+  const pedidos2 = doMP();
+  await objC.alarm();
+  Date.now = agoraReal2;
+  let c2 = await cobrancaDaConta(env, "pv-conc");
+  const dirC = c2.direitos.find((x) => x.produto === "pavlvs");
+  const a2 = c2.assinaturas[0];
+  evC = produto.recebidos.map((x) => JSON.parse(x.corpo));
+  checar(new Date(dirC.ate).toISOString().slice(0, 10) === new Date(maisUmMes(venc)).toISOString().slice(0, 10) && a2.proxima === dirC.ate && a2.concedida.renovacoes === 2 && a2.status === "authorized"
+    && doMP() === pedidos2 && evC.length === 1 && evC[0].dados.ate === dirC.ate && evC[0].dados.plano === "plus",
+    "renova: mais um mes (o mesmo maisUmMes), sem Mercado Pago, e o PAVLVS recebe o novo pago ate", { dirC, a2, evC });
+  await objC.alarm();
+  c2 = await cobrancaDaConta(env, "pv-conc");
+  checar(c2.assinaturas[0].concedida.renovacoes === 2, "o alarme de novo antes do tempo: nao renova outra vez", c2.assinaturas[0]);
+  // Pausar nao existe na concedida; cancelar, pela propria pessoa, sim.
+  rc = await comoConc("/api/subscriptions/" + a2.id + "/pause", "POST", {});
+  checar(rc.status === 409 && rc.d.codigo === "concedida", "pausar a concedida: 409 (nada e cobrado)", rc.d);
+  rc = await comoConc("/api/subscriptions/" + a2.id);
+  checar(rc.status === 200 && rc.d.status === "authorized" && rc.d.centavos === 0, "GET /api/subscriptions/:id da concedida, sem ir ao Mercado Pago", rc.d);
+  // Encerrar pela equipe.
+  const outroSub = await encerrarAssinaturaConcedida(env, { sub: "pv-dona", ref: a2.id, por: "dono@atos.dev.br", motivo: "x" });
+  checar(outroSub.status === 404, "encerrar com o sub de outra conta: 404", outroSub);
+  produto.recebidos.length = 0;
+  let e = await encerrarAssinaturaConcedida(env, { sub: "pv-conc", ref: a2.id, por: "dono@atos.dev.br", motivo: "fim da cortesia" });
+  await objC.alarm();
+  evC = produto.recebidos.map((x) => JSON.parse(x.corpo));
+  checar(e.status === 200 && e.assinatura.status === "canceled" && e.assinatura.proxima === null && evC.length === 1 && evC[0].dados.assinatura.status === "canceled" && evC[0].dados.ate === dirC.ate,
+    "encerrar: canceled, para de renovar, o mes concedido vale ate o fim e o PAVLVS fica sabendo", { e, evC });
+  e = await encerrarAssinaturaConcedida(env, { sub: "pv-conc", ref: a2.id, por: "dono@atos.dev.br", motivo: "de novo" });
+  checar(e.status === 200 && e.repetido, "encerrar de novo: nada muda", e);
+  Date.now = () => Date.parse(dirC.ate) + 86400000;
+  await objC.alarm();
+  Date.now = agoraReal2;
+  c2 = await cobrancaDaConta(env, "pv-conc");
+  checar(c2.direitos.find((x) => x.produto === "pavlvs").ate === dirC.ate && c2.assinaturas[0].concedida.renovacoes === 2, "encerrada, nao renova mais", c2);
+  const contaFim = (await comoConc("/api/cobranca/v1/conta")).d.produtos.find((x) => x.produto === "pavlvs");
+  checar(contaFim.assinatura.status === "canceled" && contaFim.assinatura.concedida, "a Minha conta mostra a concedida cancelada", contaFim);
+  // Concedida de novo (depois de encerrada) e cancelada pela propria pessoa, como a paga.
+  g = await concederAssinatura(env, { sub: "pv-conc", email: "concedida@x.com", produto: "pavlvs", plano: "plus", por: "dono@atos.dev.br", motivo: "de volta" });
+  checar(g.status === 200, "depois de encerrada, pode conceder de novo (o mes soma ao que ainda vale)", g);
+  rc = await comoConc("/api/subscriptions/" + g.assinatura.id + "/cancel", "POST", {});
+  checar(rc.status === 200 && rc.d.status === "canceled", "a propria pessoa cancela a concedida em Minha conta › Assinaturas", rc.d);
+  // As recusas: assinatura paga viva (a dona assinou no cartao e reativou), plano ou produto que nao existe.
+  g = await concederAssinatura(env, { sub: "pv-dona", email: "dona@escritorio.adv.br", produto: "pavlvs", plano: "plus", por: "dono@atos.dev.br", motivo: "teste" });
+  checar(g.status === 409 && g.codigo === "ja_assina" && /paga viva/.test(g.erro), "com assinatura paga viva no produto: 409 ja_assina, dizendo por que", g);
+  g = await concederAssinatura(env, { sub: "pv-outro", email: "outro@x.com", produto: "pavlvs", plano: "gratis", por: "dono@atos.dev.br", motivo: "teste" });
+  checar(g.status === 400, "plano que nao existe: 400", g);
+  g = await concederAssinatura(env, { sub: "pv-outro", email: "outro@x.com", produto: "nada", plano: "plus", por: "dono@atos.dev.br", motivo: "teste" });
+  checar(g.status === 404, "produto que nao existe: 404", g);
+  g = await concederAssinatura({ ...env, PRODUTOS_ABERTOS: "" }, { sub: "pv-outro", email: "outro@x.com", produto: "pavlvs", plano: "plus", por: "dono@atos.dev.br", motivo: "teste" });
+  checar(g.status === 409 && g.codigo === "produto_fechado", "produto que nao vende pela Atos: 409", g);
+  // Com o ano pago em outro plano (a nova@: advogado), conceder o plus seria trocar de plano no meio: recusado.
+  g = await concederAssinatura(env, { sub: "pv-nova", email: "nova@x.com", produto: "pavlvs", plano: "plus", por: "dono@atos.dev.br", motivo: "teste" });
+  checar(g.status === 409 && g.codigo === "troca_de_plano", "com o periodo pago em outro plano: 409 troca_de_plano", g);
+}
+
 console.log("o Worker de teste (wrangler --env teste)");
 {
   const T = "https://atos-teste.conta1.workers.dev";

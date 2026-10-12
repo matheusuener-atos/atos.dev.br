@@ -6,7 +6,9 @@
 // Chaves no storage do objeto:
 //   dono                {sub, email} da Conta Atos (os eventos dizem de quem e)
 //   perfil              {tipo: "pf"|"pj", documento, nome, email, endereco{...}, atualizado}
-//   assinatura:<ref>    uma assinatura (a mensalidade no cartao) - ref e o external_reference
+//   assinatura:<ref>    uma assinatura (a mensalidade no cartao) - ref e o external_reference; ou a concedida pela
+//                       equipe (`concedida: {por, quando, motivo}`, forma "concedida", centavos 0, sem mp_id): ops
+//                       conceder e encerrar_concedida; renova pelo alarme (renovarConcedidas), sem cobrar
 //   compra:<ref>        uma compra (o ano, o mes no Pix, a recarga)
 //   cobranca:<ref>      uma cobranca mensal da assinatura (o authorized_payment), para o Faturamento
 //   direito:<produto>   ate quando o produto esta pago, o plano, o periodo que pagou, os creditos e a `versao`;
@@ -23,6 +25,8 @@ import { PRODUTOS } from "./catalogo.js";
 
 const PREFIXOS = { assinatura: "assinatura:", compra: "compra:", cobranca: "cobranca:" };
 const VIVAS = ["authorized", "pending", "paused"];
+// A assinatura concedida renova um dia antes do vencimento: o produto nunca ve o direito vencido entre um mes e outro.
+const RENOVA_ANTES_MS = 24 * 3600 * 1000;
 
 /* Um mes depois, no mesmo dia, ou no ultimo do mes se ele nao tiver o dia (31/01 -> 28/02), e um mes de
    cada vez (o ano sao doze): a mesma conta do produto (o PAVLVS abre os ciclos assim), para o "pago ate"
@@ -138,30 +142,19 @@ export class ClienteCobranca {
         return { ok: true, ...out };
       }
       case "estender": {
-        // Um pagamento aprovado estende o direito ao produto: a partir do fim do que ja estava pago (ou de
-        // agora, se ja venceu), `meses` a mais. A recarga nao estende: soma creditos ao direito.
-        const chave = "direito:" + d.produto;
-        const antes = (await s.get(chave)) || { produto: d.produto, ate: null, plano: null, creditos: [], aplicados: [], versao: 0 };
-        // O mesmo pagamento (o aviso e a consulta da tela podem chegar os dois) estende uma vez so.
+        // Um pagamento aprovado estende o direito ao produto (estenderDireito, abaixo). A recarga nao estende: soma
+        // creditos ao direito.
         if (!d.origem) return { ok: false, erro: "falta a origem do pagamento" };
-        if ((antes.aplicados || []).includes(d.origem)) return { ok: true, direito: antes, repetido: true };
-        const r = { ...antes, aplicados: [...(antes.aplicados || []), d.origem].slice(-200), plano: d.plano || antes.plano,
-          metadados: d.metadados || antes.metadados || null, atualizado: agora };
-        if (d.meses) {
-          let ate = antes.ate && Date.parse(antes.ate) > Date.now() ? Date.parse(antes.ate) : Date.now();
-          for (let i = 0; i < d.meses; i++) ate = maisUmMes(ate);
-          r.ate = new Date(ate).toISOString();
-          // O que pagou o direito de agora: o ano, ou um mes (a assinatura no cartao ou o mes no Pix).
-          r.periodo = d.meses === 12 ? "ano" : "mes";
-          // Quem pagou: a cobranca da assinatura (ap:) ou uma compra a parte (order:, o ano ou o mes no Pix).
-          r.pago_por = String(d.origem).startsWith("ap:") ? "assinatura" : "compra";
-        }
-        if (d.credito) r.creditos = [...(antes.creditos || []), { ...d.credito, origem: d.origem, quando: agora }].slice(-50);
-        await s.put(chave, r);
+        const r = await this.estenderDireito(d, agora);
+        if (r.repetido) return { ok: true, direito: r.direito, repetido: true };
         if (d.credito) await this.enfileirar("credito.adicionado", d.produto, { origem: d.origem, ...d.credito });
         if (d.meses) await this.publicarDireito(d.produto);
-        return { ok: true, direito: await s.get(chave) };
+        return { ok: true, direito: await s.get("direito:" + d.produto) };
       }
+      case "conceder":
+        return this.conceder(d, agora);
+      case "encerrar_concedida":
+        return this.encerrarConcedida(d, agora);
       case "direitos":
         return { ok: true, direitos: [...(await s.list({ prefix: "direito:" })).values()] };
       case "direito":
@@ -230,6 +223,116 @@ export class ClienteCobranca {
     }
   }
 
+  /* Estende o direito ao produto por um pagamento (ou por um mes concedido): a partir do fim do que ja estava pago
+     (ou de agora, se ja venceu), `meses` a mais; ou soma o `credito`. Uma vez por `origem`. Grava; nao publica (quem
+     chama publica). {direito, repetido} */
+  async estenderDireito(d, agora) {
+    const s = this.ctx.storage;
+    const chave = "direito:" + d.produto;
+    const antes = (await s.get(chave)) || { produto: d.produto, ate: null, plano: null, creditos: [], aplicados: [], versao: 0 };
+    // O mesmo pagamento (o aviso e a consulta da tela podem chegar os dois) estende uma vez so.
+    if ((antes.aplicados || []).includes(d.origem)) return { direito: antes, repetido: true };
+    const r = { ...antes, aplicados: [...(antes.aplicados || []), d.origem].slice(-200), plano: d.plano || antes.plano,
+      metadados: d.metadados || antes.metadados || null, atualizado: agora };
+    if (d.meses) {
+      let ate = antes.ate && Date.parse(antes.ate) > Date.now() ? Date.parse(antes.ate) : Date.now();
+      for (let i = 0; i < d.meses; i++) ate = maisUmMes(ate);
+      r.ate = new Date(ate).toISOString();
+      // O que pagou o direito de agora: o ano, ou um mes (a assinatura no cartao, o mes no Pix ou o mes concedido).
+      r.periodo = d.meses === 12 ? "ano" : "mes";
+      // Quem pagou: a cobranca da assinatura (ap:), o mes concedido pela equipe (concedida:, sem cobranca) ou uma
+      // compra a parte (order:, o ano ou o mes no Pix).
+      const o = String(d.origem);
+      r.pago_por = o.startsWith("ap:") ? "assinatura" : o.startsWith("concedida:") ? "concedida" : "compra";
+    }
+    if (d.credito) r.creditos = [...(antes.creditos || []), { ...d.credito, origem: d.origem, quando: agora }].slice(-50);
+    await s.put(chave, r);
+    return { direito: r, repetido: false };
+  }
+
+  /* A assinatura concedida pela equipe da Atos (worker/admin-contas.js): R$ 0,00 por mes, sem Mercado Pago, sem cartao e
+     sem fatura. Nasce "authorized", estende o direito um mes (a origem "concedida:<ref>:1") e renova sozinha pelo alarme
+     (renovarConcedidas), um mes de cada vez, ate ser cancelada. Nunca por cima de outra assinatura viva do produto (paga
+     ou concedida), nem com um periodo pago em outro plano: seria a mesma ambiguidade que o checkout recusa. */
+  async conceder(d, agora) {
+    const s = this.ctx.storage;
+    if (!d.produto || !d.plano || !d.preco || !d.ref) return { ok: false, status: 400, erro: "falta o produto, o plano ou a ref" };
+    if (await s.get(PREFIXOS.assinatura + d.ref)) return { ok: false, status: 409, erro: "registro repetido" };
+    const viva = [...(await s.list({ prefix: PREFIXOS.assinatura })).values()].find((a) => a.produto === d.produto && [...VIVAS, "criando"].includes(a.status));
+    if (viva) {
+      return viva.concedida
+        ? { ok: false, status: 409, codigo: "ja_concedida", erro: "esta conta já tem uma assinatura concedida neste produto (plano " + (viva.plano || "?") + "): encerre-a antes de conceder outra" }
+        : { ok: false, status: 409, codigo: "ja_assina", erro: "esta conta já tem uma assinatura paga viva neste produto (plano " + (viva.plano || "?") + ", " + viva.status + "): conceder outra seria assinar duas vezes. Se for o caso, a pessoa cancela a paga antes" };
+    }
+    const dir = await s.get("direito:" + d.produto);
+    if (dir && dir.ate && Date.parse(dir.ate) > Date.now() && dir.plano && dir.plano !== d.plano) {
+      return { ok: false, status: 409, codigo: "troca_de_plano", erro: "esta conta tem o produto pago até " + dir.ate.slice(0, 10) + " no plano " + dir.plano + ": conceda o mesmo plano ou espere o vencimento" };
+    }
+    const registro = { ref: d.ref, produto: d.produto, preco: d.preco, plano: d.plano, centavos: 0, forma: "concedida", bandeira: "", status: "authorized",
+      concedida: { por: String(d.por || ""), quando: agora, motivo: String(d.motivo || "").slice(0, 200) }, renovacoes: 1, criada: agora, atualizada: agora };
+    await s.put(PREFIXOS.assinatura + d.ref, registro);
+    const e = await this.estenderDireito({ produto: d.produto, plano: d.plano, metadados: d.metadados || null, meses: 1, origem: "concedida:" + d.ref + ":1" }, agora);
+    registro.proxima = e.direito.ate;
+    await s.put(PREFIXOS.assinatura + d.ref, registro);
+    await this.publicarDireito(d.produto);
+    await this.agendar();
+    return { ok: true, registro, direito: await s.get("direito:" + d.produto) };
+  }
+
+  /* Encerra (cancela) a assinatura concedida: para de renovar; o mes ja concedido vale ate o fim, como o mes pago de uma
+     assinatura cancelada. Pela equipe (o painel) ou pela propria pessoa (Minha conta > Assinaturas). */
+  async encerrarConcedida(d, agora) {
+    const s = this.ctx.storage;
+    const antes = await s.get(PREFIXOS.assinatura + d.ref);
+    if (!antes || !antes.concedida) return { ok: false, status: 404, erro: "assinatura concedida não encontrada" };
+    if (antes.status === "canceled") return { ok: true, registro: antes, repetido: true };
+    const r = { ...antes, status: "canceled", proxima: null, encerrada: { por: String(d.por || ""), quando: agora, motivo: String(d.motivo || "").slice(0, 200) }, atualizada: agora };
+    await s.put(PREFIXOS.assinatura + d.ref, r);
+    await this.publicarDireito(r.produto);
+    return { ok: true, registro: r };
+  }
+
+  /* As concedidas vivas renovam um dia antes de vencer (o direito nao fica um instante sem plano): mais um mes, uma vez
+     por renovacao (a origem "concedida:<ref>:<n>"), e o produto fica sabendo. Se o alarme atrasou (mais de um mes),
+     renova quantos meses faltarem. */
+  async renovarConcedidas(agora = Date.now()) {
+    const s = this.ctx.storage;
+    for (const a of (await s.list({ prefix: PREFIXOS.assinatura })).values()) {
+      if (!a.concedida || a.status !== "authorized" || !a.proxima) continue;
+      let r = a;
+      let mudou = false;
+      for (let i = 0; i < 24 && Date.parse(r.proxima) - RENOVA_ANTES_MS <= agora; i++) {
+        const n = (r.renovacoes || 1) + 1;
+        const e = await this.estenderDireito({ produto: r.produto, plano: r.plano, meses: 1, origem: "concedida:" + r.ref + ":" + n }, new Date(agora).toISOString());
+        r = { ...r, renovacoes: n, proxima: e.direito.ate, atualizada: new Date(agora).toISOString() };
+        mudou = true;
+      }
+      if (!mudou) continue;
+      await s.put(PREFIXOS.assinatura + r.ref, r);
+      await this.publicarDireito(r.produto);
+    }
+  }
+
+  /* A proxima renovacao de uma concedida (ms), ou null. */
+  async proximaRenovacao() {
+    let t = null;
+    for (const a of (await this.ctx.storage.list({ prefix: PREFIXOS.assinatura })).values()) {
+      if (!a.concedida || a.status !== "authorized" || !a.proxima) continue;
+      const x = Date.parse(a.proxima) - RENOVA_ANTES_MS;
+      t = t === null ? x : Math.min(t, x);
+    }
+    return t;
+  }
+
+  /* Marca o alarme para a proxima renovacao, se nao houver um antes. */
+  async agendar() {
+    const s = this.ctx.storage;
+    const t = await this.proximaRenovacao();
+    if (t === null) return;
+    const atual = typeof s.getAlarm === "function" ? await s.getAlarm() : null;
+    if (!atual || atual > t) await s.setAlarm(Math.max(t, Date.now()));
+  }
+
   /* O que o produto precisa saber do direito, agora: o plano, ate quando, a assinatura viva e a versao. */
   async retrato(produto) {
     const s = this.ctx.storage;
@@ -241,7 +344,8 @@ export class ClienteCobranca {
     return {
       versao: dir.versao || 0, plano: dir.plano || (a && a.plano) || null, metadados: dir.metadados || null, ate: dir.ate || null,
       periodo: dir.periodo || null, pago_por: dir.pago_por || null,
-      assinatura: a ? { id: a.ref, status: a.status, proxima: a.proxima || null, preco: a.preco } : null,
+      // `concedida` (a assinatura de R$ 0,00 concedida pela equipe): o produto mostra o valor 0, sem cobranca.
+      assinatura: a ? { id: a.ref, status: a.status, proxima: a.proxima || null, preco: a.preco, ...(a.concedida ? { concedida: true, centavos: 0 } : {}) } : null,
     };
   }
 
@@ -284,7 +388,9 @@ export class ClienteCobranca {
   async alarm() {
     const s = this.ctx.storage;
     const agora = Date.now();
-    let proxima = null;
+    // As concedidas que vencem renovam antes (e o evento delas entra na fila que vem abaixo).
+    await this.renovarConcedidas(agora);
+    let proxima = await this.proximaRenovacao();
     for (const [chave, item] of await s.list({ prefix: "evento:" })) {
       if (item.estado !== "pendente") continue;
       if (item.proxima > agora) { proxima = Math.min(proxima ?? Infinity, item.proxima); continue; }

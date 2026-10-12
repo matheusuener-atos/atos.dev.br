@@ -5,7 +5,9 @@
      GET  /api/admin/contas/ver?email=         a conta: como entra, o resumo da seguranca (sem segredos), os acessos,
                                                as sessoes, o Workspace e o registro da equipe
      POST /api/admin/contas/sessoes            {email, motivo, confirmar: true}
-     POST /api/admin/contas/segunda-etapa      {email, motivo, confirmar: true, identidade_conferida: true, encerrar_sessoes} */
+     POST /api/admin/contas/segunda-etapa      {email, motivo, confirmar: true, identidade_conferida: true, encerrar_sessoes}
+     POST /api/admin/contas/conceder           {email, produto, plano, motivo, confirmar: true}: a assinatura de R$ 0,00/mes
+     POST /api/admin/contas/encerrar-concedida {email, id, motivo, confirmar: true} */
 (function () {
   "use strict";
   var A = window.AdminAtos;
@@ -94,6 +96,8 @@
       return "<li><span>" + esc(U.quando(x.quando)) + "</span><span>" + esc(x.por) + ": " + esc(x.oque) + (x.motivo ? " — motivo: " + esc(x.motivo) : "") + "</span><span></span></li>";
     }).join("") + "</ul>" : '<p class="vazio">Nada no registro.</p>') + "</div>";
 
+    h += assinaturasHtml(D);
+
     h += '<h2 class="titulo-secao pv-h2"><span>Ações</span></h2>';
     if (c.propria) return h + '<div class="card"><p class="vazio">Esta é a sua conta: mude a segurança dela em Minha conta › Segurança.</p></div>';
     if (!dono()) return h + '<div class="card"><p class="vazio">Encerrar as sessões e desligar a verificação em duas etapas são só do dono.</p></div>';
@@ -103,9 +107,64 @@
       "</div>";
   }
 
+  /* As assinaturas da conta (a cobranca) e a assinatura de R$ 0,00 concedida pela equipe: conceder e encerrar, so o dono. */
+  var SIT_ASS = { authorized: ["ativa", "ok"], pending: ["pendente", ""], paused: ["pausada", ""], canceled: ["cancelada", "perigo"] };
+  function reais(c) { return "R$ " + (Number(c || 0) / 100).toFixed(2).replace(".", ","); }
+  function assinaturasHtml(D) {
+    var h = '<h2 class="titulo-secao pv-h2"><span>Assinaturas</span></h2>';
+    var C = D.cobranca;
+    if (C === "?") return h + '<div class="card"><p class="vazio">Não deu para ler as assinaturas agora.</p></div>';
+    if (!C) return h + '<div class="card"><p class="vazio">A cobrança não está neste Worker.</p></div>';
+    h += '<div class="card">' + (C.assinaturas.length ? C.assinaturas.map(function (a) {
+      var s = SIT_ASS[a.status] || [a.status, ""], dir = (C.direitos || []).filter(function (x) { return x.produto === a.produto; })[0];
+      var info = [a.concedida ? "concedida pela equipe" + (a.concedida.por ? " (" + a.concedida.por + ")" : "") + " em " + U.ddmmaaaa(a.concedida.quando) + " · " + reais(0) + "/mês, sem cobrança" : reais(a.centavos) + "/mês no cartão",
+        a.status === "authorized" && a.proxima ? (a.concedida ? "renova em " : "próxima cobrança em ") + U.ddmmaaaa(a.proxima) : "",
+        dir && dir.ate ? "em dia até " + U.ddmmaaaa(dir.ate) : "", a.encerrada ? "encerrada por " + (a.encerrada.por || "?") + " em " + U.ddmmaaaa(a.encerrada.quando) : ""].filter(Boolean).join(" · ");
+      return '<div class="item oa-item"><span class="nome"><strong>' + esc(a.preco) + ' <span class="pv-sit ' + s[1] + '">' + esc(s[0]) + "</span></strong><small>" + esc(info) + "</small></span>" +
+        (a.concedida && a.status === "authorized" && dono() ? '<span class="pv-par"><button type="button" class="btn mini perigo" data-ct="encerrar" data-id="' + esc(a.id) + '" data-preco="' + esc(a.preco) + '">Encerrar</button></span>' : "") + "</div>";
+    }).join("") : '<p class="vazio">Nenhuma assinatura.</p>') + "</div>";
+    if (!dono() || !(D.conceder || []).length) return h;
+    return h + '<div class="card"><div class="excluir"><span>Conceder uma assinatura de R$ 0,00 por mês: sem Mercado Pago, sem cartão e sem fatura. Ela aparece como ativa na Minha conta da pessoa, renova sozinha todo mês e libera o plano no produto como uma assinatura paga, até ser encerrada. Não vale por cima de uma assinatura paga viva.</span>' +
+      '<button type="button" class="btn p" data-ct="conceder">Conceder assinatura (R$ 0,00/mês)</button></div></div>';
+  }
+
+  function modalConceder() {
+    var T = S.acao, c = S.conta.conta, P = S.conta.conceder || [];
+    var prod = P.filter(function (x) { return x.produto === T.produto; })[0] || P[0];
+    if (prod && T.produto !== prod.produto) { T.produto = prod.produto; T.plano = ""; }
+    var planos = prod ? prod.planos : [];
+    if (!planos.some(function (x) { return x.plano === T.plano; })) T.plano = planos.length ? planos[planos.length - 1].plano : "";
+    var plano = planos.filter(function (x) { return x.plano === T.plano; })[0];
+    return '<h2 id="modal-titulo">Conceder assinatura a ' + esc(c.email) + "</h2>" +
+      "<p>R$ 0,00 por mês, concedida pela equipe da Atos: nada vai ao Mercado Pago e nenhuma fatura é gerada. O produto recebe o plano e o “pago até” como numa assinatura paga, e ela renova sozinha todo mês até ser encerrada.</p>" +
+      '<label class="campo"><span class="rotulo">Produto</span><select class="seletor" data-ct-in="produto">' + P.map(function (x) {
+        return '<option value="' + esc(x.produto) + '"' + (prod && x.produto === prod.produto ? " selected" : "") + ">" + esc(x.nome) + "</option>"; }).join("") + "</select></label>" +
+      '<label class="campo"><span class="rotulo">Plano</span><select class="seletor" data-ct-in="plano">' + planos.map(function (x) {
+        return '<option value="' + esc(x.plano) + '"' + (x.plano === T.plano ? " selected" : "") + ">" + esc(x.nome) + " (de " + reais(x.centavos) + "/mês; aqui, " + reais(0) + ")</option>"; }).join("") + "</select></label>" +
+      '<label class="campo"><span class="rotulo">Motivo (fica no registro da equipe)</span><input data-ct-in="motivo" maxlength="200" autocomplete="off" value="' + esc(T.motivo) + '" data-foco></label>' +
+      '<label class="nf-marcar oa-marcar"><input type="checkbox" data-ct-in="confirmar"' + (T.confirmar ? " checked" : "") + "><span>Confirmo: conceder " + esc(plano ? plano.nome : "o plano") + " por R$ 0,00/mês a " + esc(c.email) + "</span></label>" +
+      (T.erro ? '<p class="erro" role="alert">' + esc(T.erro) + "</p>" : "") +
+      '<div class="botoes"><button type="button" class="btn p" data-admin="fechar-modal">Voltar</button><button type="button" class="btn p primario" data-ct="ok"' + (bloqueado(T) ? " disabled" : "") + ">" +
+      (T.enviando ? "Um momento…" : "Conceder") + "</button></div>";
+  }
+
+  function bloqueado(T) {
+    return T.enviando || !T.confirmar || T.motivo.trim().length < 5 || (T.acao === "segunda" && !T.identidade) || (T.acao === "conceder" && (!T.produto || !T.plano));
+  }
+
   function modal() {
     var T = S.acao, c = S.conta && S.conta.conta;
     if (!T || !c) return "";
+    if (T.acao === "conceder") return modalConceder();
+    if (T.acao === "encerrar") {
+      return '<h2 id="modal-titulo">Encerrar a assinatura concedida de ' + esc(c.email) + "</h2>" +
+        "<p>" + esc(T.preco) + " deixa de renovar. O mês já concedido vale até o fim, como numa assinatura paga cancelada, e o produto fica sabendo.</p>" +
+        '<label class="campo"><span class="rotulo">Motivo (fica no registro da equipe)</span><input data-ct-in="motivo" maxlength="200" autocomplete="off" value="' + esc(T.motivo) + '" data-foco></label>' +
+        '<label class="nf-marcar oa-marcar"><input type="checkbox" data-ct-in="confirmar"' + (T.confirmar ? " checked" : "") + "><span>Confirmo: encerrar a assinatura concedida</span></label>" +
+        (T.erro ? '<p class="erro" role="alert">' + esc(T.erro) + "</p>" : "") +
+        '<div class="botoes"><button type="button" class="btn p" data-admin="fechar-modal">Voltar</button><button type="button" class="btn p perigo" data-ct="ok"' + (bloqueado(T) ? " disabled" : "") + ">" +
+        (T.enviando ? "Um momento…" : "Encerrar") + "</button></div>";
+    }
     var marcar = function (k, texto) { return '<label class="nf-marcar oa-marcar"><input type="checkbox" data-ct-in="' + k + '"' + (T[k] ? " checked" : "") + "><span>" + texto + "</span></label>"; };
     var corpo = T.acao === "sessoes"
       ? '<h2 id="modal-titulo">Encerrar as sessões de ' + esc(c.email) + "</h2><p>Todas as sessões abertas desta conta caem agora; para usar a conta, a pessoa entra de novo. Ela recebe um aviso no e-mail da conta, sem link, e a ação aparece nos últimos acessos dela.</p>"
@@ -138,15 +197,23 @@
       S.acao = { acao: a, motivo: "", confirmar: false, identidade: false, encerrar: true, erro: "", enviando: false };
       A.modal.abrir({ html: modal, aoFechar: function () { S.acao = null; } }); return;
     }
+    if (a === "conceder" || a === "encerrar") {
+      S.acao = { acao: a, motivo: "", confirmar: false, produto: "", plano: "", id: b.getAttribute("data-id") || "", preco: b.getAttribute("data-preco") || "", erro: "", enviando: false };
+      A.modal.abrir({ html: modal, aoFechar: function () { S.acao = null; } }); return;
+    }
     if (a === "ok") {
       var T = S.acao, email = S.email; if (!T || T.enviando || !email) return;
       T.enviando = true; T.erro = ""; A.modal.repintar();
       var corpo = { email: email, motivo: T.motivo, confirmar: T.confirmar === true };
       if (T.acao === "segunda") { corpo.identidade_conferida = T.identidade === true; corpo.encerrar_sessoes = T.encerrar === true; }
-      A.pedir("POST", "/api/admin/contas/" + (T.acao === "sessoes" ? "sessoes" : "segunda-etapa"), corpo).then(function (d) {
+      if (T.acao === "conceder") { corpo.produto = T.produto; corpo.plano = T.plano; }
+      if (T.acao === "encerrar") corpo.id = T.id;
+      var rota = { sessoes: "sessoes", segunda: "segunda-etapa", conceder: "conceder", encerrar: "encerrar-concedida" }[T.acao];
+      A.pedir("POST", "/api/admin/contas/" + rota, corpo).then(function (d) {
         if (S.acao !== T) return;
         A.modal.fechar();
-        A.toast(T.acao === "sessoes" ? "Sessões encerradas (" + d.encerradas + ")" : "Verificação desligada" + (d.encerradas ? " · " + d.encerradas + " sessões encerradas" : ""));
+        A.toast(T.acao === "conceder" ? "Assinatura concedida (R$ 0,00/mês) · em dia até " + U.ddmmaaaa(d.direito.ate) : T.acao === "encerrar" ? "Assinatura concedida encerrada"
+          : T.acao === "sessoes" ? "Sessões encerradas (" + d.encerradas + ")" : "Verificação desligada" + (d.encerradas ? " · " + d.encerradas + " sessões encerradas" : ""));
         abrir(email);
       }, function (er) {
         if (S.acao !== T) return;
@@ -161,9 +228,11 @@
     var k = el.getAttribute("data-ct-in");
     if (!k || !S.acao) return;
     S.acao[k] = el.type === "checkbox" ? el.checked : el.value;
+    // O produto muda a lista de planos (e o plano, o texto da confirmacao): a janela inteira de novo.
+    if (k === "produto" || k === "plano") { if (k === "produto") S.acao.plano = ""; A.modal.repintar(); return; }
     // O botao so destrava com tudo preenchido: so ele muda (o campo de texto nao perde o foco).
-    var ok = document.querySelector('#admin-camada [data-ct="ok"]'), T = S.acao;
-    if (ok) ok.disabled = T.enviando || !T.confirmar || (T.acao === "segunda" && !T.identidade) || T.motivo.trim().length < 5;
+    var ok = document.querySelector('#admin-camada [data-ct="ok"]');
+    if (ok) ok.disabled = bloqueado(S.acao);
   });
 
   A.secoes.push({

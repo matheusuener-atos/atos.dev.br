@@ -18,8 +18,18 @@
 //   POST /api/admin/contas/sessoes                 {email, motivo, confirmar: true}
 //   POST /api/admin/contas/segunda-etapa           {email, motivo, confirmar: true, identidade_conferida: true,
 //                                                   encerrar_sessoes?: true (o padrao)}
+//   POST /api/admin/contas/conceder                {email, produto, plano, motivo, confirmar: true}: a assinatura de
+//                                                  R$ 0,00 por mes (worker/cobranca/cliente.js, conceder), sem
+//                                                  Mercado Pago; renova sozinha e manda o direito.atualizado ao produto
+//                                                  como a paga. Recusa com assinatura viva no produto (409 ja_assina ou
+//                                                  ja_concedida) e com outro plano pago em dia (409 troca_de_plano)
+//   POST /api/admin/contas/encerrar-concedida      {email, id, motivo, confirmar: true}: cancela a concedida (o mes ja
+//                                                  concedido vale ate o fim)
 //   GET  /api/admin/busca?q=                       a busca do painel (Ctrl K): contas, enderecos, aplicativos e
 //                                                  Workspaces
+//
+// Conceder e encerrar a assinatura concedida tambem sao so do dono, com motivo, confirmacao e registro; essas duas
+// valem para a propria conta do dono (nao mexem em seguranca, e ficam no registro com quem fez).
 
 import { emailValido, json, kv, lerJson, normal } from "./comum.js";
 import { campoSessoesDesde } from "./contas.js";
@@ -31,6 +41,7 @@ import { avisar } from "./seguranca/avisos.js";
 import { vistaDoWorkspace, workspaceDe } from "./workspace.js";
 import { anotarDaEquipe, registroDaEquipe } from "./workspace-indice.js";
 import { todosOsApps } from "./admin-workspace.js";
+import { cobrancaDaConta, concederAssinatura, encerrarAssinaturaConcedida, planosParaConceder } from "./cobranca/api.js";
 
 const MOTIVO_MIN = 5;
 const limparMotivo = (m) => String(m || "").replace(/[\u0000-\u001f<>]/g, " ").trim().slice(0, 200);
@@ -110,6 +121,9 @@ async function verConta(env, c, email) {
     sessoes: sessoes.map((y) => ({ id: y.id, criada: y.criada, como: y.como || "", segunda: y.segunda || "", onde: y.onde || "", navegador: y.navegador || "" })),
     workspace: workspace === "?" ? "?" : workspace ? vistaDoWorkspace(workspace) : null,
     registro: env.EMAIL_ATOS ? await registroDaEquipe(env, { email: x.email, limite: 30 }) : [],
+    // As assinaturas e os direitos (a cobranca, worker/cobranca/) e os planos que o dono pode conceder.
+    cobranca: env.CLIENTES ? await cobrancaDaConta(env, sub).catch(() => "?") : null,
+    conceder: env.CLIENTES ? await planosParaConceder(env).catch(() => []) : [],
   });
 }
 
@@ -126,14 +140,14 @@ async function encerrarSessoes(env, email, sub, agora) {
 }
 
 /* O que toda acao pede: o dono, o motivo, a confirmacao, uma conta que existe e nao e a de quem pede. */
-async function preparar(env, c, d) {
-  if (c.quem.papel !== "dono") return { recusa: json({ erro: "só o dono mexe na segurança de uma Conta Atos" }, 403) };
+async function preparar(env, c, d, { propria = false, frase = "só o dono mexe na segurança de uma Conta Atos" } = {}) {
+  if (c.quem.papel !== "dono") return { recusa: json({ erro: frase }, 403) };
   const motivo = limparMotivo(d.motivo);
   if (motivo.length < MOTIVO_MIN) return { recusa: json({ erro: "diga o motivo (fica no registro da equipe)" }, 400) };
   if (d.confirmar !== true) return { recusa: json({ erro: "confirme na página" }, 400) };
   const x = await contaPeloEmail(env, d.email);
   if (!x) return { recusa: json({ erro: "não há Conta Atos com esse e-mail" }, 404) };
-  if (x.email === c.quem.email) return { recusa: json({ erro: "a sua própria conta não muda por aqui: use Minha conta › Segurança" }, 400) };
+  if (!propria && x.email === c.quem.email) return { recusa: json({ erro: "a sua própria conta não muda por aqui: use Minha conta › Segurança" }, 400) };
   // O registro da equipe tem de estar respondendo antes: a acao nao acontece sem ficar anotada.
   const r = await registro(env).pedir("eq_listar", { limite: 1 }).catch(() => null);
   if (!r || !r.ok) return { recusa: json({ erro: "o registro da equipe não respondeu: a ação não foi feita. Tente de novo em instantes" }, 503) };
@@ -174,6 +188,32 @@ async function acaoSegundaEtapa(env, c, d) {
   return json({ ok: true, removido: { totp: v.tinha.totp, codigos: v.tinha.codigos, chaves: v.tinha.chaves.length }, encerradas: n });
 }
 
+/* A assinatura de R$ 0,00 por mes, concedida pela equipe (worker/cobranca/api.js, concederAssinatura). */
+async function acaoConceder(env, c, d) {
+  const p = await preparar(env, c, d, { propria: true, frase: "só o dono concede assinatura" });
+  if (p.recusa) return p.recusa;
+  if (!env.CLIENTES) return json({ erro: "a cobrança não está neste Worker" }, 503);
+  const r = await concederAssinatura(env, { sub: p.sub, email: p.email, produto: String(d.produto || "").slice(0, 40), plano: String(d.plano || "").slice(0, 40),
+    por: c.quem.email, motivo: p.motivo });
+  if (r.status !== 200) return json({ erro: r.erro, codigo: r.codigo }, r.status);
+  await anotarDaEquipe(env, { por: c.quem.email, tipo: "conta.assinatura-concedida", sub: p.sub, email: p.email, alvo: p.email, motivo: p.motivo,
+    oque: "concedeu a assinatura " + r.assinatura.preco + " por R$ 0,00/mês (" + r.assinatura.id + "), em dia até " + String(r.direito.ate).slice(0, 10) });
+  return json({ ok: true, assinatura: r.assinatura, direito: r.direito });
+}
+
+async function acaoEncerrarConcedida(env, c, d) {
+  const p = await preparar(env, c, d, { propria: true, frase: "só o dono encerra a assinatura concedida" });
+  if (p.recusa) return p.recusa;
+  if (!env.CLIENTES) return json({ erro: "a cobrança não está neste Worker" }, 503);
+  const r = await encerrarAssinaturaConcedida(env, { sub: p.sub, ref: String(d.id || "").slice(0, 120), por: c.quem.email, motivo: p.motivo });
+  if (r.status !== 200) return json({ erro: r.erro }, r.status);
+  if (!r.repetido) {
+    await anotarDaEquipe(env, { por: c.quem.email, tipo: "conta.assinatura-encerrada", sub: p.sub, email: p.email, alvo: p.email, motivo: p.motivo,
+      oque: "encerrou a assinatura concedida " + r.assinatura.preco + " (" + r.assinatura.id + ")" });
+  }
+  return json({ ok: true, assinatura: r.assinatura, repetido: r.repetido });
+}
+
 /* A busca do painel (Ctrl K): ate 8 de cada. */
 async function busca(env, q) {
   const t = normal(q);
@@ -201,6 +241,11 @@ export async function atenderContasNoPainel(request, env, url, c) {
     if (p === "/api/admin/busca" && m === "GET") return json(await busca(env, String(url.searchParams.get("q") || "").slice(0, 120)));
     if (p === "/api/admin/contas" && m === "GET") return json({ contas: await buscarContas(env, String(url.searchParams.get("q") || "").slice(0, 120)) });
     if (p === "/api/admin/contas/ver" && m === "GET") return await verConta(env, c, String(url.searchParams.get("email") || ""));
+    if (m === "POST" && (p === "/api/admin/contas/conceder" || p === "/api/admin/contas/encerrar-concedida")) {
+      if (!env.EMAIL_ATOS) return json({ erro: "o registro da equipe não está neste Worker: sem ele, a Atos não faz a ação" }, 503);
+      const d = (await lerJson(request)) || {};
+      return p.endsWith("/conceder") ? await acaoConceder(env, c, d) : await acaoEncerrarConcedida(env, c, d);
+    }
     if (m === "POST" && (p === "/api/admin/contas/sessoes" || p === "/api/admin/contas/segunda-etapa")) {
       if (!env.EMAIL_ATOS) return json({ erro: "o registro da equipe não está neste Worker: sem ele, a Atos não faz a ação" }, 503);
       const d = (await lerJson(request)) || {};

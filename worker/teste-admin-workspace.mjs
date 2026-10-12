@@ -339,6 +339,46 @@ checar(r.d.registro.some((x) => x.tipo === "workspace.app.desligar" && x.por ===
 const eq = (await reg("eq_listar", { limite: 100 })).itens;
 checar(eq.length >= 7 && eq.every((x) => x.quando && x.por && x.oque), "cada ação está no registro (quem, quando, o quê)", eq.length);
 
+console.log("Contas Atos: conceder a assinatura de R$ 0,00/mês");
+{
+  env.PRODUTOS_ABERTOS = "pavlvs";
+  const corpoC = { email: "maria@provedor.com.br", produto: "pavlvs", plano: "plus", motivo: "conta de demonstração", confirmar: true };
+  let v = await GET("/api/admin/contas/ver?email=maria@provedor.com.br", fin);
+  checar(v.status === 200 && v.d.cobranca && v.d.cobranca.assinaturas.length === 0 && v.d.conceder.some((x) => x.produto === "pavlvs" && x.planos.some((p) => p.plano === "plus")),
+    "a conta mostra as assinaturas (nenhuma) e os planos que dá para conceder", v.d && { cobranca: v.d.cobranca, conceder: v.d.conceder });
+  r = await chamar("/api/admin/contas/conceder", { cookie: sup, corpo: corpoC });
+  checar(r.status === 403, "o suporte não concede: 403", r);
+  r = await chamar("/api/admin/contas/conceder", { cookie: fin, corpo: corpoC });
+  checar(r.status === 403, "o financeiro também não: 403", r);
+  r = await chamar("/api/admin/contas/conceder", { cookie: pav, corpo: corpoC });
+  checar(r.status === 403, "quem não atua na área Atos: 403", r);
+  r = await chamar("/api/admin/contas/conceder", { cookie: dono, corpo: { ...corpoC, confirmar: false } });
+  checar(r.status === 400, "sem a confirmação: 400", r);
+  r = await chamar("/api/admin/contas/conceder", { cookie: dono, corpo: { ...corpoC, email: "ninguem@provedor.com.br" } });
+  checar(r.status === 404, "sem Conta Atos com esse e-mail: 404", r);
+  r = await chamar("/api/admin/contas/conceder", { cookie: dono, corpo: corpoC });
+  checar(r.status === 200 && r.d.assinatura.status === "authorized" && r.d.assinatura.centavos === 0 && r.d.assinatura.preco === "pavlvs.plus.mes" && r.d.direito.plano === "plus" && r.d.direito.ate,
+    "o dono concede: authorized, R$ 0, o plano plus e o pago até", r.d);
+  const idC = r.d.assinatura && r.d.assinatura.id;
+  r = await chamar("/api/admin/contas/conceder", { cookie: dono, corpo: corpoC });
+  checar(r.status === 409 && r.d.codigo === "ja_concedida", "de novo: 409 (já tem uma)", r.d);
+  v = await GET("/api/admin/contas/ver?email=maria@provedor.com.br", dono);
+  const a = v.d.cobranca.assinaturas[0];
+  checar(a && a.id === idC && a.concedida && a.concedida.por === "dono@atos.dev.br" && a.concedida.motivo === "conta de demonstração" && v.d.cobranca.direitos.some((x) => x.produto === "pavlvs" && x.plano === "plus")
+    && v.d.registro.some((x) => x.tipo === "conta.assinatura-concedida" && x.por === "dono@atos.dev.br" && x.motivo === "conta de demonstração" && /R\$ 0,00/.test(x.oque)),
+    "o painel mostra a concedida (por quem, o motivo) e o registro da equipe guarda a ação", { a, registro: v.d.registro });
+  r = await chamar("/api/admin/contas/conceder", { cookie: dono, corpo: { ...corpoC, email: "dono@atos.dev.br", motivo: "a conta da casa" } });
+  checar(r.status === 200, "o dono concede também à própria conta (fica no registro)", r.d);
+  r = await chamar("/api/admin/contas/encerrar-concedida", { cookie: sup, corpo: { email: "maria@provedor.com.br", id: idC, motivo: "fim da demonstração", confirmar: true } });
+  checar(r.status === 403, "o suporte não encerra: 403", r);
+  r = await chamar("/api/admin/contas/encerrar-concedida", { cookie: dono, corpo: { email: "maria@provedor.com.br", id: idC, motivo: "fim da demonstração", confirmar: true } });
+  checar(r.status === 200 && r.d.assinatura.status === "canceled", "o dono encerra: canceled", r.d);
+  v = await GET("/api/admin/contas/ver?email=maria@provedor.com.br", dono);
+  checar(v.d.cobranca.assinaturas[0].status === "canceled" && v.d.cobranca.assinaturas[0].encerrada.por === "dono@atos.dev.br" && v.d.registro.some((x) => x.tipo === "conta.assinatura-encerrada"),
+    "o painel mostra a encerrada, e o registro também", v.d.cobranca);
+  delete env.PRODUTOS_ABERTOS;
+}
+
 console.log("");
 console.log(falhas ? falhas + " falha(s)" : "tudo certo");
 process.exit(falhas ? 1 : 0);

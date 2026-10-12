@@ -125,6 +125,14 @@ Decisão do dono, 09/10/2026: "criar tudo no Mercado Pago exclusivo Atos, e os s
     - o Assinar, o "Fazer upgrade" e o /cadastro antigo levam a este checkout;
     - nenhuma cobrança nova nasce no Mercado Pago do PAVLVS;
   - **a contagem de visitas da Cloudflare** só nas páginas públicas, e a política de privacidade de 10/10.
+- **Feito em 12/10/2026 — a assinatura concedida pela equipe (R$ 0,00/mês):**
+  - **no painel** (Atos › Contas Atos › a conta › Assinaturas), só o dono, com motivo, confirmação e o registro da equipe: "Conceder assinatura (R$ 0,00/mês)" (produto e plano mensal do catálogo) e "Encerrar"; `POST /api/admin/contas/conceder` e `POST /api/admin/contas/encerrar-concedida` (worker/admin-contas.js). Vale também para a própria conta do dono;
+  - **no núcleo** (`cliente.js`, ops `conceder` e `encerrar_concedida`): a assinatura nasce `authorized`, `centavos: 0`, `forma: "concedida"`, sem `mp_id`; estende o direito um mês (origem `concedida:<ref>:<n>`, `pago_por: "concedida"`) e manda o `direito.atualizado` como a paga, com `assinatura.concedida: true` e `centavos: 0`;
+  - **renova sozinha** pelo alarme do objeto, um dia antes do vencimento, um mês de cada vez (`maisUmMes`), sem Mercado Pago, sem fatura e sem NFS-e;
+  - **nunca duas**: recusa com assinatura viva no produto (paga: `ja_assina`; outra concedida: `ja_concedida`) e com o período pago em outro plano (`troca_de_plano`); e o checkout recusa a paga por cima da concedida (`ja_assina`);
+  - **cancelar**: pelo painel ou pela própria pessoa (Minha conta › Assinaturas, a mesma rota `/api/subscriptions/:id/cancel`); pausar não existe (nada é cobrado); o mês concedido vale até o fim;
+  - **no PAVLVS** (coryphaeus, `worker/ia.js` direitoDaAtos): a concedida chega com o valor 0 e `concedida`; a Minha conta dele diz "R$ 0,00/mês, concedida pela Atos";
+  - **os testes**: `worker/cobranca/teste.mjs` e `worker/teste-admin-workspace.mjs`.
 - **Falta:**
   1. **a NFS-e automática dos pagamentos da Atos** (hoje a nota é emitida à mão; a tela de faturas avisa);
   2. **trocar o cartão pela Minha conta** (POST /api/subscriptions/:id/cartao, com PUT /preapproval card_token_id; hoje é por contato@);

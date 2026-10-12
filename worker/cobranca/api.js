@@ -11,7 +11,8 @@
 //   GET  /api/cobranca/v1/compras/<ref>          a situacao de uma compra (a tela do Pix consulta ate mudar)
 //   GET  /api/cobranca/v1/minhas                 assinaturas, compras e direitos da pessoa (o portal)
 //   GET  /api/subscriptions/:id                  uma assinatura, conferida no Mercado Pago (id = a ref)
-//   POST /api/subscriptions/:id/(pause|reactivate|cancel)   pausar, reativar, cancelar
+//   POST /api/subscriptions/:id/(pause|reactivate|cancel)   pausar, reativar, cancelar (a concedida pela equipe, sem
+//                                                Mercado Pago: so cancelar, aqui mesmo)
 //   POST /api/mp/aviso                           o webhook do Mercado Pago (assinatura HMAC conferida)
 //   GET  /api/cobranca/v1/direitos?produto=&sub= o retrato do direito, para o produto (Bearer com o segredo
 //                                                dele): a reserva quando um evento se perde (eventos.js)
@@ -172,6 +173,15 @@ export async function atenderCobrancaV1(request, env, url, deps = {}) {
     const mSub = /^\/api\/subscriptions\/(atos-[0-9a-f]{32}-assinatura-[0-9a-f]{16})(?:\/(pause|reactivate|cancel))?$/.exec(p);
     if (mSub) {
       const r = await meu.pedir("ler", { tipo: "assinatura", ref: mSub[1] });
+      // A concedida pela equipe (R$ 0,00, sem Mercado Pago): ver e cancelar aqui mesmo; pausar nao (nada e cobrado).
+      if (r.ok && r.registro.concedida) {
+        if (request.method === "GET" && !mSub[2]) return json(publicaAssinatura(r.registro));
+        if (request.method === "POST" && mSub[2] === "cancel") {
+          const e = await meu.pedir("encerrar_concedida", { ref: mSub[1], por: s.email, motivo: "cancelada pela própria pessoa" });
+          return e.ok ? json(publicaAssinatura(e.registro)) : erro(e.status || 409, e.erro);
+        }
+        if (request.method === "POST") return erro(409, "a assinatura concedida pela equipe não é cobrada, então não pausa: cancele se não quiser mais", "concedida");
+      }
       if (!r.ok || !r.registro.mp_id) return erro(404, "assinatura não encontrada");
       const a = r.registro;
       if (request.method === "GET" && !mSub[2]) {
@@ -523,9 +533,11 @@ export async function aplicarAviso(env, tipo, id, op) {
 
 // ------------------------------------------------------------------ o que a tela ve
 
-function publicaAssinatura(a) {
+export function publicaAssinatura(a) {
   return { id: a.ref, produto: a.produto, preco: a.preco, plano: a.plano, centavos: a.centavos, status: a.status, proxima: a.proxima || null, criada: a.criada,
-    bandeira: a.bandeira || "" };
+    bandeira: a.bandeira || "", forma: a.forma || "cartao",
+    // A concedida pela equipe da Atos: R$ 0,00 por mes, sem cartao e sem fatura; renova sozinha ate ser cancelada.
+    ...(a.concedida ? { concedida: { quando: a.concedida.quando, renovacoes: a.renovacoes || 1 }, encerrada: a.encerrada ? a.encerrada.quando : null } : {}) };
 }
 
 /* A Minha conta da Atos (public/assets/conta.js): por produto pago, o direito, a assinatura que importa e o nome do
@@ -572,3 +584,64 @@ function publicaCompra(c) {
     pix: c.status === "aguardando" ? c.pix || null : null, paga_em: c.paga_em || null, criada: c.criada };
 }
 
+
+// ------------------------------------------------------------- a equipe (o painel, worker/admin-contas.js)
+
+/* Os planos que a equipe pode conceder: o preco mensal a venda de cada produto que vende pela Atos. */
+export async function planosParaConceder(env) {
+  await carregarCatalogo(env);
+  const l = [];
+  for (const [produto, p] of todosOsProdutos()) {
+    if (!produtoAberto(env, produto)) continue;
+    const planos = p.precos.filter((x) => x.periodo === "mes" && x.ativo !== false && x.metadados && x.metadados.plano)
+      .map((x) => ({ plano: x.metadados.plano, nome: x.nome, preco: x.id, centavos: x.centavos }));
+    if (planos.length) l.push({ produto, nome: p.nome, planos });
+  }
+  return l;
+}
+
+/* As assinaturas e os direitos de uma Conta Atos, para o painel (sem nada do cartao). */
+export async function cobrancaDaConta(env, sub) {
+  const meu = cliente(env, await idDoCliente(sub));
+  const l = await meu.pedir("listar");
+  const direitos = (await meu.pedir("direitos")).direitos;
+  return {
+    assinaturas: l.assinatura.filter((a) => !["criando", "recusada"].includes(a.status)).map((a) => ({ ...publicaAssinatura(a),
+      ...(a.concedida ? { concedida: { por: a.concedida.por, quando: a.concedida.quando, motivo: a.concedida.motivo, renovacoes: a.renovacoes || 1 },
+        encerrada: a.encerrada ? { por: a.encerrada.por, quando: a.encerrada.quando, motivo: a.encerrada.motivo } : null } : {}) }))
+      .sort((a, b) => String(b.criada).localeCompare(String(a.criada))),
+    direitos: direitos.filter((x) => x.plano || x.ate).map((x) => ({ produto: x.produto, plano: x.plano || null, ate: x.ate || null, periodo: x.periodo || null, pago_por: x.pago_por || null })),
+  };
+}
+
+/* A equipe concede uma assinatura de R$ 0,00 por mes (cliente.js, conceder): sem Mercado Pago, sem cartao, sem fatura e
+   sem NFS-e (nada foi pago). {status, ...}: 200 {assinatura, direito} ou o motivo da recusa. */
+export async function concederAssinatura(env, { sub, email, produto, plano, por, motivo }) {
+  await carregarCatalogo(env);
+  const p = produtoDe(String(produto || ""));
+  if (!p) return { status: 404, erro: "produto desconhecido" };
+  if (!produtoAberto(env, produto)) return { status: 409, erro: `o ${p.nome} ainda não vende pela Atos`, codigo: "produto_fechado" };
+  const oferta = resolveOffer(`${produto}.${String(plano || "")}.mes`, { paraCobrar: true });
+  if (!oferta || oferta.periodo !== "mes") return { status: 400, erro: `o ${p.nome} não tem o plano mensal "${String(plano || "").slice(0, 40)}"` };
+  const cid = await idDoCliente(sub);
+  const meu = cliente(env, cid, { sub, email });
+  if (p.gratuito) {
+    // O plano pago de um produto com nivel gratuito (o Atos Workspace Pro): o mesmo que o checkout pede.
+    const dir = (await meu.pedir("direito", { produto })).direito;
+    if (!dir || !dir.ativo) return { status: 409, erro: `esta conta não ativou o ${p.nome}: a pessoa ativa (aceitando os termos) antes`, codigo: "sem_ativacao" };
+    if (dir.suspenso) return { status: 409, erro: `o ${p.nome} desta conta está suspenso pela Atos`, codigo: "suspenso" };
+  }
+  const r = await meu.pedir("conceder", { produto, plano: oferta.metadados.plano, preco: oferta.id, metadados: oferta.metadados, ref: novaRef(cid, "assinatura"), por, motivo });
+  if (!r.ok) return { status: r.status || 409, erro: r.erro, codigo: r.codigo };
+  return { status: 200, assinatura: publicaAssinatura(r.registro), direito: { produto, plano: r.direito.plano, ate: r.direito.ate } };
+}
+
+/* A equipe encerra (cancela) uma assinatura concedida. So a concedida: a paga se cancela pelo Mercado Pago. */
+export async function encerrarAssinaturaConcedida(env, { sub, ref, por, motivo }) {
+  if (!clienteDaRef(ref) || clienteDaRef(ref).tipo !== "assinatura") return { status: 400, erro: "assinatura inválida" };
+  const cid = await idDoCliente(sub);
+  if (clienteDaRef(ref).clienteId !== cid) return { status: 404, erro: "essa assinatura não é desta conta" };
+  const r = await cliente(env, cid).pedir("encerrar_concedida", { ref, por, motivo });
+  if (!r.ok) return { status: r.status || 409, erro: r.erro };
+  return { status: 200, assinatura: publicaAssinatura(r.registro), repetido: Boolean(r.repetido) };
+}
