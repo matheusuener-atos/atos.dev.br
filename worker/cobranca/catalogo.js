@@ -11,6 +11,8 @@
 // Mudar um valor e criar uma versao nova do preco (o id muda, ex.: "...@2"): quem ja assinou continua no
 // valor dele. `aberto` diz se o produto ja vende pela Atos - so depois que ele recebe os eventos.
 
+import { chaveDosProjetos, produtosDoPortfolio } from "../portfolio.js";
+
 export const MOEDA = "BRL";
 
 const PAVLVS_PLANOS = [
@@ -62,34 +64,77 @@ export const PRODUTOS = {
   },
 };
 
+// Os produtos do Portfolio (worker/portfolio.js): os projetos que o dono cadastra no painel com a venda ligada. Ficam
+// no KV, nao no codigo; carregarCatalogo(env) os le (no maximo a cada CACHE_MS) antes de quem usa as funcoes abaixo.
+// Um Worker e um isolate so tem um env, entao o que foi lido vale para todo pedido dele; o painel, ao salvar, le de
+// novo na hora (forcar), e os outros isolates veem a mudanca em ate CACHE_MS.
+const CACHE_MS = 30000;
+const LIDOS = {};
+let DINAMICOS = {};
+
+/* Le os produtos do Portfolio para as funcoes do catalogo. Sem o KV, fica com a ultima leitura boa (ou nenhuma). */
+export async function carregarCatalogo(env, { forcar = false, agora = Date.now() } = {}) {
+  const chave = chaveDosProjetos(env);
+  const lido = LIDOS[chave];
+  if (!forcar && lido && agora - lido.em < CACHE_MS) {
+    DINAMICOS = lido.produtos;
+    return;
+  }
+  try {
+    const produtos = await produtosDoPortfolio(env);
+    LIDOS[chave] = { em: agora, produtos };
+  } catch {
+    // o KV fora: a ultima leitura boa continua
+  }
+  DINAMICOS = (LIDOS[chave] && LIDOS[chave].produtos) || {};
+}
+
+/* O produto (do codigo ou do Portfolio), ou null. */
+export function produtoDe(id) {
+  if (Object.prototype.hasOwnProperty.call(PRODUTOS, id)) return PRODUTOS[id];
+  return Object.prototype.hasOwnProperty.call(DINAMICOS, id) ? DINAMICOS[id] : null;
+}
+
+/* Todos os produtos: os do codigo e os do Portfolio. [[id, produto]] */
+export function todosOsProdutos() {
+  return [...Object.entries(PRODUTOS), ...Object.entries(DINAMICOS).filter(([id]) => !Object.prototype.hasOwnProperty.call(PRODUTOS, id))];
+}
+
 /* Um produto gratuito (ativar = aceitar os termos dele; worker/workspace.js), ou null. */
 export function produtoGratuito(produto) {
   const p = PRODUTOS[produto];
   return p && p.gratuito ? p : null;
 }
 
-/* O produto vende pela Atos? Liga por var (PRODUTOS_ABERTOS="pavlvs,..."), quando ele ja recebe os eventos. */
+/* O produto vende pela Atos? Os do codigo ligam por var (PRODUTOS_ABERTOS="pavlvs,..."), quando ja recebem os eventos;
+   os do Portfolio, pelo "vendendo" do painel. */
 export function produtoAberto(env, produto) {
-  return String(env.PRODUTOS_ABERTOS || "").split(",").map((s) => s.trim()).includes(produto);
+  if (String(env.PRODUTOS_ABERTOS || "").split(",").map((s) => s.trim()).includes(produto)) return true;
+  const d = Object.prototype.hasOwnProperty.call(PRODUTOS, produto) ? null : produtoDe(produto);
+  return Boolean(d && d.aberto);
 }
 
+/* O que o checkout mostra. Dos precos do Portfolio, so os de agora (um preco mudado vira outra versao; a antiga fica
+   para quem ja assinou, fora da vitrine). */
 export function catalogoPublico(produto) {
-  const p = PRODUTOS[produto];
+  const p = produtoDe(produto);
   if (!p) return null;
-  return { produto, nome: p.nome, moeda: MOEDA, precos: p.precos, ...(p.gratuito ? { gratuito: true } : {}) };
+  const extra = p.dinamico ? { site: p.site, icone: p.icone || "", planos: p.planos || [] } : {};
+  return { produto, nome: p.nome, moeda: MOEDA, precos: p.precos.filter((x) => x.ativo !== false), ...(p.gratuito ? { gratuito: true } : {}), ...extra };
 }
 
-/* A oferta confiavel de um preco (resolveOffer): o que o servidor cobra, nunca o que o navegador disse. */
-export function resolveOffer(precoId) {
+/* A oferta confiavel de um preco (resolveOffer): o que o servidor cobra, nunca o que o navegador disse. `paraCobrar`:
+   so um preco que ainda esta a venda (a versao antiga resolve o nome, mas nao cobra de novo). */
+export function resolveOffer(precoId, { paraCobrar = false } = {}) {
   const [produto] = String(precoId || "").split(".");
-  const p = PRODUTOS[produto];
+  const p = produtoDe(produto);
   const preco = p && p.precos.find((x) => x.id === precoId);
-  if (!preco) return null;
+  if (!preco || (paraCobrar && preco.ativo === false)) return null;
   return { produto, produtoNome: p.nome, ...preco, valor: (preco.centavos / 100).toFixed(2) };
 }
 
 export function voltaPermitida(produto, volta) {
-  const p = PRODUTOS[produto];
+  const p = produtoDe(produto);
   if (!p) return "";
   return p.voltas.includes(volta) ? volta : p.site;
 }

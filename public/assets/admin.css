@@ -365,3 +365,12 @@ button.pv-tr.pv-clicavel:hover, .pv-tr.pv-aberto { background: var(--surface-hov
 /* Atos Workspace e Contas Atos (admin-workspace.js, admin-contas.js): a barra da busca, antes do cartao */
 .ws-barra { margin: 8px 0 12px; }
 .ws-barra .pv-busca-campo { flex: 1 1 220px; }
+
+/* O Portfolio (admin-portfolio.js): o titulo com o botao e os planos da venda */
+.pf-titulo { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.pf-plano { display: grid; grid-template-columns: 1fr 2fr 1fr 1fr; align-items: end; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.pf-plano .campo:nth-child(5) { grid-column: 1 / 4; }
+@media (max-width: 640px) {
+  .pf-plano { grid-template-columns: 1fr 1fr; }
+  .pf-plano .campo:nth-child(5) { grid-column: 1 / -1; }
+}

@@ -14,7 +14,8 @@
 // Resposta 2xx = entregue. Senao a Atos tenta de novo (REENTREGAS) e, esgotadas, marca "falhou" (o painel mostra).
 // O produto confere a assinatura e a idade (5 minutos) antes de tudo - verificarEvento faz isso.
 
-import { PRODUTOS } from "./catalogo.js";
+import { carregarCatalogo, produtoDe } from "./catalogo.js";
+import { segredoDosEventos } from "../portfolio.js";
 
 export const REENTREGAS_S = [60, 300, 1800, 7200, 43200];
 export const IDADE_MAXIMA_S = 300;
@@ -36,6 +37,12 @@ function iguais(a, b) {
 /* O segredo de um produto: EVENTOS_SEGREDO_<PRODUTO> (segredo do Worker, o mesmo gravado no produto). */
 export function segredoDo(env, produto) {
   return String(env["EVENTOS_SEGREDO_" + String(produto).toUpperCase()] || "");
+}
+
+/* O segredo de qualquer produto: o do Worker (os do codigo) ou, num produto do Portfolio, o que o painel gerou
+   (worker/portfolio.js, guardado cifrado no KV). "" sem nenhum. */
+export async function segredoDoProduto(env, produto) {
+  return segredoDo(env, produto) || (await segredoDosEventos(env, produto));
 }
 
 export async function assinarEvento(segredo, corpo, ts = Math.floor(Date.now() / 1000)) {
@@ -64,8 +71,9 @@ async function receptorDeTeste(segredo, url, init) {
 
 /* Entrega um evento ao produto. {ok, status}. Sem endpoint ou sem segredo: nao entrega (e diz). */
 export async function entregar(env, evento, { buscar = fetch } = {}) {
-  const produto = PRODUTOS[evento.produto];
-  const segredo = segredoDo(env, evento.produto);
+  await carregarCatalogo(env);
+  const produto = produtoDe(evento.produto);
+  const segredo = await segredoDoProduto(env, evento.produto);
   if (!produto || !produto.eventos || !segredo) return { ok: false, status: 0, motivo: "produto sem endpoint ou sem segredo de eventos" };
   if (ehAmbienteDeTeste(env)) buscar = (url, init) => receptorDeTeste(segredo, url, init);
   const corpo = JSON.stringify(evento);

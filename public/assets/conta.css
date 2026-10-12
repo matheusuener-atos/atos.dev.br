@@ -438,4 +438,5 @@ main.texto { flex: 1; width: 100%; max-width: 820px; margin: 0 auto; padding: 48
   .seg-codigos { grid-template-columns: 1fr; }
   .seg-form .campo { max-width: none; }
   .item { flex-wrap: wrap; }
-}
+}/* O icone de um projeto do Portfolio (worker/portfolio.js) no lugar da inicial */
+.projeto .cab img.inicial { object-fit: cover; padding: 0; }

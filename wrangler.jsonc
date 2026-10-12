@@ -104,9 +104,16 @@
   // GITHUB_CLIENT_ID: o OAuth App "PAVLVS Admin" (o mesmo de antes no PAVLVS), com a URL de retorno
   // https://atos.dev.br/api/admin/github/retorno; o secret e segredo (npx wrangler secret put GITHUB_CLIENT_SECRET).
   // So para comitar e pushar ou retroagir no painel do PAVLVS.
+  // O Portfolio (worker/portfolio.js, worker/github-app.js): GITHUB_APP_ID e GITHUB_APP_SLUG sao do GitHub App "Atos
+  // Portfolio" (permissao so "Metadata: read"; Setup URL https://atos.dev.br/api/admin/portfolio/github/instalado,
+  // com "Redirect on update"); a chave privada .pem e segredo (npx wrangler secret put GITHUB_APP_CHAVE). Vazios: o
+  // painel cadastra projetos sem a lista de repositorios. PORTFOLIO_CHAVE (segredo, 32+ caracteres; openssl rand -hex
+  // 32) cifra o segredo dos eventos de cada produto vendido pelo Portfolio: trocar ela invalida esses segredos.
   "vars": {
     "APP_URL": "https://atos.dev.br",
     "GITHUB_CLIENT_ID": "Ov23li63aRJVcRPb4QhE",
+    "GITHUB_APP_ID": "",
+    "GITHUB_APP_SLUG": "",
     // A chave publica do widget Turnstile (atos.dev.br); o segredo e TURNSTILE_SECRET (wrangler secret put).
     "TURNSTILE_SITEKEY": "0x4AAAAAAFUQ1_7SdDy3YIAH",
     "MP_PUBLIC_KEY": "APP_USR-0bb20e6b-f846-4b8e-a267-12bfc8c7fc1a",

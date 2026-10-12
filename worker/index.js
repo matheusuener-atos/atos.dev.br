@@ -22,6 +22,8 @@ import { atenderSeguranca, ehRotaDaSeguranca } from "./seguranca.js";
 import { atenderFormularioPublico, atenderFormularios, ehRotaDoFormularioPublico, ehRotaDosFormularios } from "./formularios.js";
 import { atenderPaginaDeStatus, atenderStatus, conferirStatusAgendado, ehRotaDaPaginaDeStatus, ehRotaDoStatus } from "./status.js";
 import { atenderLinks, atenderPaginaDeLinks, ehRotaDaPaginaDeLinks, ehRotaDosLinks } from "./links.js";
+import { homeComPortfolio } from "./portfolio.js";
+import { carregarCatalogo, produtoDe } from "./cobranca/catalogo.js";
 
 // O registro de cada cliente da Atos Cobranca (docs/COBRANCA.md): o Durable Object precisa sair do modulo principal.
 export { ClienteCobranca } from "./cobranca/cliente.js";
@@ -202,14 +204,39 @@ export default {
       return json({ erro: "falha no servidor da conta" }, 500);
     }
     if (url.pathname.startsWith("/api/")) return json({ erro: "rota não existe" }, 404);
-    // O checkout de cada produto (public/<produto>/assinar/).
-    if (/^\/[a-z0-9-]+\/assinar\/?$/.test(url.pathname)) {
+    // O checkout de cada produto (public/<produto>/assinar/). Os do Portfolio (worker/portfolio.js) usam a pagina
+    // generica (public/assinar/), que le o produto do proprio endereco; ela sozinha (/assinar/) nao abre.
+    const mAssinar = /^\/([a-z0-9-]+)\/assinar\/?$/.exec(url.pathname);
+    if (mAssinar || /^\/assinar(\/|\/index\.html)?$/.test(url.pathname)) {
+      if (!mAssinar) return comCabecalhos(new Response("não encontrado", { status: 404, headers: { "content-type": "text/plain; charset=utf-8" } }));
+      let pagina = request.url;
+      if (!["pavlvs", "workspace"].includes(mAssinar[1])) {
+        await carregarCatalogo(env);
+        const d = produtoDe(mAssinar[1]);
+        if (!d || !d.dinamico) return comCabecalhos(await env.ASSETS.fetch(request));
+        pagina = new URL("/assinar/", url).toString();
+      }
       // Sempre a pagina inteira, nunca o 304: a CSP leva o hash do script que vai junto, e um 304 (sem corpo)
       // sairia sem hash nenhum, e o navegador bloquearia o script da copia que ja tinha.
       const semCondicao = new Headers(request.headers);
       for (const h of ["if-none-match", "if-modified-since", "if-match", "if-range"]) semCondicao.delete(h);
-      const r = await env.ASSETS.fetch(new Request(request.url, { method: request.method, headers: semCondicao }));
+      const r = await env.ASSETS.fetch(new Request(pagina, { method: request.method, headers: semCondicao }));
       return (r.headers.get("content-type") || "").includes("text/html") ? comCspDoCheckout(r) : comCabecalhos(r);
+    }
+    // A home: os projetos do Portfolio (worker/portfolio.js) entram no trecho marcado de public/index.html. Sem
+    // validador de cache (a lista muda pelo painel); 60 s no navegador.
+    if ((url.pathname === "/" || url.pathname === "/index.html") && (request.method === "GET" || request.method === "HEAD")) {
+      const r = await env.ASSETS.fetch(new Request(new URL("/", url), { method: "GET" }));
+      if (r.ok && (r.headers.get("content-type") || "").includes("text/html")) {
+        const html = await homeComPortfolio(await r.text(), env);
+        const h = new Response(request.method === "HEAD" ? null : html, r);
+        h.headers.delete("etag");
+        h.headers.delete("last-modified");
+        h.headers.delete("content-length");
+        h.headers.set("cache-control", "public, max-age=60");
+        return comCabecalhos(h);
+      }
+      return comCabecalhos(r);
     }
     // O painel (/admin) e o Workspace tem a CSP da conta: so scripts da propria Atos.
     const conta = /^\/(entrar|conta|admin|workspace)(\/|$)/.test(url.pathname);

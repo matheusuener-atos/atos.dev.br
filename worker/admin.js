@@ -30,6 +30,8 @@
 //                                            area "atos"; ver: todos; suspender, reativar, remover: dono e suporte
 //   GET|POST /api/admin/workspace...         o Atos Workspace (worker/admin-workspace.js): as contas, a suspensao, os
 //                                            aplicativos de terceiros; area "atos"
+//   GET|POST /api/admin/portfolio...         o Portfolio (worker/portfolio.js): os projetos da home, o GitHub App, o login
+//                                            e a venda de cada um; so o dono, area "atos"
 //   GET|POST /api/admin/contas..., GET /api/admin/busca
 //                                            as Contas Atos (worker/admin-contas.js) e a busca do painel; area "atos"
 //   GET  /api/admin/github/entrar?volta=     302 para o GitHub (OAuth App do painel do PAVLVS)
@@ -51,6 +53,7 @@ import { atenderEmailPainel, ehRotaDoEmailNoPainel } from "./email-atos.js";
 import { resumoDaSeguranca } from "./seguranca/objeto.js";
 import { atenderWorkspaceNoPainel, ehRotaDoWorkspaceNoPainel } from "./admin-workspace.js";
 import { atenderContasNoPainel, ehRotaDasContasNoPainel } from "./admin-contas.js";
+import { atenderPortfolio, ehNavegacaoDoPortfolio, ehRotaDoPortfolio } from "./portfolio.js";
 
 export const RECENTE_S = 12 * 3600;
 export const PAPEIS = ["dono", "financeiro", "suporte"];
@@ -67,7 +70,7 @@ export const PRODUTOS = {
   pavlvs: { nome: "PAVLVS", binding: "PAVLVS", segredo: "PAINEL_SEGREDO_PAVLVS", origem: "https://paulus.ia.br", github: true },
 };
 // Nomes que nao podem ser id de produto (sao rotas do proprio painel).
-export const RESERVADOS = ["eu", "nfse", "equipe", "alteracoes", "publicar", "retroagir", "github", "oauth", "atos", "email", "workspace", "contas", "busca"];
+export const RESERVADOS = ["eu", "nfse", "equipe", "alteracoes", "publicar", "retroagir", "github", "oauth", "atos", "email", "workspace", "contas", "busca", "portfolio"];
 export const AREA_ATOS = "atos";
 
 // O prefixo aqui e la (o Worker do PAVLVS atende o mesmo caminho) e a janela da assinatura.
@@ -131,6 +134,7 @@ export const MATRIZ = [
   ["Emitir, cancelar e substituir notas fiscais; certificado e parâmetros", ["dono", "financeiro"]],
   ["Incluir, editar e tirar pessoas da equipe; mudar papéis e áreas", ["dono"]],
   ["Cadastrar os aplicativos do Entrar com Atos (Login Atos) e gerar os segredos", ["dono"]],
+  ["Cuidar do Portfólio: os projetos da home, o GitHub, o login e a venda de cada um", ["dono"]],
   ["Retroagir uma alteração da equipe ou do Login Atos", ["dono"]],
   ["Ver o Atos Workspace: as contas, os endereços do e-mail Atos (e o registro de entregas), os aplicativos de terceiros, os formulários e as páginas de status", PAPEIS],
   ["Suspender e reativar o Atos Workspace de uma conta (com o motivo, que a pessoa vê)", ["dono", "suporte"]],
@@ -700,7 +704,7 @@ export async function atenderAdmin(request, env, url, deps = {}) {
   const agora = deps.agora ? deps.agora() : Date.now();
   const p = url.pathname;
   const m = request.method;
-  const navegacao = p === "/api/admin/github/entrar" || p === "/api/admin/github/retorno";
+  const navegacao = p === "/api/admin/github/entrar" || p === "/api/admin/github/retorno" || ehNavegacaoDoPortfolio(p);
   const quem = await quemNoPainel(request, env, agora);
   // O GitHub e navegacao (o navegador abre a rota): sem sessao, de volta ao painel, que leva ao entrar.
   if (quem.recusa) return navegacao ? ir("/admin/") : quem.recusa;
@@ -738,6 +742,12 @@ export async function atenderAdmin(request, env, url, deps = {}) {
   if (ehRotaDoEmailNoPainel(p)) {
     if (!quem.areas.includes(AREA_ATOS)) return json({ erro: "você não atua na Atos: peça ao dono para incluir a área" }, 403);
     return atenderEmailPainel(request, env, url, c);
+  }
+  // O Portfolio (worker/portfolio.js): so o dono, na area "atos". A volta do GitHub e navegacao: a recusa leva ao painel.
+  if (ehRotaDoPortfolio(p)) {
+    const recusa = quem.papel !== "dono" ? "o Portfólio é só do dono" : !quem.areas.includes(AREA_ATOS) ? "você não atua na Atos" : "";
+    if (recusa) return ehNavegacaoDoPortfolio(p) ? ir("/admin/?erro=" + encodeURIComponent(recusa)) : json({ erro: recusa }, 403);
+    return atenderPortfolio(request, env, url, c);
   }
   if (p === "/api/admin/oauth" || p.startsWith("/api/admin/oauth/")) {
     if (quem.papel !== "dono") return json({ erro: "o Login Atos é só do dono" }, 403);

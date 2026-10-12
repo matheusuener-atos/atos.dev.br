@@ -21,9 +21,9 @@
 
 import { json, lerJson } from "../comum.js";
 import { sessaoDe } from "../contas.js";
-import { catalogoPublico, MOEDA, PRODUTOS, produtoAberto, resolveOffer, voltaPermitida } from "./catalogo.js";
+import { carregarCatalogo, catalogoPublico, MOEDA, produtoAberto, produtoDe, resolveOffer, todosOsProdutos, voltaPermitida } from "./catalogo.js";
 import { cliente, clienteDaRef, idDoCliente, novaRef } from "./cliente.js";
-import { ehAmbienteDeTeste, segredoDo } from "./eventos.js";
+import { ehAmbienteDeTeste, segredoDoProduto } from "./eventos.js";
 import { criarPreapproval, ErroMP, fraseDaRecusa, mpFetch } from "./mp.js";
 import { arquivoDaNota, indexarCliente, notasDoCliente, notasDoProduto, porNaFila } from "../nfse/atos.js";
 
@@ -48,6 +48,8 @@ export async function atenderCobrancaV1(request, env, url, deps = {}) {
   const p = url.pathname;
   const buscar = deps.fetch || fetch;
   const op = { buscar, ctx: deps.ctx };
+  // Os produtos do Portfolio (worker/portfolio.js) entram no catalogo antes de tudo.
+  await carregarCatalogo(env);
 
   if (p === "/api/mp-config") {
     // A chave publica do app Atos Cobranca. Sem cache: uma pagina guardada nao fica com a chave velha.
@@ -68,7 +70,7 @@ export async function atenderCobrancaV1(request, env, url, deps = {}) {
   const mNf = /^\/api\/cobranca\/v1\/notas(?:\/([A-Za-z0-9_.-]{1,64})\/(pdf|xml))?$/.exec(p);
   if (mNf && request.method === "GET" && request.headers.get("authorization")) {
     const produto = url.searchParams.get("produto") || "";
-    const segredo = segredoDo(env, produto);
+    const segredo = await segredoDoProduto(env, produto);
     const m = /^Bearer\s+(\S+)$/.exec(request.headers.get("authorization") || "");
     if (!segredo || !m || !iguais(m[1], segredo)) return erro(401, "produto não autenticado");
     const sub = url.searchParams.get("sub") || "";
@@ -86,7 +88,7 @@ export async function atenderCobrancaV1(request, env, url, deps = {}) {
   if (p === "/api/cobranca/v1/direitos" && request.method === "GET") {
     // So o produto (o segredo dele, o mesmo dos eventos), e so o direito a ele.
     const produto = url.searchParams.get("produto") || "";
-    const segredo = segredoDo(env, produto);
+    const segredo = await segredoDoProduto(env, produto);
     const m = /^Bearer\s+(\S+)$/.exec(request.headers.get("authorization") || "");
     if (!segredo || !m || !iguais(m[1], segredo)) return erro(401, "produto não autenticado");
     const sub = url.searchParams.get("sub") || "";
@@ -235,15 +237,15 @@ export function conferirPerfil(d, email) {
 
 /* O que vale para cobrar: o produto aberto, o preco do catalogo, o perfil completo. */
 async function preparar(env, meu, precoId) {
-  const oferta = resolveOffer(precoId);
+  const oferta = resolveOffer(precoId, { paraCobrar: true });
   if (!oferta) return { falha: erro(400, "preço desconhecido") };
   if (!produtoAberto(env, oferta.produto)) return { falha: erro(409, `o ${oferta.produtoNome} ainda não vende pela Atos`, "produto_fechado") };
   // Um produto com nivel gratuito (o Atos Workspace): o plano pago e dele ativo, com os termos aceitos e sem suspensao.
-  if (PRODUTOS[oferta.produto].gratuito) {
+  if (produtoDe(oferta.produto).gratuito) {
     const dir = (await meu.pedir("direito", { produto: oferta.produto })).direito;
     if (!dir || !dir.ativo) return { falha: erro(409, `ative o ${oferta.produtoNome} (gratuito, aceitando os termos) antes de assinar o plano pago`, "sem_ativacao") };
     if (dir.suspenso) return { falha: erro(409, `a Atos suspendeu o seu ${oferta.produtoNome}: escreva para contato@atos.dev.br`, "suspenso") };
-    const termos = PRODUTOS[oferta.produto].termos;
+    const termos = produtoDe(oferta.produto).termos;
     if (termos && (!dir.termos || dir.termos.versao !== termos.versao)) return { falha: erro(409, `os termos do ${oferta.produtoNome} mudaram: aceite a versão atual na área dele antes de assinar`, "termos") };
   }
   const perfil = (await meu.pedir("perfil_ler")).perfil;
@@ -536,7 +538,7 @@ async function minhaConta(meu) {
   const produtos = [];
   // Os gratuitos (o Atos Workspace): ativo ou nao, com os termos aceitos; sempre na lista (a tela oferece "Ativar").
   const gratuitos = [];
-  for (const [produto, p] of Object.entries(PRODUTOS)) {
+  for (const [produto, p] of todosOsProdutos()) {
     const dir = direitos.find((x) => x.produto === produto) || null;
     const minhas = l.assinatura.filter((a) => a.produto === produto && !["criando", "recusada"].includes(a.status))
       .sort((a, b) => String(b.criada).localeCompare(String(a.criada)));
