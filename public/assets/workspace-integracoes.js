@@ -9,6 +9,7 @@
      POST /api/integracoes/acessos/:cid          {acao: editar|ligar|desligar|apagar|segredo}
      GET  /api/integracoes/apps/:id/avisos       os avisos ao sistema (webhooks) e as ultimas entregas
      POST /api/integracoes/apps/:id/avisos       {acao: salvar|ligar|desligar|segredo|testar|reenviar|apagar}
+     GET  /api/integracoes/apps/:id/entradas     o registro de entradas (90 dias; ?dias=&resultado=&q=), e .csv para exportar
 
    A workspace.js desenha o titulo e as guias e chama WorkspaceIntegracoes.montar(raiz) a cada desenho; o estado fica
    aqui. Os atributos sao data-ic* (a workspace.js escuta data-ws*). */
@@ -17,6 +18,8 @@
   var S = { raiz: null, dados: null, erro: "", carregando: false, aberto: "", modal: null, aviso: "" };
   // Os avisos ao sistema: as entregas abertas por aplicativo, o segredo que acabou de sair (uma vez), o que espera confirmar.
   var AV = { entregas: {}, segredo: null, confirmar: null, erro: {}, ocupado: "" };
+  // As entradas abertas por aplicativo: {dias, resultado, q, dados}.
+  var EN = {};
   var ICONE_MAX = 30 * 1024;
   var ONDE = "atos.dev.br/workspace/integracoes";
   // As Integracoes pedem a sessao pelo endereco Atos: o "Entrar de novo" e a tela de entrar do Workspace.
@@ -203,6 +206,39 @@
     return h + entregasDe(a.id) + "</div>";
   }
 
+  // ------------------------------------------------------------ o registro de entradas
+
+  function consultaEntradas(id) {
+    var f = EN[id];
+    return "dias=" + f.dias + (f.resultado ? "&resultado=" + f.resultado : "") + (f.q ? "&q=" + encodeURIComponent(f.q) : "");
+  }
+  function lerEntradas(id) {
+    EN[id].dados = null; pintar();
+    api("/api/integracoes/apps/" + id + "/entradas?" + consultaEntradas(id)).then(function (d) { if (EN[id]) { EN[id].dados = d; pintar(); } });
+  }
+  function blocoEntradas(a) {
+    var f = EN[a.id];
+    var h = '<div class="ig-bloco"><h3 class="titulo-secao ig-h"><span>Entradas</span><button type="button" class="btn mini" data-ic="en-abrir" data-id="' + esc(a.id) + '" aria-expanded="' + Boolean(f) + '">' + (f ? "Fechar" : "Ver as entradas") + "</button></h3>";
+    if (!f) return h + '<p class="dica">Quem entrou no aplicativo nos últimos 90 dias (o que o seu sistema já recebe: o sub, e o e-mail e o nome se os escopos foram permitidos), de onde e com que navegador, e as recusas por não estar liberado (sem dizer quem).</p></div>';
+    var opt = function (v, t, atual) { return '<option value="' + v + '"' + (String(atual) === String(v) ? " selected" : "") + ">" + t + "</option>"; };
+    h += '<form class="en-filtro" data-ic-form="entradas" data-id="' + esc(a.id) + '">' +
+      '<label class="campo"><span class="rotulo">Período</span><select name="dias">' + opt(7, "7 dias", f.dias) + opt(30, "30 dias", f.dias) + opt(90, "90 dias", f.dias) + "</select></label>" +
+      '<label class="campo"><span class="rotulo">Resultado</span><select name="resultado">' + opt("", "todos", f.resultado) + opt("entrou", "entrou", f.resultado) + opt("recusado", "recusado (não liberado)", f.resultado) + "</select></label>" +
+      '<label class="campo"><span class="rotulo">Buscar (sub, e-mail, nome, lugar)</span><input name="q" value="' + esc(f.q) + '" autocomplete="off" spellcheck="false"></label>' +
+      '<div class="ig-acoes"><button type="submit" class="btn mini">Filtrar</button><a class="btn mini" href="/api/integracoes/apps/' + esc(a.id) + "/entradas.csv?" + esc(consultaEntradas(a.id)) + '" download>Exportar CSV</a></div></form>';
+    var D = f.dados;
+    if (!D) return h + '<p class="dica">Carregando…</p></div>';
+    if (D.erro) return h + '<p class="erro">' + esc(D.erro) + "</p></div>";
+    h += '<p class="dica">' + D.total + (D.total === 1 ? " entrada" : " entradas") + (D.total > D.linhas.length ? " (mostrando as " + D.linhas.length + " mais novas; o CSV traz até " + D.limites.csv + ")" : "") +
+      (D.nao_registradas_hoje ? " · " + D.nao_registradas_hoje + " de hoje não entraram no registro (passou de " + D.limites.por_dia + " no dia)" : "") + "</p>";
+    if (!D.linhas.length) return h + '<p class="vazio">Nenhuma entrada no período.</p></div>';
+    return h + '<ul class="fm-registro">' + D.linhas.map(function (x) {
+      return "<li><span>" + esc(quando(x.quando)) + "</span> <strong>" + (x.resultado === "entrou" ? "entrou" : "recusado (não liberado)") + "</strong>" +
+        (x.sub ? " · " + esc(x.nome ? x.nome + " · " : "") + esc(x.email ? x.email + " · " : "") + "<code>" + esc(x.sub) + "</code>" : "") +
+        (x.onde ? " · " + esc(x.onde) : "") + (x.navegador ? " · " + esc(x.navegador) : "") + "</li>";
+    }).join("") + "</ul></div>";
+  }
+
   function blocoRegistro(a) {
     if (!a.registro || !a.registro.length) return "";
     return '<details class="ig-registro"><summary>Registro de mudanças</summary><ul>' + a.registro.map(function (x) {
@@ -220,7 +256,7 @@
       h += '<p class="ig-aviso">A Atos desligou este aplicativo em ' + esc(quando(a.bloqueado.quando)) + (a.bloqueado.motivo ? ": " + esc(a.bloqueado.motivo) : "") +
         ". Ninguém entra por ele enquanto estiver assim. Para conversar, escreva para contato@atos.dev.br.</p>";
     }
-    return h + blocoQuem(a) + blocoAcessos(a) + blocoAvisos(a) + blocoRegistro(a) + "</div>";
+    return h + blocoQuem(a) + blocoAcessos(a) + blocoAvisos(a) + blocoEntradas(a) + blocoRegistro(a) + "</div>";
   }
 
   function tela() {
@@ -413,6 +449,7 @@
       mudar("/api/integracoes/apps/" + id, { acao: "tirar", email: b.getAttribute("data-email") }).then(function (d) { if (d.erro) { S.erro = d.erro; pintar(); } });
       return;
     }
+    if (a === "en-abrir") { if (EN[id]) { delete EN[id]; pintar(); } else { EN[id] = { dias: 30, resultado: "", q: "", dados: null }; lerEntradas(id); } return; }
     if (a === "av-guardei") { AV.segredo = null; pintar(); return; }
     if (a === "av-copiar") {
       var sv = AV.segredo && AV.segredo.valor; if (!sv) return;
@@ -445,6 +482,12 @@
     var f = e.target.closest && e.target.closest("form[data-ic-form]");
     if (!f) return;
     e.preventDefault();
+    if (f.getAttribute("data-ic-form") === "entradas") {
+      var fid = f.getAttribute("data-id");
+      EN[fid] = { dias: f.querySelector("[name=dias]").value, resultado: f.querySelector("[name=resultado]").value, q: f.querySelector("[name=q]").value.trim(), dados: null };
+      lerEntradas(fid);
+      return;
+    }
     if (f.getAttribute("data-ic-form") === "avisos") { avisosApi(f.getAttribute("data-id"), { acao: "salvar", url: f.querySelector("input[name=url]").value.trim() }); return; }
     var id = f.getAttribute("data-id"), t = f.querySelector("textarea[name=emails]"), botao = f.querySelector("button[type=submit]");
     var erro = f.querySelector("[data-ic-erro]");

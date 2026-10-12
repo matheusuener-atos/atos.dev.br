@@ -38,6 +38,7 @@ import { WORKSPACE, workspaceDe } from "./workspace.js";
 import { anotarDaEquipe, anotarNoIndice, estadoDe, registroDaEquipe } from "./workspace-indice.js";
 import { bloqueioDoFormulario, formulariosParaPainel } from "./formularios.js";
 import { avisosDoDono, bloqueioDosAvisos } from "./avisos.js";
+import { entradasDoDono } from "./entradas.js";
 
 const SUB = /^[A-Za-z0-9_.:@-]{3,120}$/;
 const POR_VARREDURA = 25;
@@ -350,7 +351,9 @@ export async function atenderWorkspaceNoPainel(request, env, url, c) {
       for (const a of apps) porDono.set(a.dono_sub, [...(porDono.get(a.dono_sub) || []), a.id]);
       for (const [sub, ids] of porDono) {
         const av = await avisosDoDono(env, sub, ids);
-        for (const a of apps) if (a.dono_sub === sub) a.avisos = av[a.id] || null;
+        // As entradas das ultimas 24 horas (worker/entradas.js): so as contagens, nunca quem entrou.
+        const en = await entradasDoDono(env, sub, ids);
+        for (const a of apps) if (a.dono_sub === sub) { a.avisos = av[a.id] || null; a.entradas_24h = en[a.id] || null; }
       }
       return json({ apps });
     }

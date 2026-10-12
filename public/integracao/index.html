@@ -49,7 +49,7 @@
       </div>
       <div>
         <h3>O que inclui hoje</h3>
-        <p>O Login Atos para os seus sistemas: até 5 aplicativos por conta, 5 acessos por aplicativo e 500 pessoas liberadas por aplicativo, em Atos Workspace › Integrações, com os <a href="#avisos">avisos ao seu sistema</a> quando o acesso das pessoas muda.</p>
+        <p>O Login Atos para os seus sistemas: até 5 aplicativos por conta, 5 acessos por aplicativo e 500 pessoas liberadas por aplicativo, em Atos Workspace › Integrações, com os <a href="#avisos">avisos ao seu sistema</a> quando o acesso das pessoas muda e o registro de entradas de cada aplicativo (90 dias, com filtro e CSV).</p>
         <p>Os Formulários: o formulário de contato de um site estático (até 5 por conta), entregue no destino do seu e-mail Atos, em Atos Workspace › Formulários. Pedem o e-mail Atos com o destino confirmado, como as Integrações. <a href="#formularios">Como usar</a>.</p>
         <p>O e-mail Atos (em preparação na Atos): um endereço @atos.dev.br que encaminha para o seu e-mail (não é caixa de entrada) e que também entra na sua Conta Atos, com a mesma senha. Cadastrar um sistema pede o e-mail Atos com o destino confirmado; enquanto ele estiver em preparação, a área do Workspace avisa e o cadastro de sistemas espera.</p>
       </div>
@@ -840,6 +840,8 @@ app.get(new URL(atos.voltaPara).pathname, async (req, res) =&gt; {
       <div><dt>Assinatura</dt><dd><code>Atos-Assinatura: t=&lt;segundos&gt;,v1=&lt;HMAC-SHA256 hex de "&lt;t&gt;.&lt;corpo&gt;"&gt;</code>, com o segredo do aviso; <code>Atos-Evento</code> traz o <code>id</code> (o mesmo em toda tentativa: aplique uma vez). Recuse o que tiver mais de 5 minutos.</dd></div>
       <div><dt>Entrega</dt><dd>Responda 2xx. Senão, a Atos tenta de novo em 1 min, 5 min, 30 min, 2 h e 12 h e marca “falhou”; na área você vê cada entrega, a última resposta e “Tentar de novo”. Ela espera até 10 s e não segue redirecionamentos. O endereço precisa ser público (sem IP, rede interna ou a própria Atos).</dd></div>
     </dl>
+    <h3>O registro de entradas</h3>
+    <p class="nota-fim">Também em cada aplicativo: quem entrou nos últimos 90 dias (o <code>sub</code>, e o e-mail e o nome só com os escopos <code>email</code> e <code>profile</code> permitidos), quando, o lugar aproximado e o navegador resumido, e as recusas de quem não está liberado (sem dizer quem). Com filtro por período, resultado e busca, e exportar em CSV.</p>
     <h3>Conferir no Node</h3>
     <pre class="codigo" tabindex="0" aria-label="Exemplo de conferência de aviso"><code>import { verificarAviso } from "@atos.dev.br/entrar"; // 0.3.0
 

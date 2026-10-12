@@ -36,8 +36,8 @@ export function storage() {
     async get(k) { return m.has(k) ? structuredClone(m.get(k)) : undefined; },
     async put(k, v) { m.set(k, structuredClone(v)); },
     async delete(k) { let n = 0; for (const x of Array.isArray(k) ? k : [k]) if (m.delete(x)) n++; return Array.isArray(k) ? n : n > 0; },
-    async list({ prefix = "", reverse = false, limit } = {}) {
-      let l = [...m].filter(([k]) => k.startsWith(prefix)).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    async list({ prefix = "", reverse = false, limit, start, end } = {}) {
+      let l = [...m].filter(([k]) => k.startsWith(prefix) && (start === undefined || k >= start) && (end === undefined || k < end)).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
       if (reverse) l.reverse();
       if (limit) l = l.slice(0, limit);
       return new Map(l.map(([k, v]) => [k, structuredClone(v)]));

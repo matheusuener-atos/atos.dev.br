@@ -96,6 +96,7 @@
             return "<code>" + esc(c.id) + "</code> · " + (c.tipo === "confidencial" ? "confidencial" : "público") + (c.ativo ? "" : " · desligado pelo dono") + "<br><small>" + voltasDe(c).map(esc).join(" · ") + "</small>";
           }).join("<br>") : "nenhum") + "</dd>" +
           "<dt>Avisos ao sistema</dt><dd>" + avisosDe(a) + "</dd>" +
+          "<dt>Entradas (24 h)</dt><dd>" + (a.entradas_24h ? a.entradas_24h.entrou + " entraram, " + a.entradas_24h.recusado + " recusadas (só as contagens; quem entrou, só o dono vê)" : "nenhuma") + "</dd>" +
           "<dt>Registro</dt><dd>" + ((a.registro || []).map(function (x) { return esc(U.quando(x.quando)) + " · " + esc(x.por) + ": " + esc(x.oque); }).join("<br>") || "nada ainda") + "</dd>" +
           "</dl></div>";
       }

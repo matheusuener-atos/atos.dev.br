@@ -41,6 +41,7 @@ import { aliasDaConta, emailAtosLigado } from "./email-atos.js";
 import { ID_APP_TERCEIRO, KO, appDoCliente, appTerceiro, dadosParaIntegrar, indiceDeTerceiros } from "./oidc.js";
 import { LIBERADOS_MAX, camposDoApp, camposDoCliente, emailsLimpos, modoDeAcesso } from "./oidc-campos.js";
 import { atenderAvisos, avisarLista, avisosDoDono } from "./avisos.js";
+import { atenderEntradas } from "./entradas.js";
 import { daConta } from "./workspace-dados.js";
 
 export const LIMITES = { apps: 5, acessos: 5, liberados: LIBERADOS_MAX, ritmo_hora: 60, recente_h: 12 };
@@ -115,6 +116,8 @@ async function apagarApp(env, a, por, quem, agora, motivo) {
   await registrar(env, a.id, por, quem, (quem === "equipe" ? "a Atos apagou o aplicativo" : "apagou o aplicativo") + (motivo ? ": " + motivo : ""), agora, LOG_DEPOIS_S);
   // Os avisos ao sistema (worker/avisos.js): o endereco, o segredo e a fila saem junto.
   try { const c = daConta(env, a.dono.sub); if (c) await c.pedir("av_apagar", { app: a.id }); } catch { /* o aviso e o segundo lugar */ }
+  // O registro de entradas (worker/entradas.js) sai junto.
+  try { const c = daConta(env, a.dono.sub); if (c) await c.pedir("lg_apagar", { app: a.id }); } catch { /* idem */ }
 }
 
 // ------------------------------------------------------------ o que a tela ve
@@ -186,6 +189,14 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
   const p = url.pathname;
   // email_atos: o endereco que quem entra ve como "Cadastrado por" (a tela diz isso).
   if (p === "/api/integracoes" && request.method === "GET") return json({ ...(await telaDoDono(env, sessao, agora)), email_atos: alias.alias.endereco });
+  // O registro de entradas de um aplicativo (worker/entradas.js): so ver (JSON ou CSV).
+  const ren = p.match(/^\/api\/integracoes\/apps\/(u-[a-z0-9]{10})\/entradas(\.csv)?$/);
+  if (ren) {
+    if (request.method !== "GET") return json({ erro: "use GET" }, 405);
+    const a = await appTerceiro(env, ren[1]);
+    if (!a || a.dono.sub !== sessao.sub) return NAO_E_SEU();
+    return atenderEntradas(request, env, a, url, agora);
+  }
   // Os avisos ao sistema de um aplicativo (worker/avisos.js): ver (GET) e mudar (POST, login recente).
   const rav = p.match(/^\/api\/integracoes\/apps\/(u-[a-z0-9]{10})\/avisos$/);
   if (rav) {

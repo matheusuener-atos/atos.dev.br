@@ -59,6 +59,7 @@ import { sessaoDe } from "./contas.js";
 import { googleLigado } from "./google.js";
 import { aliasDaConta } from "./email-atos.js";
 import { avisar } from "./avisos.js";
+import { anotarEntrada } from "./entradas.js";
 
 const CODIGO_S = 120;
 export const TOKEN_S = 3600;
@@ -592,14 +593,19 @@ export async function atenderOIDC(request, env, url, deps = {}) {
   const apps = sessao ? await appsDe(env, sessao.sub) : {};
   const permitido = Boolean(sessao) && !negado && jaPermitiu(apps, pedido, reg) && !pedido.prompt.includes("consent");
   const semAcesso = () => voltar(pedido.volta, { error: "access_denied", error_description: "esta Conta Atos não tem acesso a este aplicativo", state: pedido.state, iss: EMISSOR });
+  // O registro de entradas do aplicativo de terceiro (worker/entradas.js): quem entrou (o que o aplicativo recebe) e as
+  // recusas por nao estar liberado (sem dizer quem).
+  const entrada = (resultado) => anotarEntrada(env, pedido.app, reg.apps[pedido.app], request, { resultado, sessao, escopos: pedido.escopos }, agora);
 
   if (p === "/api/pedido") {
     if (pedido.prompt.includes("none")) {
       if (entrar) return json({ ir: voltar(pedido.volta, { error: "login_required", state: pedido.state, iss: EMISSOR }) });
-      if (negado) return json({ ir: semAcesso() });
+      if (negado) { await entrada("recusado"); return json({ ir: semAcesso() }); }
       if (!permitido) return json({ ir: voltar(pedido.volta, { error: "consent_required", state: pedido.state, iss: EMISSOR }) });
+      await entrada("entrou");
       return json({ ir: await emitirCodigo(env, pedido, sessao) });
     }
+    if (negado) await entrada("recusado");
     return json({
       app: await comCadastrador(env, publicoDoApp(pedido.app, reg), reg),
       escopos: pedido.escopos.map((s) => ({ id: s, texto: ESCOPOS[s] })),
@@ -615,7 +621,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
   if (p === "/api/autorizar") {
     if (d.permitir !== true) return json({ ir: voltar(pedido.volta, { error: "access_denied", error_description: "a pessoa não permitiu", state: pedido.state, iss: EMISSOR }) });
     if (!sessao || entrar) return json({ erro: "entre na sua conta de novo" }, 401);
-    if (negado) return json({ erro: "a sua Conta Atos não tem acesso a este aplicativo", negado: true, voltar: semAcesso() }, 403);
+    if (negado) { await entrada("recusado"); return json({ erro: "a sua Conta Atos não tem acesso a este aplicativo", negado: true, voltar: semAcesso() }, 403); }
     if (!jaPermitiu(apps, pedido, reg) || pedido.prompt.includes("consent")) {
       // A permissao de um aplicativo antigo com o mesmo id (apagado e criado de novo) nao soma: comeca do zero.
       const guardada = temChave(apps, pedido.app) ? apps[pedido.app] : null;
@@ -623,6 +629,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
       apps[pedido.app] = { ...antes, escopos: [...new Set([...(antes.escopos || []), ...pedido.escopos])], quando: new Date(agora).toISOString() };
       await env.CONTAS.put("atos:apps:" + sessao.sub, JSON.stringify(apps));
     }
+    await entrada("entrou");
     return json({ ir: await emitirCodigo(env, pedido, sessao) });
   }
 

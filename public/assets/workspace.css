@@ -37,3 +37,9 @@
 .fm-registro { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; font-size: 12px; line-height: 1.5; color: var(--text-2); }
 .fm-registro li { overflow-wrap: anywhere; }
 .fm-registro span { color: var(--faint); }
+/* As entradas de cada aplicativo (workspace-integracoes.js) */
+.en-filtro { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; align-items: end; }
+.en-filtro .ig-acoes { grid-column: 1 / -1; }
+.en-filtro select { height: 36px; padding: 0 10px; background: var(--bg); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 13px; outline: none; }
+.en-filtro select:focus { border-color: var(--faint); }
+.en-filtro a.btn { text-decoration: none; display: inline-flex; align-items: center; }
