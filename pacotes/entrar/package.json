@@ -38,7 +38,7 @@
   "homepage": "https://atos.dev.br/integracao/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/matheusuener-atos/matheusuener.com.br.git",
+    "url": "git+https://github.com/matheusuener-atos/atos.dev.br.git",
     "directory": "pacotes/entrar"
   },
   "scripts": {
