@@ -71,7 +71,7 @@
         ". Peça a quem administra o sistema.' e ofereça entrar com outra conta; não trate como falha do sistema. Se o token_endpoint responder invalid_grant ou o userinfo_endpoint responder 401, a pessoa pode ter sido tirada da lista: encerre a sessão local e não tente de novo sozinho.",
       conf ? "9. O client_secret só no servidor, lido de ATOS_CLIENT_SECRET: nunca no front-end, em log, em mensagem de erro ou no repositório. Se este projeto não tiver servidor, pare e me avise: um cliente confidencial precisa de um."
         : "9. Nenhum segredo no front-end nem no repositório (este cliente não tem nenhum).",
-      "10. Mostre um botão 'Entrar com Atos' e uma forma de sair (apague a sessão local; para invalidar o access_token, POST no revocation_endpoint com token=<access_token>).",
+      "10. Mostre o botão oficial 'Entrar com Atos' (o HTML e a folha botao.css de https://atos.dev.br/marca/, sem mudar a marca) e uma forma de sair (apague a sessão local; para invalidar o access_token, POST no revocation_endpoint com token=<access_token>).",
     ];
     if (c.loopback) linhas.push("11. Programa instalado (RFC 8252): abra o navegador do sistema e receba a volta num servidor local em http://127.0.0.1 numa porta livre; use a mesma redirect_uri na ida e na troca do código.");
     linhas.push("", "Antes de mudar arquivos, olhe a estrutura do projeto e me diga o plano (onde ficam a ida, a volta e a sessão). Não instale nada sem me dizer o que é e por quê.");

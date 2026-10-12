@@ -18,7 +18,7 @@
   "use strict";
   if (raiz.IntegrarLinguagens) return;
 
-  var PACOTE = "https://atos.dev.br/pacotes/entrar/0.3.0/entrar.js";
+  var PACOTE = "https://atos.dev.br/pacotes/entrar/0.4.0/entrar.js";
   var jsTexto = function (s) { return JSON.stringify(String(s)); };
 
   // ------------------------------------------------------------------ JavaScript (o pacote @atos.dev.br/entrar)
@@ -34,7 +34,8 @@
       "  voltaPara: " + jsTexto(v.volta) + ", // exatamente como cadastrada",
       "});",
       "",
-      "// O botão: gera state, nonce e code_verifier, guarda em sessionStorage e vai à Atos.",
+      "// O botão: o oficial de https://atos.dev.br/marca/ (o HTML de lá, com id=\"entrar-com-atos\").",
+      "// O clique gera state, nonce e code_verifier, guarda em sessionStorage e vai à Atos.",
       'document.querySelector("#entrar-com-atos").addEventListener("click", () => atos.entrar());',
       "",
       "// Na página de volta: confere state e iss, troca o código e confere o id_token (ES256 pela JWKS).",
@@ -66,6 +67,7 @@ app.get("/", (req, res) => {
   const p = req.session.pessoa;
   res.type("text").send(p ? "Olá, " + p.nome + " (" + p.email + "). id: " + p.id : "Entre em /entrar");
 });
+// Na sua página, o link para /entrar é o botão oficial: https://atos.dev.br/marca/ (o HTML e a folha botao.css).
 
 app.get("/entrar", async (req, res) => {
   const { url, guardar } = await atos.comecar(); // state, nonce e code_verifier

@@ -175,7 +175,7 @@
       <li>
         <div>
           <h3>Integre</h3>
-          <p>O bloco “Como integrar”, em Integrações, traz o seu <code>client_id</code> e os endereços, um comando (PowerShell ou Linux/macOS) que grava no <code>.env</code> do seu projeto o emissor, o <code>client_id</code> e a volta (o segredo, você cola; ele nunca vai no comando), o código <a href="#linguagens">na sua linguagem</a> e um pedido pronto para colar no Claude Code. Ou siga a <a href="#referencia">referência técnica</a> abaixo com a biblioteca OpenID Connect da sua linguagem.</p>
+          <p>O bloco “Como integrar”, em Integrações, traz o seu <code>client_id</code> e os endereços, um comando (PowerShell ou Linux/macOS) que grava no <code>.env</code> do seu projeto o emissor, o <code>client_id</code> e a volta (o segredo, você cola; ele nunca vai no comando), o código <a href="#linguagens">na sua linguagem</a> e um pedido pronto para colar no Claude Code. Ou siga a <a href="#referencia">referência técnica</a> abaixo com a biblioteca OpenID Connect da sua linguagem. Para o botão, use o oficial: <a href="/marca/">o botão “Entrar com Atos”</a> (SVG, HTML e CSS sem script, e as regras de uso).</p>
         </div>
       </li>
       <li>
@@ -196,7 +196,7 @@
 <!-- linguagens:inicio -->
 <div class="il"><div class="il-abas" role="tablist" aria-label="Escolha a linguagem"><button type="button" role="tab" id="pg-ling-js-aba" aria-controls="pg-ling-js" aria-selected="true" data-il="aba">JavaScript</button><button type="button" role="tab" id="pg-ling-python-aba" aria-controls="pg-ling-python" aria-selected="false" tabindex="-1" data-il="aba">Python</button><button type="button" role="tab" id="pg-ling-dotnet-aba" aria-controls="pg-ling-dotnet" aria-selected="false" tabindex="-1" data-il="aba">C#/.NET</button><button type="button" role="tab" id="pg-ling-php-aba" aria-controls="pg-ling-php" aria-selected="false" tabindex="-1" data-il="aba">PHP <span class="il-marca">não testado</span></button><button type="button" role="tab" id="pg-ling-java-aba" aria-controls="pg-ling-java" aria-selected="false" tabindex="-1" data-il="aba">Java <span class="il-marca">não testado</span></button><button type="button" role="tab" id="pg-ling-go-aba" aria-controls="pg-ling-go" aria-selected="false" tabindex="-1" data-il="aba">Go <span class="il-marca">não testado</span></button><button type="button" role="tab" id="pg-ling-ruby-aba" aria-controls="pg-ling-ruby" aria-selected="false" tabindex="-1" data-il="aba">Ruby <span class="il-marca">não testado</span></button></div><div class="il-painel" role="tabpanel" id="pg-ling-js" aria-labelledby="pg-ling-js-aba"><p class="il-bib">Biblioteca: <strong>@atos.dev.br/entrar (o pacote da Atos, sem dependências)</strong></p><p class="il-nota il-testado">Testado contra a Atos: o pacote no Node e num navegador simulado (state, iss, access_denied e id_token forjados recusados), e o servidor Express abaixo.</p><div class="il-bloco"><div class="il-cab"><span>Instalação</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Instalação em JavaScript">npm install @atos.dev.br/entrar
 # Sem npm (página sem empacotador): baixe o mesmo código, um arquivo só, licença MIT:
-#   https://atos.dev.br/pacotes/entrar/0.3.0/entrar.js
+#   https://atos.dev.br/pacotes/entrar/0.4.0/entrar.js
 # No servidor Node, também:
 npm install express express-session</pre></div><div class="il-bloco"><div class="il-cab"><span>Código no navegador (acesso público)</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Código no navegador (acesso público) em JavaScript">// Navegador (cliente público, sem segredo). Com empacotador (Vite, webpack...): o pacote do npm.
 // Sem empacotador: baixe o entrar.js (o mesmo código) e importe de &quot;./entrar.js&quot;.
@@ -207,7 +207,8 @@ const atos = entrarComAtos({
   voltaPara: &quot;https://seusistema.com.br/retorno&quot;, // exatamente como cadastrada
 });
 
-// O botão: gera state, nonce e code_verifier, guarda em sessionStorage e vai à Atos.
+// O botão: o oficial de https://atos.dev.br/marca/ (o HTML de lá, com id=&quot;entrar-com-atos&quot;).
+// O clique gera state, nonce e code_verifier, guarda em sessionStorage e vai à Atos.
 document.querySelector(&quot;#entrar-com-atos&quot;).addEventListener(&quot;click&quot;, () =&gt; atos.entrar());
 
 // Na página de volta: confere state e iss, troca o código e confere o id_token (ES256 pela JWKS).
@@ -235,6 +236,7 @@ app.get(&quot;/&quot;, (req, res) =&gt; {
   const p = req.session.pessoa;
   res.type(&quot;text&quot;).send(p ? &quot;Olá, &quot; + p.nome + &quot; (&quot; + p.email + &quot;). id: &quot; + p.id : &quot;Entre em /entrar&quot;);
 });
+// Na sua página, o link para /entrar é o botão oficial: https://atos.dev.br/marca/ (o HTML e a folha botao.css).
 
 app.get(&quot;/entrar&quot;, async (req, res) =&gt; {
   const { url, guardar } = await atos.comecar(); // state, nonce e code_verifier

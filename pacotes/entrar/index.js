@@ -300,6 +300,43 @@ export function entrarComAtos(opcoes) {
   return { entrar, retorno, comecar, concluir, sair, clientId, voltaPara, emissor };
 }
 
+// ------------------------------------------------------------------ o botao oficial (https://atos.dev.br/marca/)
+
+// O "A" da marca (viewBox 0 0 64 64), o mesmo dos SVG de atos.dev.br/marca/.
+const MARCA_A = "M26.93 48.65V50H15.73V48.65L19.59 47.97L31.19 15.67H36.02L48.08 47.97L52.4 48.65V50H38V48.65L42.57 47.97L39.19 38.14H25.79L22.36 47.97ZM32.39 19.33 26.55 35.86H38.41Z";
+const BOTAO_TEMAS = ["claro", "escuro", "neutro"];
+const BOTAO_TAMANHOS = ["grande", "medio", "pequeno"];
+const BOTAO_TEXTOS = { entrar: "Entrar com Atos", continuar: "Continuar com Atos", "criar-conta": "Criar conta com Atos" };
+
+const escHtml = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+/**
+ * O HTML do botao oficial "Entrar com Atos" (um <a>, sem script). Precisa da folha https://atos.dev.br/marca/botao.css
+ * (ou da copia em "@atos.dev.br/entrar/botao.css"). Sem estilo inline: passa em CSP sem 'unsafe-inline'.
+ * @param {{tema?: "claro"|"escuro"|"neutro", tamanho?: "grande"|"medio"|"pequeno", texto?: "entrar"|"continuar"|"criar-conta",
+ *   href?: string, icone?: boolean, largo?: boolean, id?: string}} [opcoes]
+ */
+export function botaoEntrarComAtos(opcoes) {
+  const o = opcoes || {};
+  const tema = o.tema === undefined ? "claro" : o.tema;
+  const tamanho = o.tamanho === undefined ? "medio" : o.tamanho;
+  const texto = o.texto === undefined ? "entrar" : o.texto;
+  if (!BOTAO_TEMAS.includes(tema)) throw new ErroAtos("configuracao", "tema do botão: claro, escuro ou neutro.");
+  if (!BOTAO_TAMANHOS.includes(tamanho)) throw new ErroAtos("configuracao", "tamanho do botão: grande, medio ou pequeno.");
+  if (!Object.prototype.hasOwnProperty.call(BOTAO_TEXTOS, texto)) throw new ErroAtos("configuracao", "texto do botão: entrar, continuar ou criar-conta.");
+  const href = o.href === undefined ? "#" : String(o.href);
+  // O botao leva ao login da Atos: nunca um javascript: (nem data: ou vbscript:).
+  if (/^\s*(javascript|data|vbscript):/i.test(href)) throw new ErroAtos("configuracao", "o href do botão não pode ser javascript:, data: ou vbscript:.");
+  const classes = ["atos-entrar", "atos-entrar--" + tema, "atos-entrar--" + tamanho];
+  if (o.icone) classes.push("atos-entrar--icone");
+  if (o.largo && !o.icone) classes.push("atos-entrar--largo");
+  const id = o.id ? ' id="' + escHtml(o.id) + '"' : "";
+  return '<a class="' + classes.join(" ") + '" href="' + escHtml(href) + '"' + id + ">" +
+    '<svg class="atos-entrar__marca" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect width="64" height="64" fill="#131312"/>' +
+    '<path fill="#d8d8d8" d="' + MARCA_A + '"/></svg>' +
+    '<span class="atos-entrar__texto">' + BOTAO_TEXTOS[texto] + "</span></a>";
+}
+
 // ------------------------------------------------------------------ os avisos ao sistema (webhooks)
 
 const AVISO_IDADE_S = 300;

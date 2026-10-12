@@ -225,6 +225,18 @@ export default {
     if (/^\/workspace\/(integracoes|email|formularios|status|links|plano)\/?$/.test(url.pathname)) {
       return comCabecalhos(await env.ASSETS.fetch(new Request(new URL("/workspace/", url), request)), true);
     }
+    // O kit do botao (/marca/*.svg, botao.css; public/marca/): usado por outros sites, entao com CORS aberto (so leitura,
+    // sem cookie) e cache de um dia. O SVG sai com uma CSP que nao deixa nada rodar se for aberto direto.
+    if (/^\/marca\/[a-z0-9-]+\.(svg|css|json)$/.test(url.pathname)) {
+      const r = comCabecalhos(await env.ASSETS.fetch(request), false);
+      if (r.ok) {
+        r.headers.set("access-control-allow-origin", "*");
+        r.headers.set("cache-control", "public, max-age=86400");
+        r.headers.set("cross-origin-resource-policy", "cross-origin");
+        if (url.pathname.endsWith(".svg")) r.headers.set("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'");
+      }
+      return r;
+    }
     return comCabecalhos(await env.ASSETS.fetch(request), conta);
   },
 

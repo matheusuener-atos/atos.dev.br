@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>O botão “Entrar com Atos” · Atos</title>
+<meta name="description" content="O kit oficial do botão Entrar com Atos: os SVG (claro, escuro e neutro, em três tamanhos), o HTML e CSS sem script, o helper do pacote @atos.dev.br/entrar e as regras de uso.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#080707">
+<link rel="canonical" href="https://atos.dev.br/marca/">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/conta.css">
+<link rel="stylesheet" href="/assets/integracao.css">
+<link rel="stylesheet" href="/assets/marca.css">
+<link rel="stylesheet" href="/marca/botao.css">
+<script src="/assets/tema.js"></script>
+<script src="/assets/topo.js" defer></script>
+</head>
+<body>
+<header class="topo">
+  <a class="marca" href="/" aria-label="Atos, página inicial">Atos</a>
+  <nav aria-label="Principal">
+    <a href="/#projetos">Projetos</a>
+    <a href="/#indice">Escritos</a>
+    <a href="/#indice">Carta</a>
+    <a href="/entrar/" class="forte" data-conta>Entrar</a>
+  </nav>
+</header>
+
+<main class="integracao">
+  <h1>O botão “Entrar com Atos”</h1>
+  <p class="lead">O botão oficial para o login com a Conta Atos no seu site: os arquivos SVG, um HTML e CSS sem script e as regras de uso. Ele serve a quem já integrou o <a href="/integracao/">Login Atos</a> (Atos Workspace › Integrações).</p>
+
+  <section id="botoes" aria-labelledby="botoes-titulo">
+    <h2 id="botoes-titulo">Os botões</h2>
+    <div class="corpo">
+      <p>Três temas, para o fundo do seu site: <strong>claro</strong> (fundo branco, com borda), <strong>escuro</strong> (para fundos escuros) e <strong>neutro</strong> (cinza claro, sem borda). Três tamanhos: grande (56 px de altura), médio (48 px) e pequeno (44 px), todos com área de toque de pelo menos 44 px. Três textos: “Entrar com Atos”, “Continuar com Atos” e “Criar conta com Atos”. E o ícone só, quadrado, para barras estreitas.</p>
+      <p>Os cantos são retos em todos: é a forma da marca da Atos, como o quadrado do “A”. Não há versão arredondada, para o botão ser reconhecido igual em qualquer site.</p>
+    </div>
+    <div class="vitrine-botoes">
+      <div class="fundo-claro">
+        <span class="rotulo">Claro</span>
+        <img src="/marca/atos-entrar-claro-grande.svg" width="203" height="56" alt="Entrar com Atos, tema claro, grande">
+        <img src="/marca/atos-continuar-claro-medio.svg" width="207" height="48" alt="Continuar com Atos, tema claro, médio">
+        <img src="/marca/atos-criar-conta-claro-pequeno.svg" width="198" height="44" alt="Criar conta com Atos, tema claro, pequeno">
+        <img src="/marca/atos-icone-claro-medio.svg" width="48" height="48" alt="Ícone Entrar com Atos, tema claro">
+      </div>
+      <div class="fundo-escuro">
+        <span class="rotulo">Escuro</span>
+        <img src="/marca/atos-entrar-escuro-grande.svg" width="203" height="56" alt="Entrar com Atos, tema escuro, grande">
+        <img src="/marca/atos-continuar-escuro-medio.svg" width="207" height="48" alt="Continuar com Atos, tema escuro, médio">
+        <img src="/marca/atos-criar-conta-escuro-pequeno.svg" width="198" height="44" alt="Criar conta com Atos, tema escuro, pequeno">
+        <img src="/marca/atos-icone-escuro-medio.svg" width="48" height="48" alt="Ícone Entrar com Atos, tema escuro">
+      </div>
+      <div class="fundo-neutro">
+        <span class="rotulo">Neutro</span>
+        <img src="/marca/atos-entrar-neutro-grande.svg" width="203" height="56" alt="Entrar com Atos, tema neutro, grande">
+        <img src="/marca/atos-continuar-neutro-medio.svg" width="207" height="48" alt="Continuar com Atos, tema neutro, médio">
+        <img src="/marca/atos-criar-conta-neutro-pequeno.svg" width="198" height="44" alt="Criar conta com Atos, tema neutro, pequeno">
+        <img src="/marca/atos-icone-neutro-medio.svg" width="48" height="48" alt="Ícone Entrar com Atos, tema neutro">
+      </div>
+    </div>
+  </section>
+
+  <section id="html" aria-labelledby="html-titulo">
+    <h2 id="html-titulo">No HTML, sem script</h2>
+    <div class="corpo">
+      <p>Um link comum com a folha <code>https://atos.dev.br/marca/botao.css</code> (sem dependência: nem fonte, nem imagem de fora). O texto usa a fonte do sistema (Inter Tight, se o seu site já a tiver); nos SVG, o texto é desenho e não depende de fonte. Sem estilo inline nem script: funciona com uma CSP sem <code>'unsafe-inline'</code> (o “A” é um SVG no próprio HTML, com as cores em atributos).</p>
+    </div>
+<pre class="codigo" tabindex="0" aria-label="O botão em HTML"><code>&lt;link rel="stylesheet" href="https://atos.dev.br/marca/botao.css"&gt;
+
+&lt;a class="atos-entrar atos-entrar--claro atos-entrar--medio" href="/entrar"&gt;
+  &lt;svg class="atos-entrar__marca" viewBox="0 0 64 64" aria-hidden="true" focusable="false"&gt;&lt;rect width="64" height="64" fill="#131312"/&gt;&lt;path fill="#d8d8d8" d="M26.93 48.65V50H15.73V48.65L19.59 47.97L31.19 15.67H36.02L48.08 47.97L52.4 48.65V50H38V48.65L42.57 47.97L39.19 38.14H25.79L22.36 47.97ZM32.39 19.33 26.55 35.86H38.41Z"/&gt;&lt;/svg&gt;
+  &lt;span class="atos-entrar__texto"&gt;Entrar com Atos&lt;/span&gt;
+&lt;/a&gt;</code></pre>
+    <div class="corpo">
+      <p>As classes: o tema (<code>atos-entrar--claro</code>, <code>--escuro</code>, <code>--neutro</code>), o tamanho (<code>--grande</code>, <code>--medio</code>, <code>--pequeno</code>) e, se quiser, <code>--icone</code> (só o quadrado; o texto continua para leitores de tela) ou <code>--largo</code> (a largura toda). O <code>href</code> é o caminho do seu sistema que começa o login (o que chama <code>comecar()</code> ou <code>entrar()</code>).</p>
+    </div>
+    <div class="ao-vivo" aria-label="O botão em HTML, ao vivo">
+      <a class="atos-entrar atos-entrar--claro atos-entrar--grande" href="/integracao/#passo-a-passo"><svg class="atos-entrar__marca" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect width="64" height="64" fill="#131312"/><path fill="#d8d8d8" d="M26.93 48.65V50H15.73V48.65L19.59 47.97L31.19 15.67H36.02L48.08 47.97L52.4 48.65V50H38V48.65L42.57 47.97L39.19 38.14H25.79L22.36 47.97ZM32.39 19.33 26.55 35.86H38.41Z"/></svg><span class="atos-entrar__texto">Entrar com Atos</span></a>
+      <a class="atos-entrar atos-entrar--escuro atos-entrar--medio" href="/integracao/#passo-a-passo"><svg class="atos-entrar__marca" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect width="64" height="64" fill="#131312"/><path fill="#d8d8d8" d="M26.93 48.65V50H15.73V48.65L19.59 47.97L31.19 15.67H36.02L48.08 47.97L52.4 48.65V50H38V48.65L42.57 47.97L39.19 38.14H25.79L22.36 47.97ZM32.39 19.33 26.55 35.86H38.41Z"/></svg><span class="atos-entrar__texto">Continuar com Atos</span></a>
+      <a class="atos-entrar atos-entrar--neutro atos-entrar--pequeno" href="/integracao/#passo-a-passo"><svg class="atos-entrar__marca" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect width="64" height="64" fill="#131312"/><path fill="#d8d8d8" d="M26.93 48.65V50H15.73V48.65L19.59 47.97L31.19 15.67H36.02L48.08 47.97L52.4 48.65V50H38V48.65L42.57 47.97L39.19 38.14H25.79L22.36 47.97ZM32.39 19.33 26.55 35.86H38.41Z"/></svg><span class="atos-entrar__texto">Criar conta com Atos</span></a>
+      <a class="atos-entrar atos-entrar--claro atos-entrar--medio atos-entrar--icone" href="/integracao/#passo-a-passo"><svg class="atos-entrar__marca" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect width="64" height="64" fill="#131312"/><path fill="#d8d8d8" d="M26.93 48.65V50H15.73V48.65L19.59 47.97L31.19 15.67H36.02L48.08 47.97L52.4 48.65V50H38V48.65L42.57 47.97L39.19 38.14H25.79L22.36 47.97ZM32.39 19.33 26.55 35.86H38.41Z"/></svg><span class="atos-entrar__texto">Entrar com Atos</span></a>
+    </div>
+  </section>
+
+  <section id="pacote" aria-labelledby="pacote-titulo">
+    <h2 id="pacote-titulo">Pelo pacote</h2>
+    <div class="corpo">
+      <p>O <code>@atos.dev.br/entrar</code> (0.4.0) devolve o mesmo HTML. A folha vai junto no pacote, em <code>@atos.dev.br/entrar/botao.css</code>, para quem prefere servi-la do próprio site.</p>
+    </div>
+<pre class="codigo" tabindex="0" aria-label="O botão pelo pacote"><code>import { botaoEntrarComAtos } from "@atos.dev.br/entrar";
+
+lugar.innerHTML = botaoEntrarComAtos({ tema: "escuro", tamanho: "grande", texto: "continuar", href: "/entrar" });
+// tema: "claro" | "escuro" | "neutro"; tamanho: "grande" | "medio" | "pequeno";
+// texto: "entrar" | "continuar" | "criar-conta"; icone: true (só o quadrado); largo: true</code></pre>
+  </section>
+
+  <section id="regras" aria-labelledby="regras-titulo">
+    <h2 id="regras-titulo">Regras de uso</h2>
+    <div class="regras">
+      <div>
+        <h3>Pode</h3>
+        <ul>
+          <li>Usar os arquivos daqui, o HTML acima ou o helper do pacote, sem pedir licença, para o login com a Conta Atos no seu sistema.</li>
+          <li>Escolher o tema que combina com o fundo, o tamanho e um dos três textos.</li>
+          <li>Pôr o botão ao lado de outros botões de login (Google, e-mail e senha), com o mesmo destaque que eles.</li>
+          <li>Usar a largura toda (<code>--largo</code>) num formulário estreito.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Não pode</h3>
+        <ul>
+          <li>Mudar a marca: as cores, o “A”, a proporção, o desenho; nem arredondar os cantos, esticar, girar ou pôr sombra e efeito.</li>
+          <li>Trocar o texto por outro que não os três, ou escrever o nome de outro jeito (“ATOS”, “Atos Login”).</li>
+          <li>Usar o botão ou a marca para outra coisa que não o login com a Atos: não para pagamento, não para dizer que o seu sistema é da Atos, parceiro ou recomendado por ela.</li>
+          <li>Pedir a senha da Conta Atos no seu site: o botão leva à Atos (ou à janela do navegador, no “Continuar como”), e só a Atos pede a senha.</li>
+          <li>Diminuir abaixo do pequeno (44 px de altura).</li>
+        </ul>
+      </div>
+    </div>
+    <h3>Espaço livre</h3>
+    <div class="corpo">
+      <p>Deixe em volta do botão um espaço livre de pelo menos um quarto da altura dele (14 px no grande, 12 px no médio, 11 px no pequeno), sem outro texto, ícone ou borda.</p>
+    </div>
+    <div class="espaco"><img src="/marca/atos-entrar-claro-medio.svg" width="181" height="48" alt="O botão Entrar com Atos com a área livre em volta marcada"></div>
+  </section>
+
+  <section id="arquivos" aria-labelledby="arquivos-titulo">
+    <h2 id="arquivos-titulo">Os arquivos</h2>
+    <div class="corpo">
+      <p>SVG com o texto em contorno (não dependem de fonte instalada). Clique para baixar.</p>
+    </div>
+    <dl class="downloads">
+      <div><dt>Entrar com Atos</dt><dd><span><a href="/marca/atos-entrar-claro-grande.svg" download>claro, grande</a><a href="/marca/atos-entrar-claro-medio.svg" download>claro, médio</a><a href="/marca/atos-entrar-claro-pequeno.svg" download>claro, pequeno</a></span> <span><a href="/marca/atos-entrar-escuro-grande.svg" download>escuro, grande</a><a href="/marca/atos-entrar-escuro-medio.svg" download>escuro, médio</a><a href="/marca/atos-entrar-escuro-pequeno.svg" download>escuro, pequeno</a></span> <span><a href="/marca/atos-entrar-neutro-grande.svg" download>neutro, grande</a><a href="/marca/atos-entrar-neutro-medio.svg" download>neutro, médio</a><a href="/marca/atos-entrar-neutro-pequeno.svg" download>neutro, pequeno</a></span></dd></div>
+      <div><dt>Continuar com Atos</dt><dd><span><a href="/marca/atos-continuar-claro-grande.svg" download>claro, grande</a><a href="/marca/atos-continuar-claro-medio.svg" download>claro, médio</a><a href="/marca/atos-continuar-claro-pequeno.svg" download>claro, pequeno</a></span> <span><a href="/marca/atos-continuar-escuro-grande.svg" download>escuro, grande</a><a href="/marca/atos-continuar-escuro-medio.svg" download>escuro, médio</a><a href="/marca/atos-continuar-escuro-pequeno.svg" download>escuro, pequeno</a></span> <span><a href="/marca/atos-continuar-neutro-grande.svg" download>neutro, grande</a><a href="/marca/atos-continuar-neutro-medio.svg" download>neutro, médio</a><a href="/marca/atos-continuar-neutro-pequeno.svg" download>neutro, pequeno</a></span></dd></div>
+      <div><dt>Criar conta com Atos</dt><dd><span><a href="/marca/atos-criar-conta-claro-grande.svg" download>claro, grande</a><a href="/marca/atos-criar-conta-claro-medio.svg" download>claro, médio</a><a href="/marca/atos-criar-conta-claro-pequeno.svg" download>claro, pequeno</a></span> <span><a href="/marca/atos-criar-conta-escuro-grande.svg" download>escuro, grande</a><a href="/marca/atos-criar-conta-escuro-medio.svg" download>escuro, médio</a><a href="/marca/atos-criar-conta-escuro-pequeno.svg" download>escuro, pequeno</a></span> <span><a href="/marca/atos-criar-conta-neutro-grande.svg" download>neutro, grande</a><a href="/marca/atos-criar-conta-neutro-medio.svg" download>neutro, médio</a><a href="/marca/atos-criar-conta-neutro-pequeno.svg" download>neutro, pequeno</a></span></dd></div>
+      <div><dt>Só o ícone</dt><dd><span><a href="/marca/atos-icone-claro-grande.svg" download>claro, grande</a><a href="/marca/atos-icone-claro-medio.svg" download>claro, médio</a><a href="/marca/atos-icone-claro-pequeno.svg" download>claro, pequeno</a></span> <span><a href="/marca/atos-icone-escuro-grande.svg" download>escuro, grande</a><a href="/marca/atos-icone-escuro-medio.svg" download>escuro, médio</a><a href="/marca/atos-icone-escuro-pequeno.svg" download>escuro, pequeno</a></span> <span><a href="/marca/atos-icone-neutro-grande.svg" download>neutro, grande</a><a href="/marca/atos-icone-neutro-medio.svg" download>neutro, médio</a><a href="/marca/atos-icone-neutro-pequeno.svg" download>neutro, pequeno</a></span></dd></div>
+      <div><dt>A marca</dt><dd><a href="/marca/atos-marca.svg" download>atos-marca.svg</a> (o quadrado com o “A”, 64 × 64)</dd></div>
+      <div><dt>A folha</dt><dd><a href="/marca/botao.css" download>botao.css</a></dd></div>
+    </dl>
+    <p class="nota-fim">A fonte do texto é a Inter Tight (SIL Open Font License 1.1); o “A” é desenhado a partir da Tinos (Apache 2.0). Os SVG são gerados por <code>tools/gerar-marca.py</code>.</p>
+  </section>
+
+  <p class="nota-fim">Veja também o <a href="/integracao/">Login Atos</a>, os <a href="/termos/">Termos de uso</a> e a <a href="/privacidade/">Política de privacidade</a>.</p>
+</main>
+
+<footer class="rodape" id="rodape">
+  <span>Atos</span>
+  <div>
+    <details>
+      <summary>Contato</summary>
+      <div>
+        <a href="mailto:contato@atos.dev.br">contato@atos.dev.br</a>
+        <a href="https://wa.me/5594992417837" target="_blank" rel="noopener">+55 (94) 99241-7837</a>
+      </div>
+    </details>
+    <a href="/integracao/">Workspace</a>
+    <a href="/privacidade/">Privacidade</a>
+    <a href="/termos/">Termos</a>
+  </div>
+</footer>
+</body>
+</html>

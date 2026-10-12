@@ -2,7 +2,7 @@
 
 Um site fictício, mínimo, com o **Entrar com Atos**: Node com Express e o pacote [`@atos.dev.br/entrar`](https://www.npmjs.com/package/@atos.dev.br/entrar), num acesso confidencial (servidor com segredo). É o exemplo do passo a passo "Na prática" de [atos.dev.br/integracao](https://atos.dev.br/integracao/#na-pratica).
 
-- `/`: a vitrine com os botões "Entrar com Atos" e "Criar conta"; depois do login, "Olá, <nome>" com o e-mail.
+- `/`: a vitrine com os botões oficiais "Entrar com Atos" e "Criar conta com Atos"; depois do login, "Olá, <nome>" com o e-mail.
 - `/entrar`: manda a pessoa para a Atos (`comecar()`).
 - `/criar-conta`: o mesmo, com a Atos abrindo direto em "Criar a conta Atos" (`comecar({ criarConta: true })`, que pede `prompt=create`). Lá, "Já tem conta? Entrar" continua o mesmo pedido; quem já está com a sessão aberta na Atos vai direto para a permissão.
 - `/auth/atos/retorno`: a volta (`concluir()`); com `access_denied`, vai para `/sem-acesso`.
@@ -14,13 +14,11 @@ Na Atos, cada aplicativo tem um modo em "Quem pode entrar":
 - **Qualquer Conta Atos**: o modo de uma loja aberta a clientes. O cliente novo clica em "Criar conta", cria a Conta Atos (com o código que chega no e-mail), permite e volta à loja já logado. Ninguém precisa liberar nada.
 - **Só as pessoas liberadas** (o padrão): o modo de um sistema fechado (a equipe, um painel interno). Só os e-mails da lista entram. Quem cria a Conta Atos pelo "Criar conta" sem estar na lista fica com a conta criada, mas a Atos mostra "Sem acesso a este aplicativo" e a loja recebe `access_denied` (a página `/sem-acesso`). Nesse modo, o "Criar conta" só serve a quem você já liberou e ainda não tem Conta Atos.
 
-## "Criar conta" e a versão do pacote
+## O botão e a versão do pacote
 
-A opção `criarConta` é do `@atos.dev.br/entrar` **0.2.0**. Enquanto o `package.json` daqui pede `^0.1.0`, o `npm install` traz o 0.1, que ignora a opção: o botão "Criar conta" leva à tela de entrar da Atos de sempre, que tem o link "Não tem conta? Criar conta" (um clique a mais, nada quebra). Com o 0.2.0 no npm, atualize:
+Os botões “Entrar com Atos” e “Criar conta com Atos” são os oficiais do kit da Atos ([atos.dev.br/marca](https://atos.dev.br/marca/)): o HTML sai do `botaoEntrarComAtos()` do pacote e a folha (`/atos/botao.css`) é a do próprio pacote, a mesma de `https://atos.dev.br/marca/botao.css`.
 
-```
-npm install @atos.dev.br/entrar@^0.2.0
-```
+O `botaoEntrarComAtos()` é do `@atos.dev.br/entrar` **0.4.0**, que ainda não está no npm: por isso o `package.json` daqui aponta para a cópia do repositório (`file:../../pacotes/entrar`). Quando a 0.4.0 estiver no npm, troque por `"^0.4.0"`. Fora deste repositório, com a 0.3 do npm, ponha no lugar o HTML de [atos.dev.br/marca](https://atos.dev.br/marca/#html).
 
 ## Rodar contra a Atos
 

@@ -9,18 +9,9 @@ footer { padding: 20px 24px; text-align: center; font: 13px/1.4 system-ui, sans-
 .logo { font-size: 24px; font-style: italic; color: #b5523b; text-decoration: none; }
 .link { font: 15px system-ui, sans-serif; color: #7a5d50; background: none; border: 0; cursor: pointer; text-decoration: underline; padding: 6px; }
 
-.botao-atos { display: inline-flex; align-items: center; gap: 10px; padding: 9px 16px 9px 10px; border-radius: 8px; background: #fff; color: #1d1b1a;
-  border: 1px solid #d8cfc6; font: 600 15px system-ui, sans-serif; text-decoration: none; box-shadow: 0 1px 2px rgba(60, 40, 30, .08); }
-.botao-atos:hover { border-color: #b9aca0; }
-.botao-atos.grande { margin-top: 22px; padding: 12px 22px 12px 12px; font-size: 16px; }
+/* O botão "Entrar com Atos" é o oficial (atos.dev.br/marca/botao.css, servido em /atos/botao.css): aqui só a posição. */
 .acoes, .botoes { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .botoes { margin-top: 22px; gap: 12px; }
-.botoes .botao-atos.grande { margin-top: 0; }
-.botao-criar { display: inline-flex; align-items: center; padding: 9px 16px; border-radius: 8px; background: #b5523b; color: #fff; border: 1px solid #b5523b;
-  font: 600 15px system-ui, sans-serif; text-decoration: none; }
-.botao-criar:hover { background: #9c4532; }
-.botoes .botao-criar { padding: 12px 22px; font-size: 16px; }
-.marca-atos { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; background: #111; color: #fff; font: 600 14px Georgia, serif; }
 
 .vitrine-topo, .ola, .aviso { padding: 56px 0 40px; }
 h1 { margin: 0; font-weight: 400; font-size: clamp(30px, 5vw, 44px); line-height: 1.15; color: #3b2f2a; }
@@ -43,7 +34,5 @@ h1 { margin: 0; font-weight: 400; font-size: clamp(30px, 5vw, 44px); line-height
 
 @media (max-width: 560px) {
   .vitrine { grid-template-columns: minmax(0, 1fr); }
-  .cabeca .botao-atos { padding: 7px 12px 7px 8px; font-size: 14px; }
-  .cabeca .botao-criar { padding: 7px 12px; font-size: 14px; }
   .cabeca { flex-wrap: wrap; }
 }

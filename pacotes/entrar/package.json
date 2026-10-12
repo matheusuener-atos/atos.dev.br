@@ -1,7 +1,7 @@
 {
   "name": "@atos.dev.br/entrar",
-  "version": "0.3.0",
-  "description": "Entrar com Atos (OpenID Connect com PKCE) no navegador e no Node, e a conferência dos avisos da Atos, sem dependências.",
+  "version": "0.4.0",
+  "description": "Entrar com Atos (OpenID Connect com PKCE) no navegador e no Node, o botão oficial e a conferência dos avisos da Atos, sem dependências.",
   "license": "MIT",
   "type": "module",
   "main": "./index.js",
@@ -10,14 +10,37 @@
     ".": {
       "types": "./index.d.ts",
       "default": "./index.js"
-    }
+    },
+    "./botao.css": "./botao.css"
   },
-  "files": ["index.js", "index.d.ts", "README.md", "LICENSE"],
-  "engines": { "node": ">=18" },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "botao.css",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "sideEffects": false,
-  "keywords": ["atos", "openid-connect", "oidc", "oauth2", "pkce", "login", "webhook"],
+  "keywords": [
+    "atos",
+    "openid-connect",
+    "oidc",
+    "oauth2",
+    "pkce",
+    "login",
+    "webhook",
+    
+    "botao"
+  ],
   "homepage": "https://atos.dev.br/integracao/",
-  "repository": { "type": "git", "url": "git+https://github.com/matheusuener-atos/matheusuener.com.br.git", "directory": "pacotes/entrar" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matheusuener-atos/matheusuener.com.br.git",
+    "directory": "pacotes/entrar"
+  },
   "scripts": {
     "test": "node --test \"teste/*.test.mjs\""
   }

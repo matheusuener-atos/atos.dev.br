@@ -16,6 +16,7 @@ app.get("/", (req, res) => {
   const p = req.session.pessoa;
   res.type("text").send(p ? "Olá, " + p.nome + " (" + p.email + "). id: " + p.id : "Entre em /entrar");
 });
+// Na sua página, o link para /entrar é o botão oficial: https://atos.dev.br/marca/ (o HTML e a folha botao.css).
 
 app.get("/entrar", async (req, res) => {
   const { url, guardar } = await atos.comecar(); // state, nonce e code_verifier

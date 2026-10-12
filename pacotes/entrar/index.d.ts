@@ -88,4 +88,23 @@ export interface AvisoAtos {
 
 /** Confere a assinatura (Atos-Assinatura) e a idade (5 minutos) de um aviso; `corpo` e o texto cru. Lanca ErroAtos (codigo "aviso"). */
 export function verificarAviso(corpo: string, cabecalho: string | null | undefined, segredo: string, opcoes?: { agora?: number }): Promise<AvisoAtos>;
+/** As opções do botão oficial (https://atos.dev.br/marca/). */
+export interface OpcoesDoBotao {
+  /** Padrão "claro". */
+  tema?: "claro" | "escuro" | "neutro";
+  /** grande 56 px, medio 48 px (padrão), pequeno 44 px de altura. */
+  tamanho?: "grande" | "medio" | "pequeno";
+  /** "Entrar com Atos" (padrão), "Continuar com Atos" ou "Criar conta com Atos". */
+  texto?: "entrar" | "continuar" | "criar-conta";
+  /** O destino do link (padrão "#"). javascript:, data: e vbscript: lançam ErroAtos. */
+  href?: string;
+  /** Só o quadrado (o texto fica para leitores de tela). */
+  icone?: boolean;
+  /** A largura toda. */
+  largo?: boolean;
+  id?: string;
+}
+
+/** O HTML do botão oficial (um <a>, sem script nem estilo inline). Precisa da folha https://atos.dev.br/marca/botao.css (ou "@atos.dev.br/entrar/botao.css"). */
+export function botaoEntrarComAtos(opcoes?: OpcoesDoBotao): string;
 export default entrarComAtos;

@@ -1,0 +1,59 @@
+/* O botão oficial "Entrar com Atos" (https://atos.dev.br/marca/). Sem dependência e sem script: só esta folha e o HTML
+   abaixo. Cantos retos, como a marca da Atos. Área de toque de 44 px ou mais em todo tamanho; texto com contraste AA.
+
+   <a class="atos-entrar" href="/entrar">
+     <svg class="atos-entrar__marca" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect width="64" height="64" fill="#131312"/><path fill="#d8d8d8" d="M26.93 48.65V50H15.73V48.65L19.59 47.97L31.19 15.67H36.02L48.08 47.97L52.4 48.65V50H38V48.65L42.57 47.97L39.19 38.14H25.79L22.36 47.97ZM32.39 19.33 26.55 35.86H38.41Z"/></svg>
+     <span class="atos-entrar__texto">Entrar com Atos</span>
+   </a>
+
+   Tema:    atos-entrar--claro (padrão), atos-entrar--escuro, atos-entrar--neutro
+   Tamanho: atos-entrar--grande (56 px), atos-entrar--medio (48 px, padrão), atos-entrar--pequeno (44 px)
+   Forma:   atos-entrar--icone (só o quadrado; o texto continua para leitores de tela), atos-entrar--largo (100% da largura)
+   Texto:   "Entrar com Atos", "Continuar com Atos" ou "Criar conta com Atos". */
+
+.atos-entrar {
+  box-sizing: border-box; display: inline-flex; align-items: center; gap: 12px;
+  height: 48px; min-height: 44px; min-width: 44px; margin: 0; padding: 0 17px 0 9px;
+  border: 1px solid #747775; border-radius: 0; background: #ffffff; color: #131312;
+  font: 500 16px/1 "Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  letter-spacing: 0; text-transform: none; text-decoration: none; white-space: nowrap; vertical-align: middle;
+  cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color .12s ease;
+}
+.atos-entrar:hover { background: #f2f2f0; color: #131312; text-decoration: none; }
+.atos-entrar:active { background: #e6e6e3; }
+.atos-entrar:focus { outline: none; }
+.atos-entrar:focus-visible { outline: 2px solid transparent; box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #131312; }
+.atos-entrar__marca { flex: none; display: block; width: 28px; height: 28px; border-radius: 0; }
+.atos-entrar__texto { display: block; }
+
+.atos-entrar--escuro { background: #131312; color: #ffffff; border-color: #5e5e5a; }
+.atos-entrar--escuro:hover { background: #2a2a28; color: #ffffff; }
+.atos-entrar--escuro:active { background: #3a3a37; }
+.atos-entrar--escuro:focus-visible { box-shadow: 0 0 0 2px #131312, 0 0 0 4px #ffffff; }
+
+.atos-entrar--neutro { background: #f2f2f0; color: #131312; border-color: #f2f2f0; }
+.atos-entrar--neutro:hover { background: #e6e6e3; border-color: #e6e6e3; color: #131312; }
+.atos-entrar--neutro:active { background: #dadad6; border-color: #dadad6; }
+
+.atos-entrar--grande { height: 56px; gap: 12px; padding: 0 19px 0 11px; font-size: 18px; }
+.atos-entrar--grande .atos-entrar__marca { width: 32px; height: 32px; }
+.atos-entrar--medio { height: 48px; gap: 12px; padding: 0 17px 0 9px; font-size: 16px; }
+.atos-entrar--medio .atos-entrar__marca { width: 28px; height: 28px; }
+.atos-entrar--pequeno { height: 44px; gap: 10px; padding: 0 15px 0 9px; font-size: 15px; }
+.atos-entrar--pequeno .atos-entrar__marca { width: 24px; height: 24px; }
+
+.atos-entrar--icone { width: 48px; padding: 0; justify-content: center; }
+.atos-entrar--icone.atos-entrar--grande { width: 56px; }
+.atos-entrar--icone.atos-entrar--pequeno { width: 44px; }
+.atos-entrar--icone .atos-entrar__texto {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.atos-entrar--largo { display: flex; width: 100%; justify-content: center; }
+
+@media (forced-colors: active) {
+  .atos-entrar { border-color: ButtonText; }
+  .atos-entrar:focus-visible { outline: 2px solid Highlight; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .atos-entrar { transition: none; }
+}

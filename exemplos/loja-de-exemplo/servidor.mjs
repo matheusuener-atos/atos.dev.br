@@ -4,7 +4,8 @@
 import express from "express";
 import session from "express-session";
 import { fileURLToPath } from "node:url";
-import { entrarComAtos } from "@atos.dev.br/entrar";
+import { createRequire } from "node:module";
+import { botaoEntrarComAtos, entrarComAtos } from "@atos.dev.br/entrar";
 
 for (const v of ["ATOS_CLIENT_ID", "ATOS_REDIRECT_URI", "ATOS_CLIENT_SECRET", "SESSION_SECRET"]) {
   if (!process.env[v]) { console.error("Falta " + v + " no .env (veja o README)."); process.exit(1); }
@@ -19,6 +20,8 @@ const atos = entrarComAtos({
 
 const app = express();
 app.use(express.static(fileURLToPath(new URL("./publico", import.meta.url))));
+// O botão oficial da Atos (atos.dev.br/marca/): a folha vem do pacote (a mesma de https://atos.dev.br/marca/botao.css).
+app.get("/atos/botao.css", (req, res) => res.type("text/css").sendFile(createRequire(import.meta.url).resolve("@atos.dev.br/entrar/botao.css")));
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
@@ -71,7 +74,7 @@ app.get("/", (req, res) => {
   const p = req.session.pessoa;
   const topo = p
     ? `<form method="post" action="/sair"><button class="link" type="submit">Sair</button></form>`
-    : `<nav class="acoes"><a class="botao-atos" href="/entrar"><span class="marca-atos" aria-hidden="true">A</span>Entrar com Atos</a><a class="botao-criar" href="/criar-conta">Criar conta</a></nav>`;
+    : `<nav class="acoes">${botaoEntrarComAtos({ tamanho: "pequeno", href: "/entrar" })}</nav>`;
   const corpo = p
     ? `<section class="ola">
         <p class="sobre">Área de clientes</p>
@@ -86,8 +89,8 @@ app.get("/", (req, res) => {
         <h1>Bolos e doces feitos em casa</h1>
         <p>Encomende pela área de clientes e retire no sábado. Primeira vez aqui? Crie a sua conta. Já é cliente? Entre para ver os seus pedidos.</p>
         <div class="botoes">
-          <a class="botao-atos grande" href="/entrar"><span class="marca-atos" aria-hidden="true">A</span>Entrar com Atos</a>
-          <a class="botao-criar" href="/criar-conta">Criar conta</a>
+          ${botaoEntrarComAtos({ tamanho: "grande", href: "/entrar" })}
+          ${botaoEntrarComAtos({ tamanho: "grande", tema: "neutro", texto: "criar-conta", href: "/criar-conta" })}
         </div>
       </section>`;
   res.send(pagina("Loja da Maria", `<header class="cabeca"><a class="logo" href="/">Loja da Maria</a>${topo}</header>${corpo}${vitrine()}`));
@@ -100,7 +103,7 @@ function vitrine() {
 
 function pagina(titulo, conteudo) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(titulo)}</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/loja.css"></head><body><main>${conteudo}</main>
+<title>${esc(titulo)}</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/atos/botao.css"><link rel="stylesheet" href="/loja.css"></head><body><main>${conteudo}</main>
 <footer>Loja da Maria · site de exemplo, com dados fictícios</footer></body></html>`;
 }
 

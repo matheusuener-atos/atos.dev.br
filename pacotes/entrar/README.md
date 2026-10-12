@@ -6,7 +6,7 @@ O **Entrar com Atos** (OpenID Connect) em JavaScript, no navegador e no Node 18 
 npm install @atos.dev.br/entrar
 ```
 
-Sem npm (uma página sem empacotador): o mesmo código num arquivo só, servido pela Atos, `https://atos.dev.br/pacotes/entrar/0.3.0/entrar.js`; importe de `"./entrar.js"`.
+Sem npm (uma página sem empacotador): o mesmo código num arquivo só, servido pela Atos, `https://atos.dev.br/pacotes/entrar/0.4.0/entrar.js`; importe de `"./entrar.js"`.
 
 Antes, ative o [Atos Workspace](https://atos.dev.br/workspace/) (gratuito) e cadastre o seu sistema em [atos.dev.br/workspace/integracoes](https://atos.dev.br/workspace/integracoes): o aplicativo, o acesso (o `client_id`) e o endereço de volta. Veja também [atos.dev.br/integracao](https://atos.dev.br/integracao/).
 
@@ -109,6 +109,18 @@ app.post("/atos/avisos", express.text({ type: "application/json" }), async (req,
 ```
 
 Passe o corpo **cru** (o texto, antes do `JSON.parse`): a assinatura é sobre os bytes que chegaram. `verificarAviso` devolve o aviso já lido ou lança `ErroAtos` com `codigo: "aviso"`.
+
+## O botão oficial (0.4.0)
+
+O HTML do botão do kit da Atos ([atos.dev.br/marca](https://atos.dev.br/marca/), com as regras de uso): um `<a>` sem script nem estilo inline, que precisa da folha `https://atos.dev.br/marca/botao.css` (a mesma vai no pacote, em `@atos.dev.br/entrar/botao.css`).
+
+```js
+import { botaoEntrarComAtos } from "@atos.dev.br/entrar";
+
+lugar.innerHTML = botaoEntrarComAtos({ tema: "claro", tamanho: "medio", texto: "entrar", href: "/entrar" });
+```
+
+`tema`: `"claro"`, `"escuro"` ou `"neutro"`; `tamanho`: `"grande"` (56 px), `"medio"` (48 px) ou `"pequeno"` (44 px); `texto`: `"entrar"`, `"continuar"` ou `"criar-conta"`; `icone: true` (só o quadrado), `largo: true` (a largura toda), `id`. Fora da lista, ou um `href` `javascript:`, lança `ErroAtos` (`codigo: "configuracao"`).
 
 ## A API
 
