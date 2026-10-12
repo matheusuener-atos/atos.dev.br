@@ -58,6 +58,7 @@ import { EMISSOR, aleatorio, emissorDe, b64url, b64urlTexto, deB64url, iguais, j
 import { sessaoDe } from "./contas.js";
 import { googleLigado } from "./google.js";
 import { aliasDaConta } from "./email-atos.js";
+import { avisar } from "./avisos.js";
 
 const CODIGO_S = 120;
 export const TOKEN_S = 3600;
@@ -567,8 +568,15 @@ export async function atenderOIDC(request, env, url, deps = {}) {
   if (p === "/api/apps/revogar") {
     if (!sessao) return json({ erro: "entre na sua conta" }, 401);
     const apps = await appsDe(env, sessao.sub);
-    delete apps[String(d.app || "")];
+    const id = String(d.app || "");
+    const tinha = temChave(apps, id) ? apps[id] : null;
+    delete apps[id];
     await env.CONTAS.put("atos:apps:" + sessao.sub, JSON.stringify(apps));
+    // O aviso ao sistema do aplicativo de terceiro (worker/avisos.js): so o sub, e so de uma permissao que valia.
+    if (tinha && ID_APP_TERCEIRO.test(id)) {
+      const a = await appTerceiro(env, id);
+      if (a && !(a.criado && tinha.quando && tinha.quando < a.criado)) await avisar(env, a, "acesso.revogado", { sub: sessao.sub }, agora);
+    }
     return json({ ok: true });
   }
 

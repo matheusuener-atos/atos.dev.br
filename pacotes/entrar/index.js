@@ -13,6 +13,8 @@
 //   const { url, guardar } = await atos.comecar(); // guarde `guardar` na sessao do usuario e redirecione para `url`
 //   const pessoa = await atos.concluir(req.url, guardar);
 //
+// Avisos ao sistema (webhooks): const aviso = await verificarAviso(corpoCru, req.headers["atos-assinatura"], process.env.ATOS_AVISOS_SEGREDO);
+//
 // Licenca MIT.
 
 const EMISSOR = "https://atos.dev.br";
@@ -296,6 +298,41 @@ export function entrarComAtos(opcoes) {
   }
 
   return { entrar, retorno, comecar, concluir, sair, clientId, voltaPara, emissor };
+}
+
+// ------------------------------------------------------------------ os avisos ao sistema (webhooks)
+
+const AVISO_IDADE_S = 300;
+
+/**
+ * Confere um aviso da Atos ao seu sistema (Atos Workspace > Integracoes > Avisos ao seu sistema): a assinatura HMAC-SHA256
+ * do cabecalho Atos-Assinatura ("t=<segundos>,v1=<hex>", sobre "<t>.<corpo>") com o segredo do aviso, e a idade (5 minutos).
+ * `corpo` e o texto cru da requisicao (antes de qualquer JSON.parse). Devolve o aviso ({id, tipo, criado, app, dados}) ou
+ * lanca ErroAtos com codigo "aviso". Guarde o `id`: o mesmo aviso pode chegar mais de uma vez (as novas tentativas).
+ */
+export async function verificarAviso(corpo, cabecalho, segredo, { agora = Date.now() } = {}) {
+  if (typeof corpo !== "string") throw new ErroAtos("aviso", "o corpo do aviso tem de ser o texto cru da requisição");
+  if (!segredo) throw new ErroAtos("aviso", "falta o segredo do aviso");
+  const p = {};
+  for (const parte of String(cabecalho || "").split(",")) {
+    const i = parte.indexOf("=");
+    if (i > 0) p[parte.slice(0, i).trim()] = parte.slice(i + 1).trim();
+  }
+  const t = Number(p.t);
+  if (!t || !/^[0-9a-f]{64}$/i.test(p.v1 || "")) throw new ErroAtos("aviso", "o cabeçalho Atos-Assinatura não está no formato t=...,v1=...");
+  if (Math.abs(agora / 1000 - t) > AVISO_IDADE_S) throw new ErroAtos("aviso", "o aviso é de mais de 5 minutos atrás (ou o relógio está fora)");
+  const c = await cripto();
+  const chave = await c.subtle.importKey("raw", te.encode(segredo), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const certo = [...new Uint8Array(await c.subtle.sign("HMAC", chave, te.encode(t + "." + corpo)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const dado = String(p.v1).toLowerCase();
+  let d = 0;
+  for (let i = 0; i < certo.length; i++) d |= certo.charCodeAt(i) ^ dado.charCodeAt(i);
+  if (d !== 0) throw new ErroAtos("aviso", "a assinatura do aviso não confere");
+  try {
+    return JSON.parse(corpo);
+  } catch {
+    throw new ErroAtos("aviso", "o corpo do aviso não é JSON");
+  }
 }
 
 export default entrarComAtos;

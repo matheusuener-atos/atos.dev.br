@@ -49,7 +49,7 @@
       </div>
       <div>
         <h3>O que inclui hoje</h3>
-        <p>O Login Atos para os seus sistemas: até 5 aplicativos por conta, 5 acessos por aplicativo e 500 pessoas liberadas por aplicativo, em Atos Workspace › Integrações.</p>
+        <p>O Login Atos para os seus sistemas: até 5 aplicativos por conta, 5 acessos por aplicativo e 500 pessoas liberadas por aplicativo, em Atos Workspace › Integrações, com os <a href="#avisos">avisos ao seu sistema</a> quando o acesso das pessoas muda.</p>
         <p>Os Formulários: o formulário de contato de um site estático (até 5 por conta), entregue no destino do seu e-mail Atos, em Atos Workspace › Formulários. Pedem o e-mail Atos com o destino confirmado, como as Integrações. <a href="#formularios">Como usar</a>.</p>
         <p>O e-mail Atos (em preparação na Atos): um endereço @atos.dev.br que encaminha para o seu e-mail (não é caixa de entrada) e que também entra na sua Conta Atos, com a mesma senha. Cadastrar um sistema pede o e-mail Atos com o destino confirmado; enquanto ele estiver em preparação, a área do Workspace avisa e o cadastro de sistemas espera.</p>
       </div>
@@ -174,7 +174,7 @@
 <!-- linguagens:inicio -->
 <div class="il"><div class="il-abas" role="tablist" aria-label="Escolha a linguagem"><button type="button" role="tab" id="pg-ling-js-aba" aria-controls="pg-ling-js" aria-selected="true" data-il="aba">JavaScript</button><button type="button" role="tab" id="pg-ling-python-aba" aria-controls="pg-ling-python" aria-selected="false" tabindex="-1" data-il="aba">Python</button><button type="button" role="tab" id="pg-ling-dotnet-aba" aria-controls="pg-ling-dotnet" aria-selected="false" tabindex="-1" data-il="aba">C#/.NET</button><button type="button" role="tab" id="pg-ling-php-aba" aria-controls="pg-ling-php" aria-selected="false" tabindex="-1" data-il="aba">PHP <span class="il-marca">não testado</span></button><button type="button" role="tab" id="pg-ling-java-aba" aria-controls="pg-ling-java" aria-selected="false" tabindex="-1" data-il="aba">Java <span class="il-marca">não testado</span></button><button type="button" role="tab" id="pg-ling-go-aba" aria-controls="pg-ling-go" aria-selected="false" tabindex="-1" data-il="aba">Go <span class="il-marca">não testado</span></button><button type="button" role="tab" id="pg-ling-ruby-aba" aria-controls="pg-ling-ruby" aria-selected="false" tabindex="-1" data-il="aba">Ruby <span class="il-marca">não testado</span></button></div><div class="il-painel" role="tabpanel" id="pg-ling-js" aria-labelledby="pg-ling-js-aba"><p class="il-bib">Biblioteca: <strong>@atos.dev.br/entrar (o pacote da Atos, sem dependências)</strong></p><p class="il-nota il-testado">Testado contra a Atos: o pacote no Node e num navegador simulado (state, iss, access_denied e id_token forjados recusados), e o servidor Express abaixo.</p><div class="il-bloco"><div class="il-cab"><span>Instalação</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Instalação em JavaScript">npm install @atos.dev.br/entrar
 # Sem npm (página sem empacotador): baixe o mesmo código, um arquivo só, licença MIT:
-#   https://atos.dev.br/pacotes/entrar/0.2.0/entrar.js
+#   https://atos.dev.br/pacotes/entrar/0.3.0/entrar.js
 # No servidor Node, também:
 npm install express express-session</pre></div><div class="il-bloco"><div class="il-cab"><span>Código no navegador (acesso público)</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Código no navegador (acesso público) em JavaScript">// Navegador (cliente público, sem segredo). Com empacotador (Vite, webpack...): o pacote do npm.
 // Sem empacotador: baixe o entrar.js (o mesmo código) e importe de &quot;./entrar.js&quot;.
@@ -825,6 +825,35 @@ app.get(new URL(atos.voltaPara).pathname, async (req, res) =&gt; {
       </li>
     </ol>
     <p class="nota-fim">Para rodar a loja de exemplo contra a Atos de verdade, veja o README de <a href="https://github.com/matheusuener-atos/matheusuener.com.br/tree/main/exemplos/loja-de-exemplo"><code>exemplos/loja-de-exemplo</code></a>: como cadastrar o aplicativo, escolher o modo e gravar o <code>.env</code>.</p>
+  </section>
+
+  <section id="avisos" aria-labelledby="avisos-titulo">
+    <h2 id="avisos-titulo">Avisos ao seu sistema</h2>
+    <div class="corpo">
+      <p>Em cada aplicativo (Atos Workspace › Integrações), cadastre um endereço https do seu sistema. A Atos mostra um segredo uma vez e manda ali, assinado com ele, um <code>POST</code> JSON <code>{id, tipo, criado, app, dados}</code> quando o acesso das pessoas muda. Assim o seu sistema encerra a sessão de quem tirou a permissão sem esperar o token vencer.</p>
+    </div>
+    <dl class="tabela-ref">
+      <div><dt>acesso.revogado</dt><dd>A pessoa tirou a permissão do seu aplicativo em Minha conta. <code>dados: {sub}</code>.</dd></div>
+      <div><dt>liberado.adicionado</dt><dd>Você liberou e-mails na lista. <code>dados: {pessoas: [{email, sub?}]}</code>: o <code>sub</code> só de quem já permitiu o aplicativo; de quem nunca entrou, só o e-mail.</dd></div>
+      <div><dt>liberado.removido</dt><dd>Você tirou um e-mail da lista. O mesmo formato.</dd></div>
+      <div><dt>aviso.teste</dt><dd>O botão “Mandar um aviso de teste”. <code>dados: {}</code>.</dd></div>
+      <div><dt>Assinatura</dt><dd><code>Atos-Assinatura: t=&lt;segundos&gt;,v1=&lt;HMAC-SHA256 hex de "&lt;t&gt;.&lt;corpo&gt;"&gt;</code>, com o segredo do aviso; <code>Atos-Evento</code> traz o <code>id</code> (o mesmo em toda tentativa: aplique uma vez). Recuse o que tiver mais de 5 minutos.</dd></div>
+      <div><dt>Entrega</dt><dd>Responda 2xx. Senão, a Atos tenta de novo em 1 min, 5 min, 30 min, 2 h e 12 h e marca “falhou”; na área você vê cada entrega, a última resposta e “Tentar de novo”. Ela espera até 10 s e não segue redirecionamentos. O endereço precisa ser público (sem IP, rede interna ou a própria Atos).</dd></div>
+    </dl>
+    <h3>Conferir no Node</h3>
+    <pre class="codigo" tabindex="0" aria-label="Exemplo de conferência de aviso"><code>import { verificarAviso } from "@atos.dev.br/entrar"; // 0.3.0
+
+app.post("/atos/avisos", express.text({ type: "application/json" }), async (req, res) =&gt; {
+  let aviso;
+  try {
+    aviso = await verificarAviso(req.body, req.get("atos-assinatura"), process.env.ATOS_AVISOS_SEGREDO);
+  } catch {
+    return res.sendStatus(401);
+  }
+  if (aviso.tipo === "acesso.revogado") await encerrarSessoesDe(aviso.dados.sub);
+  res.sendStatus(200);
+});</code></pre>
+    <p class="nota-fim">Passe o corpo cru (o texto, antes do <code>JSON.parse</code>). Em outra linguagem: calcule o HMAC-SHA256 de <code>t + "." + corpo</code> com o segredo, compare em tempo constante com <code>v1</code> e confira a idade de <code>t</code>.</p>
   </section>
 
   <section id="formularios" aria-labelledby="formularios-titulo">

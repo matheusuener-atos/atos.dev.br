@@ -72,6 +72,7 @@
       "O Atos Workspace é o que você ativa para construir com ela.</p>" +
       '<p>Hoje ele traz o <strong>Login Atos para os seus sistemas</strong>: você cadastra o seu site, aplicativo ou servidor no “Entrar com Atos”, ' +
       "as pessoas entram nele com a Conta Atos (por OpenID Connect, como entram com o Google) e você decide quem pode entrar. " +
+      "Se quiser, a Atos avisa o seu sistema (webhook assinado) quando alguém tira a permissão ou a lista de liberados muda. " +
       '<a href="/integracao/">Como funciona</a>.</p>' +
       (S.ws && S.ws.email && S.ws.email.disponivel
         ? "<p>E o <strong>e-mail Atos</strong>: um endereço @atos.dev.br que encaminha para o seu e-mail (não é caixa de entrada; desligado, as mensagens são recusadas).</p>"
@@ -141,7 +142,7 @@
           : '<p class="ws-aviso">Para aceitar, o login precisa ser das últimas ' + W.limites.recente_h + ' horas. <a href="' + VOLTA_ENTRAR() + '">Entrar de novo</a></p>') + "</div>";
     }
     h += h2("O que está incluído") + '<div class="card"><a class="item" href="/workspace/integracoes" data-ws-secao="integracoes"><span class="logo inicial" aria-hidden="true">L</span>' +
-      '<span class="nome"><strong>Integrações</strong><small>O Login Atos para os seus sistemas · ' + esc(String(W.apps)) + " de 5 aplicativos</small></span>" +
+      '<span class="nome"><strong>Integrações</strong><small>O Login Atos para os seus sistemas, com os avisos ao sistema · ' + esc(String(W.apps)) + " de 5 aplicativos</small></span>" +
       '<span class="seta" aria-hidden="true">→</span></a>' +
       '<a class="item" href="/workspace/formularios" data-ws-secao="formularios"><span class="logo inicial" aria-hidden="true">F</span>' +
       '<span class="nome"><strong>Formulários</strong><small>O formulário de contato do seu site, entregue no destino do seu e-mail Atos · até 5</small></span>' +

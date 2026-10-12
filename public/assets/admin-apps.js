@@ -5,7 +5,8 @@
 
      GET  /api/admin/workspace/apps                         os aplicativos, com o dono (e-mail e sub), o Workspace e o
                                                             e-mail Atos dele
-     POST /api/admin/workspace/apps/:id/(desligar|ligar|apagar)   {motivo, confirmar?}: na hora, com registro */
+     POST /api/admin/workspace/apps/:id/(desligar|ligar|apagar)   {motivo, confirmar?}: na hora, com registro
+     POST /api/admin/workspace/apps/:id/avisos/(desligar|ligar)   {motivo}: os avisos ao sistema (worker/avisos.js) */
 (function () {
   "use strict";
   var A = window.AdminAtos;
@@ -54,6 +55,17 @@
     return x.endereco + (x.suspenso ? " · suspenso (quem entra vê “uma Conta Atos”)" : x.confirmado ? "" : " · destino não confirmado");
   }
 
+  /* Os avisos ao sistema (webhooks): o endereco, o estado e as falhas recentes; desligar por abuso (dono e suporte). */
+  function avisosDe(a) {
+    var v = a.avisos;
+    if (!v) return "não cadastrados";
+    var h = esc(v.url) + " · " + (v.bloqueado ? "desligados pela Atos em " + esc(U.quando(v.bloqueado.quando)) + ": " + esc(v.bloqueado.motivo) : v.ativo ? "ligados" : "desligados pelo dono") +
+      " · " + v.falhas + " falharam e " + v.pendentes + " esperando, entre os 20 últimos" + (v.ultima ? " · o último: " + esc(v.ultima.tipo) + " (" + esc(v.ultima.estado) + ")" : "");
+    if (podeDesligar()) h += v.bloqueado ? ' <button type="button" class="link" data-ap="avisos-ligar" data-id="' + esc(a.id) + '">Ligar os avisos de novo</button>'
+      : ' <button type="button" class="link" data-ap="avisos-desligar" data-id="' + esc(a.id) + '">Desligar os avisos</button>';
+    return h;
+  }
+
   function tela() {
     var h = "<h1>Aplicativos de terceiros</h1>" +
       '<p class="descricao">Os sistemas que as pessoas cadastram no Atos Workspace › Integrações, com o dono de cada um e se ele tem o Workspace ativo. Os aplicativos da própria Atos ficam em Login Atos.</p>';
@@ -83,6 +95,7 @@
           "<dt>Acessos</dt><dd>" + (a.acessos.length ? a.acessos.map(function (c) {
             return "<code>" + esc(c.id) + "</code> · " + (c.tipo === "confidencial" ? "confidencial" : "público") + (c.ativo ? "" : " · desligado pelo dono") + "<br><small>" + voltasDe(c).map(esc).join(" · ") + "</small>";
           }).join("<br>") : "nenhum") + "</dd>" +
+          "<dt>Avisos ao sistema</dt><dd>" + avisosDe(a) + "</dd>" +
           "<dt>Registro</dt><dd>" + ((a.registro || []).map(function (x) { return esc(U.quando(x.quando)) + " · " + esc(x.por) + ": " + esc(x.oque); }).join("<br>") || "nada ainda") + "</dd>" +
           "</dl></div>";
       }
@@ -102,6 +115,12 @@
 
   function modal() {
     var T = S.acao, a = app(T.id) || { nome: T.id, dono: "" }, apagar = T.acao === "apagar";
+    if (T.acao === "avisos-desligar") {
+      return '<h2 id="modal-titulo">Desligar os avisos de ' + esc(a.nome) + "</h2><p>A Atos para de mandar avisos ao endereço do sistema (" + esc((a.avisos || {}).url || "") + "), e o dono não consegue religar até a Atos ligar de novo. O login no aplicativo continua. O dono vê o motivo.</p>" +
+        '<label class="campo"><span class="rotulo">Motivo (o dono vê)</span><input data-ap-in="motivo" maxlength="200" autocomplete="off" value="' + esc(T.motivo || "") + '"></label>' +
+        (T.erro ? '<p class="erro" role="alert">' + esc(T.erro) + "</p>" : "") +
+        '<div class="botoes"><button type="button" class="btn p" data-admin="fechar-modal">Voltar</button><button type="button" class="btn p perigo" data-ap="ok"' + (T.enviando ? " disabled" : "") + ">" + (T.enviando ? "Um momento…" : "Desligar os avisos") + "</button></div>";
+    }
     return '<h2 id="modal-titulo">' + (apagar ? "Apagar " : "Desligar ") + esc(a.nome) + "</h2>" +
       "<p>" + (apagar
         ? "O aplicativo de " + esc(a.dono) + " sai do Entrar com Atos na hora, com os acessos e os segredos. Não tem volta (o dono teria de cadastrar outro)."
@@ -120,7 +139,13 @@
     if (a === "recarregar") { carregar(); pintar(); return; }
     if (a === "ver") { S.aberto = S.aberto === id ? "" : id; pintar(); return; }
     if (a === "conta") { if (A.atalhos.contaWs) A.atalhos.contaWs(b.getAttribute("data-sub")); return; }
-    if (a === "desligar" || a === "apagar") {
+    if (a === "avisos-ligar") {
+      b.disabled = true;
+      A.pedir("POST", "/api/admin/workspace/apps/" + encodeURIComponent(id) + "/avisos/ligar", {}).then(function () { A.toast("Avisos ligados de novo"); carregar(); },
+        function (er) { b.disabled = false; if (er.status !== 401) A.toast(er.message, true); });
+      return;
+    }
+    if (a === "desligar" || a === "apagar" || a === "avisos-desligar") {
       S.acao = { id: id, acao: a, motivo: "", erro: "", enviando: false };
       A.modal.abrir({ html: modal, aoFechar: function () { S.acao = null; } }); return;
     }
@@ -133,7 +158,8 @@
     if (a === "ok") {
       var T = S.acao; if (!T || T.enviando) return;
       T.enviando = true; T.erro = ""; A.modal.repintar();
-      A.pedir("POST", "/api/admin/workspace/apps/" + encodeURIComponent(T.id) + "/" + T.acao, { motivo: T.motivo, confirmar: T.acao === "apagar" }).then(function () {
+      var rota = T.acao === "avisos-desligar" ? "/avisos/desligar" : "/" + T.acao;
+      A.pedir("POST", "/api/admin/workspace/apps/" + encodeURIComponent(T.id) + rota, { motivo: T.motivo, confirmar: T.acao === "apagar" }).then(function () {
         if (S.acao !== T) return;
         A.modal.fechar(); A.toast(T.acao === "apagar" ? "Apagado" : "Desligado"); carregar();
       }, function (er) {

@@ -40,6 +40,8 @@ import { SEM_WORKSPACE, WORKSPACE_FORA, WORKSPACE_SUSPENSO, estadoDoAlias, recus
 import { aliasDaConta, emailAtosLigado } from "./email-atos.js";
 import { ID_APP_TERCEIRO, KO, appDoCliente, appTerceiro, dadosParaIntegrar, indiceDeTerceiros } from "./oidc.js";
 import { LIBERADOS_MAX, camposDoApp, camposDoCliente, emailsLimpos, modoDeAcesso } from "./oidc-campos.js";
+import { atenderAvisos, avisarLista, avisosDoDono } from "./avisos.js";
+import { daConta } from "./workspace-dados.js";
 
 export const LIMITES = { apps: 5, acessos: 5, liberados: LIBERADOS_MAX, ritmo_hora: 60, recente_h: 12 };
 const RECENTE_S = LIMITES.recente_h * 3600;
@@ -111,6 +113,8 @@ async function apagarApp(env, a, por, quem, agora, motivo) {
   delete i[a.id];
   await env.CONTAS.put(KO(env).terceiros, JSON.stringify(i));
   await registrar(env, a.id, por, quem, (quem === "equipe" ? "a Atos apagou o aplicativo" : "apagou o aplicativo") + (motivo ? ": " + motivo : ""), agora, LOG_DEPOIS_S);
+  // Os avisos ao sistema (worker/avisos.js): o endereco, o segredo e a fila saem junto.
+  try { const c = daConta(env, a.dono.sub); if (c) await c.pedir("av_apagar", { app: a.id }); } catch { /* o aviso e o segundo lugar */ }
 }
 
 // ------------------------------------------------------------ o que a tela ve
@@ -138,6 +142,9 @@ async function telaDoDono(env, sessao, agora) {
     const a = await appTerceiro(env, id);
     if (a && a.dono.sub === sessao.sub) apps.push(await vista(env, a));
   }
+  // O resumo dos avisos ao sistema de cada aplicativo (worker/avisos.js), num pedido so ao objeto da conta.
+  const avisos = await avisosDoDono(env, sessao.sub, apps.map((a) => a.id));
+  for (const a of apps) a.avisos = avisos[a.id] || null;
   return { conta: { email: sessao.email }, recente: agora / 1000 - sessao.auth_time < RECENTE_S, limites: LIMITES, ...dadosParaIntegrar(env), apps };
 }
 
@@ -179,6 +186,19 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
   const p = url.pathname;
   // email_atos: o endereco que quem entra ve como "Cadastrado por" (a tela diz isso).
   if (p === "/api/integracoes" && request.method === "GET") return json({ ...(await telaDoDono(env, sessao, agora)), email_atos: alias.alias.endereco });
+  // Os avisos ao sistema de um aplicativo (worker/avisos.js): ver (GET) e mudar (POST, login recente).
+  const rav = p.match(/^\/api\/integracoes\/apps\/(u-[a-z0-9]{10})\/avisos$/);
+  if (rav) {
+    const a = await appTerceiro(env, rav[1]);
+    if (!a || a.dono.sub !== sessao.sub) return NAO_E_SEU();
+    if (request.method === "GET") return atenderAvisos(request, env, a, {}, agora);
+    if (request.method !== "POST") return json({ erro: "use POST" }, 405);
+    if (!(agora / 1000 - sessao.auth_time < RECENTE_S)) return json({ erro: "para mudar as integrações, entre de novo (o login precisa ser das últimas 12 horas)", reentrar: true }, 401);
+    const d = await lerJson(request);
+    if (!d || typeof d !== "object" || Array.isArray(d)) return json({ erro: "pedido inválido" }, 400);
+    if (!(await noRitmo(env, sessao.sub))) return json({ erro: "muitas mudanças nesta conta na última hora: espere um pouco" }, 429);
+    return atenderAvisos(request, env, a, d, agora, { log: (oque) => registrar(env, a.id, sessao.email, "dono", oque, agora) });
+  }
   if (request.method !== "POST") return json({ erro: "use POST" }, 405);
   if (!(agora / 1000 - sessao.auth_time < RECENTE_S)) return json({ erro: "para mudar as integrações, entre de novo (o login precisa ser das últimas 12 horas)", reentrar: true }, 401);
   const d = await lerJson(request);
@@ -272,6 +292,7 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
       a.mudado = iso(agora);
       await guardarApp(env, a);
       await log(a.id, "liberou " + listaCurta(novos));
+      await avisarLista(env, a, "liberado.adicionado", novos, agora);
       return responder(a);
     }
     if (acao === "tirar") {
@@ -281,6 +302,7 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
       a.mudado = iso(agora);
       await guardarApp(env, a);
       await log(a.id, "tirou " + email + " da lista");
+      await avisarLista(env, a, "liberado.removido", [email], agora);
       return responder(a);
     }
     if (acao === "apagar") {

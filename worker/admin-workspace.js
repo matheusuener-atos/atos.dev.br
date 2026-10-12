@@ -37,6 +37,7 @@ import { acaoDaEquipe, terceirosParaPainel } from "./integracoes.js";
 import { WORKSPACE, workspaceDe } from "./workspace.js";
 import { anotarDaEquipe, anotarNoIndice, estadoDe, registroDaEquipe } from "./workspace-indice.js";
 import { bloqueioDoFormulario, formulariosParaPainel } from "./formularios.js";
+import { avisosDoDono, bloqueioDosAvisos } from "./avisos.js";
 
 const SUB = /^[A-Za-z0-9_.:@-]{3,120}$/;
 const POR_VARREDURA = 25;
@@ -315,6 +316,24 @@ async function acaoNoFormulario(env, c, id, acao, d) {
   return json({ ok: true });
 }
 
+/* Desligar os avisos ao sistema de um aplicativo por abuso (o endereco usado contra um terceiro) ou ligar de novo. */
+async function acaoNosAvisos(env, c, id, acao, d) {
+  if (!PODE_AGIR.includes(c.quem.papel)) return json({ erro: "o papel " + c.quem.papel + " não desliga avisos" }, 403);
+  const motivo = limparMotivo(d.motivo);
+  if (acao === "desligar" && motivo.length < 3) return json({ erro: "diga o motivo (o dono vê)" }, 400);
+  const a = await appTerceiro(env, id);
+  if (!a) return json({ erro: "esse aplicativo não existe (mais)" }, 404);
+  const r = await bloqueioDosAvisos(env, a, acao, motivo, c.quem, c.agora);
+  if (r.status !== 200) return json({ erro: r.erro }, r.status);
+  try {
+    await anotarDaEquipe(env, { por: c.quem.email, tipo: "workspace.avisos." + acao, sub: a.dono.sub, email: a.dono.email, alvo: id, motivo,
+      oque: (acao === "desligar" ? "desligou os avisos ao sistema de " : "ligou de novo os avisos ao sistema de ") + a.nome + " (" + id + ")" });
+  } catch {
+    // a acao ja valeu
+  }
+  return json({ ok: true });
+}
+
 // ------------------------------------------------------------------ a entrada
 
 export async function atenderWorkspaceNoPainel(request, env, url, c) {
@@ -324,7 +343,19 @@ export async function atenderWorkspaceNoPainel(request, env, url, c) {
   try {
     if (p === "/api/admin/workspace" && m === "GET") return json(await visaoGeral(env, c));
     if (p === "/api/admin/workspace/contas" && m === "GET") return json(await listaDeContas(env, String(url.searchParams.get("q") || "").trim().slice(0, 120)));
-    if (p === "/api/admin/workspace/apps" && m === "GET") return json({ apps: await terceirosParaPainel(env) });
+    if (p === "/api/admin/workspace/apps" && m === "GET") {
+      const apps = await terceirosParaPainel(env);
+      // Os avisos ao sistema (worker/avisos.js): o endereco, se esta ligado e as falhas recentes (sem o segredo).
+      const porDono = new Map();
+      for (const a of apps) porDono.set(a.dono_sub, [...(porDono.get(a.dono_sub) || []), a.id]);
+      for (const [sub, ids] of porDono) {
+        const av = await avisosDoDono(env, sub, ids);
+        for (const a of apps) if (a.dono_sub === sub) a.avisos = av[a.id] || null;
+      }
+      return json({ apps });
+    }
+    const rav = p.match(/^\/api\/admin\/workspace\/apps\/(u-[a-z0-9]{10})\/avisos\/(desligar|ligar)$/);
+    if (rav && m === "POST") return await acaoNosAvisos(env, c, rav[1], rav[2], (await lerJson(request)) || {});
     let r = p.match(/^\/api\/admin\/workspace\/contas\/([^/]+)(?:\/(suspender|reativar))?$/);
     if (r) {
       let sub = "";

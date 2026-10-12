@@ -72,4 +72,20 @@ export class ErroAtos extends Error {
 }
 
 export function entrarComAtos(opcoes: OpcoesAtos): ClienteAtos;
+
+/** Um aviso da Atos ao seu sistema (Atos Workspace > Integracoes > Avisos ao seu sistema). */
+export interface AvisoAtos {
+  /** O id do aviso (o mesmo em toda tentativa: guarde para nao aplicar duas vezes). */
+  id: string;
+  tipo: "acesso.revogado" | "liberado.adicionado" | "liberado.removido" | "aviso.teste";
+  /** Quando o aviso nasceu (ISO 8601). */
+  criado: string;
+  /** O id do aplicativo na Atos (u-...). */
+  app: string;
+  /** acesso.revogado: {sub}; liberado.*: {pessoas: [{email, sub?}]}; aviso.teste: {}. */
+  dados: { sub?: string; pessoas?: { email: string; sub?: string }[] };
+}
+
+/** Confere a assinatura (Atos-Assinatura) e a idade (5 minutos) de um aviso; `corpo` e o texto cru. Lanca ErroAtos (codigo "aviso"). */
+export function verificarAviso(corpo: string, cabecalho: string | null | undefined, segredo: string, opcoes?: { agora?: number }): Promise<AvisoAtos>;
 export default entrarComAtos;

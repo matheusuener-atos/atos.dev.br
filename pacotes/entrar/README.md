@@ -6,7 +6,7 @@ O **Entrar com Atos** (OpenID Connect) em JavaScript, no navegador e no Node 18 
 npm install @atos.dev.br/entrar
 ```
 
-Sem npm (uma página sem empacotador): o mesmo código num arquivo só, servido pela Atos, `https://atos.dev.br/pacotes/entrar/0.2.0/entrar.js`; importe de `"./entrar.js"`.
+Sem npm (uma página sem empacotador): o mesmo código num arquivo só, servido pela Atos, `https://atos.dev.br/pacotes/entrar/0.3.0/entrar.js`; importe de `"./entrar.js"`.
 
 Antes, ative o [Atos Workspace](https://atos.dev.br/workspace/) (gratuito) e cadastre o seu sistema em [atos.dev.br/workspace/integracoes](https://atos.dev.br/workspace/integracoes): o aplicativo, o acesso (o `client_id`) e o endereço de volta. Veja também [atos.dev.br/integracao](https://atos.dev.br/integracao/).
 
@@ -78,6 +78,38 @@ app.get("/criar-conta", async (req, res) => {                                   
 
 `criarConta` não combina com `prompt` (lança `ErroAtos` com `codigo: "configuracao"`). Uma Atos cuja descoberta não anuncia `create` em `prompt_values_supported` recebe a ida sem `prompt` (a tela de entrar, que também tem "Criar conta"). Quem entra depende do modo do aplicativo na Atos: com "Qualquer Conta Atos", a conta nova entra; com "Só as pessoas liberadas", a conta é criada, mas quem não está na lista volta com `access_denied`.
 
+## Avisos ao seu sistema (0.3.0)
+
+Em Atos Workspace › Integrações, cada aplicativo pode ter um endereço https do seu sistema para os avisos da Atos (webhooks). A Atos manda ali um `POST` JSON quando:
+
+| `tipo` | quando | `dados` |
+|---|---|---|
+| `acesso.revogado` | a pessoa tirou a permissão do seu aplicativo em Minha conta | `{ sub }` |
+| `liberado.adicionado` | você liberou e-mails na lista do aplicativo | `{ pessoas: [{ email, sub? }] }` |
+| `liberado.removido` | você tirou um e-mail da lista | `{ pessoas: [{ email, sub? }] }` |
+| `aviso.teste` | o botão "Mandar um aviso de teste" | `{}` |
+
+O `sub` das pessoas da lista só vem de quem já permitiu o seu aplicativo (o seu sistema já o recebeu no login); de quem nunca entrou, só o e-mail. O corpo é `{ id, tipo, criado, app, dados }`, com os cabeçalhos `Atos-Evento` (o `id`) e `Atos-Assinatura: t=<segundos>,v1=<HMAC-SHA256 hex de "<t>.<corpo>">`, assinado com o segredo que a Atos mostra uma vez ao cadastrar. Responda 2xx: senão a Atos tenta de novo em 1 min, 5 min, 30 min, 2 h e 12 h (o mesmo `id`). Ela não segue redirecionamentos e espera até 10 s.
+
+```js
+import express from "express";
+import { verificarAviso } from "@atos.dev.br/entrar";
+
+app.post("/atos/avisos", express.text({ type: "application/json" }), async (req, res) => {
+  let aviso;
+  try {
+    aviso = await verificarAviso(req.body, req.get("atos-assinatura"), process.env.ATOS_AVISOS_SEGREDO);
+  } catch {
+    return res.sendStatus(401); // assinatura errada ou aviso velho (mais de 5 minutos)
+  }
+  if (await jaApliquei(aviso.id)) return res.sendStatus(200);
+  if (aviso.tipo === "acesso.revogado") await encerrarSessoesDe(aviso.dados.sub);
+  res.sendStatus(200);
+});
+```
+
+Passe o corpo **cru** (o texto, antes do `JSON.parse`): a assinatura é sobre os bytes que chegaram. `verificarAviso` devolve o aviso já lido ou lança `ErroAtos` com `codigo: "aviso"`.
+
 ## A API
 
 `entrarComAtos({ clientId, voltaPara, escopos?, emissor?, fetch? })`
@@ -85,7 +117,9 @@ app.get("/criar-conta", async (req, res) => {                                   
 - `escopos`: padrão `["openid", "email", "profile"]`; `openid` sempre vai.
 - `emissor`: só para testes (padrão `https://atos.dev.br`). A descoberta precisa dizer exatamente esse emissor.
 
-Devolve `{ entrar, retorno, comecar, concluir, sair }`:
+Devolve `{ entrar, retorno, comecar, concluir, sair }`. E, à parte, `verificarAviso(corpo, cabecalho, segredo, { agora? })` (acima).
+
+
 
 | | |
 |---|---|
@@ -105,6 +139,8 @@ Contra a Atos de verdade: o Worker deste repositório em `wrangler dev`, com con
 
     cd pacotes/entrar
     npm test
+
+O `verificarAviso` tem os próprios testes (`teste/aviso.test.mjs`, sem a Atos: assinatura certa, errada, de outro segredo, corpo mexido, velha e fora do formato).
 
 Testado no Node 24; o Node 18 usa o WebCrypto de `node:crypto` (o código cuida disso), mas não rodou aqui.
 

@@ -135,7 +135,7 @@ export const MATRIZ = [
   ["Ver o Atos Workspace: as contas, os endereços do e-mail Atos (e o registro de entregas), os aplicativos de terceiros e os formulários", PAPEIS],
   ["Suspender e reativar o Atos Workspace de uma conta (com o motivo, que a pessoa vê)", ["dono", "suporte"]],
   ["Suspender, reativar e remover um endereço do e-mail Atos por abuso", ["dono", "suporte"]],
-  ["Desligar e ligar de novo um aplicativo de terceiro por abuso", ["dono", "suporte"]],
+  ["Desligar e ligar de novo um aplicativo de terceiro (e os avisos ao sistema dele) por abuso", ["dono", "suporte"]],
   ["Apagar um aplicativo de terceiro", ["dono"]],
   ["Desligar e ligar de novo um formulário do Workspace por abuso", ["dono", "suporte"]],
   ["Ver uma Conta Atos: como entra, o resumo da segurança (sem segredos), os acessos e as sessões", PAPEIS],

@@ -7,12 +7,16 @@
      POST /api/integracoes/apps/:id              {acao: editar|acesso|liberar|tirar|apagar}
      POST /api/integracoes/apps/:id/acessos      criar um acesso
      POST /api/integracoes/acessos/:cid          {acao: editar|ligar|desligar|apagar|segredo}
+     GET  /api/integracoes/apps/:id/avisos       os avisos ao sistema (webhooks) e as ultimas entregas
+     POST /api/integracoes/apps/:id/avisos       {acao: salvar|ligar|desligar|segredo|testar|reenviar|apagar}
 
    A workspace.js desenha o titulo e as guias e chama WorkspaceIntegracoes.montar(raiz) a cada desenho; o estado fica
    aqui. Os atributos sao data-ic* (a workspace.js escuta data-ws*). */
 (function () {
   "use strict";
   var S = { raiz: null, dados: null, erro: "", carregando: false, aberto: "", modal: null, aviso: "" };
+  // Os avisos ao sistema: as entregas abertas por aplicativo, o segredo que acabou de sair (uma vez), o que espera confirmar.
+  var AV = { entregas: {}, segredo: null, confirmar: null, erro: {}, ocupado: "" };
   var ICONE_MAX = 30 * 1024;
   var ONDE = "atos.dev.br/workspace/integracoes";
   // As Integracoes pedem a sessao pelo endereco Atos: o "Entrar de novo" e a tela de entrar do Workspace.
@@ -125,6 +129,80 @@
     return h + "</div>";
   }
 
+  // ------------------------------------------------------------ os avisos ao sistema (webhooks)
+
+  var TIPOS_AV = { "acesso.revogado": "acesso revogado", "liberado.adicionado": "liberado", "liberado.removido": "tirado da lista", "aviso.teste": "teste" };
+  var ESTADOS_AV = { pendente: "esperando", entregue: "entregue", falhou: "falhou", cancelado: "cancelado" };
+  function avisosApi(id, corpo) {
+    AV.ocupado = id; AV.erro[id] = ""; pintar();
+    return api("/api/integracoes/apps/" + id + "/avisos", corpo).then(function (d) {
+      AV.ocupado = "";
+      if (d._status === 401 && d.reentrar) { S.dados.recente = false; pintar(); return d; }
+      if (d._status === 403 && (d.workspace === false || d.codigo)) { S.dados = null; document.dispatchEvent(new CustomEvent("workspace-inativo")); return d; }
+      if (d.erro) { AV.erro[id] = d.erro; pintar(); return d; }
+      if (d.segredo) AV.segredo = { id: id, valor: d.segredo };
+      d._app = id;
+      if (AV.entregas[id] !== undefined || d.testado) AV.entregas[id] = d;
+      var x = app(id);
+      if (x) x.avisos = d.aviso ? Object.assign({}, x.avisos || {}, d.aviso) : null;
+      pintar();
+      return d;
+    });
+  }
+  function entregasDe(id) {
+    var E = AV.entregas[id];
+    if (E === undefined) return "";
+    if (E === null) return '<p class="dica">Carregando as entregas…</p>';
+    var l = E.entregas || [];
+    if (!l.length) return '<p class="vazio">Nenhum aviso ainda.</p>';
+    return '<ul class="fm-registro">' + l.map(function (x) {
+      var u = x.ultimo;
+      return "<li><span>" + esc(quando(x.criado)) + "</span> " + esc(TIPOS_AV[x.tipo] || x.tipo) + " · <strong>" + esc(ESTADOS_AV[x.estado] || x.estado) + "</strong>" +
+        (x.tentativas ? " · " + x.tentativas + (x.tentativas === 1 ? " tentativa" : " tentativas") : "") + (u ? " · " + (u.status ? "resposta " + u.status : "sem resposta") + (u.motivo ? " (" + esc(u.motivo) + ")" : "") : "") +
+        (x.proxima ? " · próxima tentativa " + esc(quando(x.proxima)) : "") +
+        (x.estado === "falhou" || x.estado === "cancelado" ? ' <button type="button" class="btn mini" data-ic="av-reenviar" data-id="' + esc(E._app) + '" data-chave="' + esc(x.chave) + '">Tentar de novo</button>' : "") + "</li>";
+    }).join("") + "</ul>";
+  }
+  function blocoAvisos(a) {
+    var v = a.avisos, ocupado = AV.ocupado === a.id;
+    var h = '<div class="ig-bloco"><h3 class="titulo-secao">Avisos ao seu sistema</h3>' +
+      '<p class="dica">A Atos manda ao endereço do seu sistema, assinado, quando alguém tira a permissão em Minha conta (acesso.revogado, com o sub) e quando a lista de liberados muda (liberado.adicionado e liberado.removido, com o e-mail, e o sub de quem já entrou). ' +
+      'Confira a assinatura com o segredo (veja <a href="/integracao/#avisos">como</a>).</p>';
+    if (AV.erro[a.id]) h += '<p class="erro" role="alert">' + esc(AV.erro[a.id]) + "</p>";
+    if (AV.segredo && AV.segredo.id === a.id) {
+      h += "<p><strong>O segredo aparece só agora.</strong> A Atos não mostra de novo; se perder, troque.</p>" +
+        '<pre class="ig-pre ig-segredo">' + esc(AV.segredo.valor) + "</pre>" +
+        '<p class="dica">Guarde-o no servidor do sistema (ex.: a variável ATOS_AVISOS_SEGREDO), nunca no código ou na página.</p>' +
+        '<div class="ig-acoes"><button type="button" class="btn mini" data-ic="av-copiar">Copiar</button><button type="button" class="btn mini" data-ic="av-guardei">Já guardei</button></div>';
+    }
+    if (!v) {
+      return h + '<form class="ig-liberar" data-ic-form="avisos" data-id="' + esc(a.id) + '"><label class="campo"><span class="rotulo">Endereço do seu sistema (https)</span>' +
+        '<input name="url" type="url" placeholder="https://seusistema.com.br/atos/avisos" autocomplete="off" spellcheck="false"></label>' +
+        '<div class="ig-linha-botoes"><button type="submit" class="btn p"' + (ocupado ? " disabled" : "") + ">Cadastrar e gerar o segredo</button></div></form></div>";
+    }
+    var sit = v.bloqueado ? '<span class="ig-sit perigo">desligados pela Atos</span>' : v.ativo ? '<span class="ig-sit ok">ligados</span>' : '<span class="ig-sit">desligados</span>';
+    h += '<dl class="ig-info"><dt>Endereço</dt><dd><code>' + esc(v.url) + "</code> " + sit + "</dd>" +
+      "<dt>Segredo</dt><dd>gerado em " + esc(quando(v.segredo_quando)) + "</dd>" +
+      (v.ultima ? "<dt>O último</dt><dd>" + esc(TIPOS_AV[v.ultima.tipo] || v.ultima.tipo) + " · " + esc(ESTADOS_AV[v.ultima.estado] || v.ultima.estado) + " · " + esc(quando(v.ultima.criado)) + "</dd>" : "") +
+      (v.falhas ? "<dt>Falharam</dt><dd>" + v.falhas + " entre os últimos 20" + "</dd>" : "") + "</dl>";
+    if (v.bloqueado) h += '<p class="ig-aviso">A Atos desligou os avisos deste aplicativo em ' + esc(quando(v.bloqueado.quando)) + (v.bloqueado.motivo ? ": " + esc(v.bloqueado.motivo) : "") + ". O login continua. Para conversar, escreva para contato@atos.dev.br.</p>";
+    var c = AV.confirmar && AV.confirmar.id === a.id ? AV.confirmar.acao : "";
+    if (c) {
+      h += '<p class="ig-aviso">' + (c === "segredo" ? "Trocar o segredo? O de agora para de valer na hora: o seu sistema recusa os avisos até receber o novo." : "Apagar os avisos? O endereço, o segredo e o registro das entregas são apagados.") + "</p>" +
+        '<div class="ig-acoes"><button type="button" class="btn mini perigo" data-ic="av-sim" data-id="' + esc(a.id) + '">' + (c === "segredo" ? "Trocar o segredo" : "Apagar") + '</button><button type="button" class="btn mini" data-ic="av-nao">Voltar</button></div>';
+    } else {
+      h += '<form class="ig-liberar" data-ic-form="avisos" data-id="' + esc(a.id) + '"><label class="campo"><span class="rotulo">Trocar o endereço</span>' +
+        '<input name="url" type="url" value="' + esc(v.url) + '" autocomplete="off" spellcheck="false"></label></form>' +
+        '<div class="ig-acoes">' + (v.bloqueado ? "" : '<button type="button" class="btn mini" data-ic="av-salvar" data-id="' + esc(a.id) + '">Salvar o endereço</button>' +
+          '<button type="button" class="btn mini" data-ic="' + (v.ativo ? "av-desligar" : "av-ligar") + '" data-id="' + esc(a.id) + '">' + (v.ativo ? "Desligar" : "Ligar") + "</button>" +
+          (v.ativo ? '<button type="button" class="btn mini" data-ic="av-testar" data-id="' + esc(a.id) + '">Mandar um aviso de teste</button>' : "") +
+          '<button type="button" class="btn mini" data-ic="av-segredo" data-id="' + esc(a.id) + '">Trocar o segredo</button>') +
+        '<button type="button" class="btn mini" data-ic="av-entregas" data-id="' + esc(a.id) + '" aria-expanded="' + (AV.entregas[a.id] !== undefined) + '">Entregas</button>' +
+        '<button type="button" class="btn mini perigo" data-ic="av-apagar" data-id="' + esc(a.id) + '">Apagar</button></div>';
+    }
+    return h + entregasDe(a.id) + "</div>";
+  }
+
   function blocoRegistro(a) {
     if (!a.registro || !a.registro.length) return "";
     return '<details class="ig-registro"><summary>Registro de mudanças</summary><ul>' + a.registro.map(function (x) {
@@ -142,7 +220,7 @@
       h += '<p class="ig-aviso">A Atos desligou este aplicativo em ' + esc(quando(a.bloqueado.quando)) + (a.bloqueado.motivo ? ": " + esc(a.bloqueado.motivo) : "") +
         ". Ninguém entra por ele enquanto estiver assim. Para conversar, escreva para contato@atos.dev.br.</p>";
     }
-    return h + blocoQuem(a) + blocoAcessos(a) + blocoRegistro(a) + "</div>";
+    return h + blocoQuem(a) + blocoAcessos(a) + blocoAvisos(a) + blocoRegistro(a) + "</div>";
   }
 
   function tela() {
@@ -335,6 +413,29 @@
       mudar("/api/integracoes/apps/" + id, { acao: "tirar", email: b.getAttribute("data-email") }).then(function (d) { if (d.erro) { S.erro = d.erro; pintar(); } });
       return;
     }
+    if (a === "av-guardei") { AV.segredo = null; pintar(); return; }
+    if (a === "av-copiar") {
+      var sv = AV.segredo && AV.segredo.valor; if (!sv) return;
+      var ok2 = function (ok) { b.textContent = ok ? "Copiado" : "Selecione e copie"; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(sv).then(function () { ok2(true); }, function () { ok2(false); }); else ok2(false);
+      return;
+    }
+    if (a === "av-nao") { AV.confirmar = null; pintar(); return; }
+    if (a === "av-segredo" || a === "av-apagar") { AV.confirmar = { id: id, acao: a.slice(3) }; pintar(); return; }
+    if (a === "av-sim") { var cf = AV.confirmar; AV.confirmar = null; if (cf) avisosApi(id, { acao: cf.acao, confirmar: true }); return; }
+    if (a === "av-ligar" || a === "av-desligar" || a === "av-testar") { avisosApi(id, { acao: a.slice(3) }); return; }
+    if (a === "av-salvar") {
+      var inp = b.closest(".ig-bloco").querySelector("form[data-ic-form=avisos] input[name=url]");
+      avisosApi(id, { acao: "salvar", url: inp ? inp.value.trim() : "" });
+      return;
+    }
+    if (a === "av-reenviar") { avisosApi(id, { acao: "reenviar", entrega: b.getAttribute("data-chave") }); return; }
+    if (a === "av-entregas") {
+      if (AV.entregas[id] !== undefined) { delete AV.entregas[id]; pintar(); return; }
+      AV.entregas[id] = null; pintar();
+      api("/api/integracoes/apps/" + id + "/avisos").then(function (d) { AV.entregas[id] = d.erro ? { entregas: [] } : d; AV.entregas[id]._app = id; pintar(); });
+      return;
+    }
     if (a === "ligar" || a === "desligar") {
       b.disabled = true;
       mudar("/api/integracoes/acessos/" + cid, { acao: a }).then(function (d) { if (d.erro) { S.erro = d.erro; pintar(); } });
@@ -344,6 +445,7 @@
     var f = e.target.closest && e.target.closest("form[data-ic-form]");
     if (!f) return;
     e.preventDefault();
+    if (f.getAttribute("data-ic-form") === "avisos") { avisosApi(f.getAttribute("data-id"), { acao: "salvar", url: f.querySelector("input[name=url]").value.trim() }); return; }
     var id = f.getAttribute("data-id"), t = f.querySelector("textarea[name=emails]"), botao = f.querySelector("button[type=submit]");
     var erro = f.querySelector("[data-ic-erro]");
     var emails = String(t.value || "").trim();

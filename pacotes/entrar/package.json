@@ -1,7 +1,7 @@
 {
   "name": "@atos.dev.br/entrar",
-  "version": "0.2.0",
-  "description": "Entrar com Atos (OpenID Connect com PKCE) no navegador e no Node, sem dependências.",
+  "version": "0.3.0",
+  "description": "Entrar com Atos (OpenID Connect com PKCE) no navegador e no Node, e a conferência dos avisos da Atos, sem dependências.",
   "license": "MIT",
   "type": "module",
   "main": "./index.js",
@@ -15,7 +15,7 @@
   "files": ["index.js", "index.d.ts", "README.md", "LICENSE"],
   "engines": { "node": ">=18" },
   "sideEffects": false,
-  "keywords": ["atos", "openid-connect", "oidc", "oauth2", "pkce", "login"],
+  "keywords": ["atos", "openid-connect", "oidc", "oauth2", "pkce", "login", "webhook"],
   "homepage": "https://atos.dev.br/integracao/",
   "repository": { "type": "git", "url": "git+https://github.com/matheusuener-atos/matheusuener.com.br.git", "directory": "pacotes/entrar" },
   "scripts": {
