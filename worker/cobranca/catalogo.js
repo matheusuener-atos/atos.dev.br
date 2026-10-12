@@ -41,19 +41,24 @@ export const PRODUTOS = {
     eventos: "https://paulus.ia.br/api/atos/eventos",
     precos: precosDoPavlvs(),
   },
-  // O Atos Workspace (worker/workspace.js): o produto de quem constroi sistemas com a Conta Atos. Hoje inclui o Login
-  // Atos para os sistemas da pessoa (worker/integracoes.js). Gratuito por enquanto: nao tem preco, nao passa pelo
-  // Mercado Pago, e ativar e aceitar os termos dele (`termos`, a versao que a ativacao registra). O direito e o mesmo
-  // registro dos produtos pagos (direito:workspace no objeto do cliente, cliente.js); um plano pago, depois, entra
-  // aqui como precos e estende esse mesmo direito. Sem `eventos`: nao ha produto fora da Atos para avisar.
+  // O Atos Workspace (worker/workspace.js): o produto de quem constroi sistemas com a Conta Atos. Ativar e gratuito: nao
+  // passa pelo Mercado Pago, e e aceitar os termos dele (`termos`, a versao que a ativacao registra). O Pro (desde
+  // 12/10/2026; worker/workspace-plano.js) e pago aqui, pelo mesmo checkout do PAVLVS (public/workspace/assinar/): R$ 29
+  // por mes no cartao (assinatura) ou R$ 290 por ano (cartao ou Pix). Ele estende o mesmo direito (direito:workspace no
+  // objeto do cliente, cliente.js): plano "pro", ate quando, o periodo e quem pagou. Sem `eventos`: o produto e da
+  // propria Atos, e quem le o direito e o proprio Worker (cliente.js anota a data no WorkspaceDados, para a guarda dos
+  // registros). `gratuito`: o produto tem o nivel gratuito (ativar sem pagar).
   workspace: {
     nome: "Atos Workspace",
     site: "https://atos.dev.br/workspace/",
-    voltas: ["https://atos.dev.br/workspace/"],
+    voltas: ["https://atos.dev.br/workspace/", "https://atos.dev.br/workspace/plano"],
     gratuito: true,
-    // A versao e a data (AAAA-MM-DD) e, numa segunda revisao no mesmo dia, ".N": "2026-10-11.2" (o e-mail Atos), "2026-10-11.3" (o alias como login e exigido para cadastrar sistemas), "2026-10-11.4" (a suspensao do Workspace pela equipe), "2026-10-12" (os Formularios), "2026-10-12.2" (os avisos ao sistema), "2026-10-12.3" (o registro de entradas), "2026-10-12.4" (a pagina de status).
-    termos: { versao: "2026-10-12.4", endereco: "/termos/#workspace" },
-    precos: [],
+    // A versao e a data (AAAA-MM-DD) e, numa segunda revisao no mesmo dia, ".N": "2026-10-11.2" (o e-mail Atos), "2026-10-11.3" (o alias como login e exigido para cadastrar sistemas), "2026-10-11.4" (a suspensao do Workspace pela equipe), "2026-10-12" (os Formularios), "2026-10-12.2" (os avisos ao sistema), "2026-10-12.3" (o registro de entradas), "2026-10-12.4" (a pagina de status), "2026-10-12.5" (o Pro e os limites de cada plano, e a pagina de links, numa revisao so).
+    termos: { versao: "2026-10-12.5", endereco: "/termos/#workspace" },
+    precos: [
+      { id: "workspace.pro.mes", nome: "Atos Workspace Pro", periodo: "mes", centavos: 2900, formas: ["cartao"], metadados: { plano: "pro" } },
+      { id: "workspace.pro.ano", nome: "Atos Workspace Pro · anual", periodo: "ano", centavos: 29000, formas: ["cartao", "pix"], metadados: { plano: "pro" } },
+    ],
   },
 };
 

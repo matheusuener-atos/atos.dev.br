@@ -23,7 +23,8 @@
 //
 // O endereco: so https publico (worker/url-externa.js: sem IP, localhost, rede interna nem a propria Atos). O segredo
 // fica guardado no objeto da conta (a Atos precisa dele para assinar; nunca volta a tela). Cada aviso guardado (o
-// corpo, com o sub e os e-mails) e o resultado de cada entrega ficam 30 dias e somem (a limpeza do objeto); ate 500
+// corpo, com o sub e os e-mails) e o resultado de cada entrega ficam 30 dias no gratuito e 90 no Pro
+// (worker/workspace-plano.js; depois do Pro, a carencia) e somem (a limpeza do objeto); ate 500
 // avisos por aplicativo por dia (acima disso, nao entram na fila).
 //
 // No objeto da conta (worker/workspace-dados.js):
@@ -41,6 +42,7 @@ import { aleatorio, json, kv } from "./comum.js";
 import { assinarEvento } from "./cobranca/eventos.js";
 import { apagarAntigos, apagarPrefixo, daConta, isoDe, sorteio } from "./workspace-dados.js";
 import { conferirUrlExterna } from "./url-externa.js";
+import { PLANOS_WS } from "./workspace-plano.js";
 
 export const TIPOS_AVISO = ["acesso.revogado", "liberado.adicionado", "liberado.removido", "aviso.teste"];
 export const REENTREGAS_AVISO_S = [60, 300, 1800, 7200, 43200];
@@ -58,17 +60,24 @@ const vistaDaEntrega = (k, x) => ({
   ultimo: x.ultimo || null, entregue: x.entregue || null,
 });
 
-async function entregasDe(s, app, n) {
+/* As ultimas `n` entregas de um aplicativo; com `desde` (iso), so as criadas depois (o historico do plano). */
+async function entregasDe(s, app, n, desde) {
   const l = [];
-  for (const [k, x] of await s.list({ prefix: "avq:" + app + "|", reverse: true, limit: n })) l.push(vistaDaEntrega(k, x));
+  for (const [k, x] of await s.list({ prefix: "avq:" + app + "|", reverse: true, limit: n })) {
+    if (desde && k.slice(4 + app.length + 1).split("|")[0] < desde) break;
+    l.push(vistaDaEntrega(k, x));
+  }
   return l;
 }
 const BLOQUEADO = (a) => ({ ok: false, status: 403, erro: "a Atos desligou os avisos deste aplicativo" + (a.bloqueado.motivo ? " (" + a.bloqueado.motivo + ")" : "") + ": escreva para contato@atos.dev.br" });
 
 export const OPS_AVISOS = {
-  async av_ver(o, d) {
+  async av_ver(o, d, agora) {
     const s = o.ctx.storage;
-    return { ok: true, aviso: vistaDoAviso(await s.get("av:" + d.app)), entregas: await entregasDe(s, d.app, LIMITES_AVISO.mostrar) };
+    // O historico do plano (worker/workspace-plano.js): quantas entregas e de quantos dias (o gratuito, 30; o Pro, 90).
+    const n = Math.min(Number(d.mostrar) || LIMITES_AVISO.mostrar, 200);
+    const desde = Number(d.dias) > 0 ? isoDe(agora - Number(d.dias) * DIA_S * 1000) : "";
+    return { ok: true, aviso: vistaDoAviso(await s.get("av:" + d.app)), entregas: await entregasDe(s, d.app, n, desde) };
   },
   /* O resumo de varios aplicativos (a tela das Integracoes e o painel): o aviso e as falhas recentes. */
   async av_resumo(o, d) {
@@ -210,7 +219,9 @@ async function entregarUm(a, evento, buscar) {
 
 export async function limparAvisos(o, agora) {
   const s = o.ctx.storage;
-  const corte = isoDe(agora - LIMITES_AVISO.retencao_dias * DIA_S * 1000);
+  // A guarda segue o plano (worker/workspace-plano.js): 90 dias no Pro (e na carencia depois dele), 30 no gratuito.
+  const dias = (await o.guardaDoPro(agora)) ? PLANOS_WS.pro.avisos_dias : PLANOS_WS.gratuito.avisos_dias;
+  const corte = isoDe(agora - dias * DIA_S * 1000);
   const apps = new Set();
   for (const [k] of await s.list({ prefix: "avq:" })) apps.add(k.slice(4).split("|")[0]);
   let n = 0;
@@ -259,10 +270,11 @@ export async function atenderAvisos(request, env, a, d, agora, deps = {}) {
   if (!env.WS_DADOS) return json({ erro: "os avisos ainda não estão ligados neste Worker" }, 503);
   const c = daConta(env, a.dono.sub);
   const log = deps.log || (async () => {});
+  const P = deps.plano ? deps.plano.limites : PLANOS_WS.pro;
   const ver = async (extra = {}) => {
-    const r = await c.pedir("av_ver", { agora, app: a.id });
+    const r = await c.pedir("av_ver", { agora, app: a.id, mostrar: P.avisos_mostrar, dias: P.avisos_dias });
     if (!r || !r.ok) return json({ erro: "não deu agora" }, 503);
-    return json({ aviso: r.aviso, entregas: r.entregas, tipos: TIPOS_AVISO, limites: LIMITES_AVISO, reentregas_s: REENTREGAS_AVISO_S, ...extra });
+    return json({ aviso: r.aviso, entregas: r.entregas, tipos: TIPOS_AVISO, limites: { ...LIMITES_AVISO, retencao_dias: P.avisos_dias, mostrar: P.avisos_mostrar }, reentregas_s: REENTREGAS_AVISO_S, ...extra });
   };
   if (request.method === "GET") return ver();
   const acao = String(d.acao || "");

@@ -30,13 +30,16 @@
   }
 
   function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
+    // O erro de um limite do plano (codigo "limite_do_plano", worker/workspace-plano.js) traz a marca [Conhecer o Pro], que
+    // vira o link para /workspace/plano.
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; })
+      .replace("[Conhecer o Pro]", '<a href="/workspace/plano">Conhecer o Pro</a>');
   }
   function api(caminho, corpo) {
     var op = corpo === undefined ? { credentials: "same-origin" } :
       { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) };
     return fetch(caminho, op).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (d) { d._status = r.status; return d; });
+      return r.json().catch(function () { return {}; }).then(function (d) { d._status = r.status; if (d.codigo === "limite_do_plano" && d.erro) d.erro += " [Conhecer o Pro]"; return d; });
     }, function () { return { erro: "sem conexão com o servidor", _status: 0 }; });
   }
   function quando(iso) {
@@ -126,6 +129,8 @@
       '<span class="ig-acoes"><button type="button" class="btn mini" data-fm="editar" data-id="' + esc(f.id) + '">Editar</button>' +
       (f.bloqueado ? "" : '<button type="button" class="btn mini" data-fm="' + (f.ativo ? "desligar" : "ligar") + '" data-id="' + esc(f.id) + '">' + (f.ativo ? "Desligar" : "Ligar") + "</button>") +
       '<button type="button" class="btn mini perigo" data-fm="apagar" data-id="' + esc(f.id) + '">Apagar</button></span></div>';
+    if (f.fora_do_plano) h += '<p class="ig-aviso">Fora do plano: este formulário passa do limite do seu plano (' + D.limites.formularios + (D.limites.formularios === 1 ? " formulário" : " formulários") + '). Ele não entrega nada (quem envia vê que não está recebendo mensagens) até você voltar ao Pro ou apagar outro. Nada foi apagado. <a href="/workspace/plano">Conhecer o Pro</a></p>';
+    if (f.pagina) h += '<p class="dica ig-bloco">Está na página de links <a href="/@' + esc(f.pagina) + '">atos.dev.br/@' + esc(f.pagina) + '</a> (a Atos aceita o envio que vem de lá).</p>';
     if (f.bloqueado) h += '<p class="ig-aviso">A Atos desligou este formulário em ' + esc(quando(f.bloqueado.quando)) + (f.bloqueado.motivo ? ": " + esc(f.bloqueado.motivo) : "") + ". Nada é entregue enquanto estiver assim. Para conversar, escreva para contato@atos.dev.br.</p>";
     h += '<div class="ig-bloco"><dl class="ig-info">' +
       "<dt>Sites</dt><dd>" + f.origens.map(esc).join("<br>") + "</dd>" +
@@ -153,13 +158,14 @@
     if (!D.recente) h += '<p class="ig-aviso">Para criar ou mudar formulários, o login precisa ser das últimas ' + D.limites.recente_h + ' horas. <a href="' + VOLTA_ENTRAR + '">Entrar de novo</a></p>';
     if (S.aviso) h += '<p class="ok ig-ok">' + esc(S.aviso) + "</p>";
     h += '<h2 class="titulo-secao ig-h"><span>Seus formulários (' + D.formularios.length + " de " + D.limites.formularios + ")</span>" +
-      (D.formularios.length < D.limites.formularios ? '<button type="button" class="btn p primario" data-fm="novo">Novo formulário</button>' : "") + "</h2>";
+      (D.formularios.length < D.limites.formularios ? '<button type="button" class="btn p primario" data-fm="novo">Novo formulário</button>' : D.plano && !D.plano.pro ? '<a class="btn p" href="/workspace/plano">Conhecer o Pro</a>' : "") + "</h2>";
     if (!D.formularios.length) h += '<div class="card"><p class="vazio">Nenhum formulário. Crie um para ter o endereço que o seu site usa no &lt;form action&gt;.</p></div>';
     else h += D.formularios.map(cartao).join("");
     h += '<p class="nota">Cada envio vira um e-mail da Atos (naoresponda@atos.dev.br) no destino confirmado de ' + esc(D.email_atos) + "; responder vai ao e-mail que a pessoa digitou. " +
       "A Atos não guarda o que foi preenchido: o registro tem só quando, o site, o resultado e o tamanho, por " + D.limites.registro_dias + " dias. " +
       "Com o e-mail Atos desligado, suspenso ou sem destino confirmado, ou com o Workspace desativado, os envios são recusados. " +
-      "Contra robôs, sempre: o site precisa estar cadastrado, o campo-armadilha, " + D.limites.por_ip_hora + " envios por hora do mesmo endereço de internet e o limite por dia de cada formulário (até " + D.limites.dia_max + "). " +
+      "Contra robôs, sempre: o site precisa estar cadastrado, o campo-armadilha, " + D.limites.por_ip_hora + " envios por hora do mesmo endereço de internet e o limite por dia de cada formulário. " +
+      "No plano " + (D.plano && D.plano.pro ? "Pro" : "gratuito") + ": até " + D.limites.formularios + (D.limites.formularios === 1 ? " formulário" : " formulários") + " e " + D.limites.conta_dia.toLocaleString("pt-BR") + " envios por dia, somando todos (e o teto diário da Atos inteira vale por cima). " +
       (D.turnstile.disponivel ? "A verificação do Cloudflare Turnstile pode ser ligada em cada formulário: ela acontece numa página da Atos, antes da entrega." : "A verificação do Cloudflare Turnstile ainda não está ligada na Atos: valem a armadilha e os limites.") +
       ' Veja os <a href="/termos/#workspace-formularios">termos</a> e a <a href="/privacidade/">política de privacidade</a>.</p>';
     return h;

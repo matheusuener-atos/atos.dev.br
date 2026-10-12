@@ -43,8 +43,11 @@ import { LIBERADOS_MAX, camposDoApp, camposDoCliente, emailsLimpos, modoDeAcesso
 import { atenderAvisos, avisarLista, avisosDoDono } from "./avisos.js";
 import { atenderEntradas } from "./entradas.js";
 import { daConta } from "./workspace-dados.js";
+import { dentroDoPlano, limiteDoPlano, planoDe, vistaDoPlano } from "./workspace-plano.js";
 
-export const LIMITES = { apps: 5, acessos: 5, liberados: LIBERADOS_MAX, ritmo_hora: 60, recente_h: 12 };
+// Os aplicativos e as pessoas liberadas dependem do plano (worker/workspace-plano.js; gratuito 2 e 100, Pro 10 e 5.000):
+// `apps` e `liberados` aqui sao os do Pro (o teto tecnico); a conta recebe os do plano dela.
+export const LIMITES = { apps: 10, acessos: 5, liberados: LIBERADOS_MAX, ritmo_hora: 60, recente_h: 12 };
 const RECENTE_S = LIMITES.recente_h * 3600;
 const LOG_MAX = 200;
 const LOG_DEPOIS_S = 365 * 24 * 3600;
@@ -139,17 +142,26 @@ async function vista(env, a, comLog = 30) {
   };
 }
 
-async function telaDoDono(env, sessao, agora) {
+async function telaDoDono(env, sessao, agora, plano) {
   const apps = [];
-  for (const id of await idsDoDono(env, sessao.sub)) {
+  const ids = await idsDoDono(env, sessao.sub);
+  const cabem = dentroDoPlano(ids, plano.limites.apps);
+  for (const id of ids) {
     const a = await appTerceiro(env, id);
-    if (a && a.dono.sub === sessao.sub) apps.push(await vista(env, a));
+    if (a && a.dono.sub === sessao.sub) apps.push({ ...(await vista(env, a)), fora_do_plano: !cabem.has(id) });
   }
   // O resumo dos avisos ao sistema de cada aplicativo (worker/avisos.js), num pedido so ao objeto da conta.
   const avisos = await avisosDoDono(env, sessao.sub, apps.map((a) => a.id));
   for (const a of apps) a.avisos = avisos[a.id] || null;
-  return { conta: { email: sessao.email }, recente: agora / 1000 - sessao.auth_time < RECENTE_S, limites: LIMITES, ...dadosParaIntegrar(env), apps };
+  return { conta: { email: sessao.email }, recente: agora / 1000 - sessao.auth_time < RECENTE_S, limites: limitesDoPlano(plano), plano: vistaDoPlano(plano), ...dadosParaIntegrar(env), apps };
 }
+
+/* Os limites das Integracoes no plano da conta (worker/workspace-plano.js): os aplicativos, as pessoas e os registros. */
+function limitesDoPlano(plano) {
+  const P = plano.limites;
+  return { ...LIMITES, apps: P.apps, liberados: P.liberados, entradas_dias: P.entradas_dias, entradas_csv: P.entradas_csv, avisos_dias: P.avisos_dias };
+}
+const FORA_DO_PLANO = (plano) => limiteDoPlano("este aplicativo está fora do plano " + (plano.pro ? "" : "gratuito ") + "(" + plano.limites.apps + " aplicativos): ele continua deixando entrar quem já entrava, mas só dá para tirar pessoas, desligar ou apagar acessos e apagar o aplicativo", plano);
 
 // ------------------------------------------------------------ as rotas do dono
 
@@ -163,6 +175,11 @@ async function noRitmo(env, sub) {
   if (r.n >= LIMITES.ritmo_hora) return false;
   await env.CONTAS.put(k, JSON.stringify({ n: r.n + 1 }), { expirationTtl: 3600 });
   return true;
+}
+
+/* O aplicativo cabe no plano? (os mais antigos da conta, ate o limite: worker/workspace-plano.js) */
+async function appNoPlano(env, sub, id, plano) {
+  return dentroDoPlano(await idsDoDono(env, sub), plano.limites.apps).has(id);
 }
 
 const listaCurta = (l) => l.slice(0, 5).join(", ") + (l.length > 5 ? " e mais " + (l.length - 5) : "");
@@ -186,29 +203,33 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
   let alias;
   try { alias = await estadoDoAlias(env, sessao); } catch { return WORKSPACE_FORA(); }
   if (alias.pendencia) return recusaDoAlias(alias, emailAtosLigado(env));
+  // O plano (worker/workspace-plano.js): quantos aplicativos e quantas pessoas, e a guarda dos registros.
+  const plano = planoDe(w, agora);
   const p = url.pathname;
   // email_atos: o endereco que quem entra ve como "Cadastrado por" (a tela diz isso).
-  if (p === "/api/integracoes" && request.method === "GET") return json({ ...(await telaDoDono(env, sessao, agora)), email_atos: alias.alias.endereco });
-  // O registro de entradas de um aplicativo (worker/entradas.js): so ver (JSON ou CSV).
+  if (p === "/api/integracoes" && request.method === "GET") return json({ ...(await telaDoDono(env, sessao, agora, plano)), email_atos: alias.alias.endereco });
+  // O registro de entradas de um aplicativo (worker/entradas.js): so ver (JSON ou CSV, o CSV so no Pro).
   const ren = p.match(/^\/api\/integracoes\/apps\/(u-[a-z0-9]{10})\/entradas(\.csv)?$/);
   if (ren) {
     if (request.method !== "GET") return json({ erro: "use GET" }, 405);
     const a = await appTerceiro(env, ren[1]);
     if (!a || a.dono.sub !== sessao.sub) return NAO_E_SEU();
-    return atenderEntradas(request, env, a, url, agora);
+    return atenderEntradas(request, env, a, url, agora, plano);
   }
   // Os avisos ao sistema de um aplicativo (worker/avisos.js): ver (GET) e mudar (POST, login recente).
   const rav = p.match(/^\/api\/integracoes\/apps\/(u-[a-z0-9]{10})\/avisos$/);
   if (rav) {
     const a = await appTerceiro(env, rav[1]);
     if (!a || a.dono.sub !== sessao.sub) return NAO_E_SEU();
-    if (request.method === "GET") return atenderAvisos(request, env, a, {}, agora);
+    if (request.method === "GET") return atenderAvisos(request, env, a, {}, agora, { plano });
     if (request.method !== "POST") return json({ erro: "use POST" }, 405);
     if (!(agora / 1000 - sessao.auth_time < RECENTE_S)) return json({ erro: "para mudar as integrações, entre de novo (o login precisa ser das últimas 12 horas)", reentrar: true }, 401);
     const d = await lerJson(request);
     if (!d || typeof d !== "object" || Array.isArray(d)) return json({ erro: "pedido inválido" }, 400);
     if (!(await noRitmo(env, sessao.sub))) return json({ erro: "muitas mudanças nesta conta na última hora: espere um pouco" }, 429);
-    return atenderAvisos(request, env, a, d, agora, { log: (oque) => registrar(env, a.id, sessao.email, "dono", oque, agora) });
+    // Fora do plano, os avisos so podem ser desligados ou apagados (o aplicativo esta so leitura).
+    if (!(await appNoPlano(env, sessao.sub, a.id, plano)) && !["desligar", "apagar"].includes(String(d.acao || ""))) return FORA_DO_PLANO(plano);
+    return atenderAvisos(request, env, a, d, agora, { plano, log: (oque) => registrar(env, a.id, sessao.email, "dono", oque, agora) });
   }
   if (request.method !== "POST") return json({ erro: "use POST" }, 405);
   if (!(agora / 1000 - sessao.auth_time < RECENTE_S)) return json({ erro: "para mudar as integrações, entre de novo (o login precisa ser das últimas 12 horas)", reentrar: true }, 401);
@@ -221,7 +242,7 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
   // Criar um aplicativo.
   if (p === "/api/integracoes/apps") {
     const ids = await idsDoDono(env, sessao.sub);
-    if (ids.length >= LIMITES.apps) return json({ erro: "cada conta cadastra no máximo " + LIMITES.apps + " aplicativos: apague um para criar outro" }, 409);
+    if (ids.length >= plano.limites.apps) return limiteDoPlano("no plano " + (plano.pro ? "Pro" : "gratuito") + ", cada conta cadastra até " + plano.limites.apps + " aplicativos: apague um para criar outro", plano);
     const f = camposDoApp(d);
     if (f.erro) return json({ erro: f.erro }, 400);
     if (nomeReservado(f.nome)) return json({ erro: "esse nome é reservado (lembra a Atos, um produto dela ou outro serviço conhecido): escolha outro" }, 400);
@@ -250,8 +271,13 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
     if (a && !(a.clientes && Object.prototype.hasOwnProperty.call(a.clientes, cid))) a = null;
   }
   if (!a || a.dono.sub !== sessao.sub) return NAO_E_SEU();
-  if (!(await noRitmo(env, sessao.sub))) return json({ erro: "muitas mudanças nesta conta na última hora: espere um pouco" }, 429);
   const acao = String(d.acao || "");
+  // Fora do plano (worker/workspace-plano.js): so o que reduz - tirar pessoas, desligar ou apagar acessos, apagar o aplicativo.
+  if (!(await appNoPlano(env, sessao.sub, a.id, plano))) {
+    const reduz = r ? !r[2] && ["tirar", "apagar"].includes(acao) : ["desligar", "apagar"].includes(acao);
+    if (!reduz) return FORA_DO_PLANO(plano);
+  }
+  if (!(await noRitmo(env, sessao.sub))) return json({ erro: "muitas mudanças nesta conta na última hora: espere um pouco" }, 429);
 
   // Criar um acesso (cliente).
   if (r && r[2]) {
@@ -298,7 +324,9 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
       if (e.erro) return json({ erro: e.erro }, 400);
       const novos = e.emails.filter((x) => !(a.liberados || []).includes(x));
       if (!novos.length) return json({ erro: e.emails.length ? "esses e-mails já estão na lista" : "diga pelo menos um e-mail" }, 400);
-      if ((a.liberados || []).length + novos.length > LIMITES.liberados) return json({ erro: "no máximo " + LIMITES.liberados + " pessoas liberadas por aplicativo" }, 409);
+      if ((a.liberados || []).length + novos.length > plano.limites.liberados) {
+        return limiteDoPlano("no plano " + (plano.pro ? "Pro" : "gratuito") + ", até " + plano.limites.liberados.toLocaleString("pt-BR") + " pessoas liberadas por aplicativo (este tem " + (a.liberados || []).length + ")", plano);
+      }
       a.liberados = [...(a.liberados || []), ...novos];
       a.mudado = iso(agora);
       await guardarApp(env, a);

@@ -57,9 +57,13 @@ import { destinoDoTitular } from "./email-atos.js";
 import { enviarEmail as enviarPadrao } from "./email.js";
 import { apagarAntigos, apagarPrefixo, daConta, doIndice, isoDe, sorteio } from "./workspace-dados.js";
 import { conferirOrigem, conferirUrlExterna } from "./url-externa.js";
+import { limiteDoPlano, planoDe, vistaDoPlano } from "./workspace-plano.js";
 
+// `formularios` e `dia_max` sao os tetos do Pro; a conta recebe os do plano dela (worker/workspace-plano.js: gratuito 1
+// formulario e 50 envios por dia; Pro 10 e 1.000 por dia, somando os formularios da conta). O teto da Atos inteira
+// (FORMULARIOS_LIMITE_DIA) vale por cima de tudo.
 export const LIMITES_FORM = {
-  formularios: 5, origens: 5, livres: 5, corpo_kb: 32, por_ip_hora: 5, dia_padrao: 50, dia_max: 200, mudancas_hora: 60,
+  formularios: 10, origens: 5, livres: 5, corpo_kb: 32, por_ip_hora: 5, dia_padrao: 50, dia_max: 1000, mudancas_hora: 60,
   registro_dias: 30, registro_dia: 500, recente_h: 12,
 };
 export const CAMPOS_PADRAO = ["nome", "email", "assunto", "mensagem"];
@@ -86,8 +90,8 @@ export const turnstileLigado = (env) => Boolean(env && env.TURNSTILE_SECRET && e
 
 const limparTexto = (t, max) => String(t == null ? "" : t).replace(/[\u0000-\u001f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 
-/* A configuracao que o dono mandou: {cfg} ou {erro}. */
-export function conferirFormulario(d, env) {
+/* A configuracao que o dono mandou: {cfg} ou {erro}. `diaMax`: o limite por dia do plano (worker/workspace-plano.js). */
+export function conferirFormulario(d, env, diaMax = LIMITES_FORM.dia_max) {
   const nome = limparTexto(d.nome, 60);
   if (nome.length < 2) return { erro: "dê um nome ao formulário (ex.: Contato do site)" };
   const brutas = Array.isArray(d.origens) ? d.origens : String(d.origens || "").split(/[\s,]+/);
@@ -117,7 +121,7 @@ export function conferirFormulario(d, env) {
     redirecionar = r.url;
   }
   const limite = Math.round(Number(d.limite_dia === undefined || d.limite_dia === "" ? LIMITES_FORM.dia_padrao : d.limite_dia));
-  if (!Number.isFinite(limite) || limite < 1 || limite > LIMITES_FORM.dia_max) return { erro: "o limite por dia vai de 1 a " + LIMITES_FORM.dia_max };
+  if (!Number.isFinite(limite) || limite < 1 || limite > diaMax) return { erro: "o limite por dia vai de 1 a " + diaMax.toLocaleString("pt-BR") + (diaMax < LIMITES_FORM.dia_max ? " no plano gratuito (no Pro, até " + LIMITES_FORM.dia_max.toLocaleString("pt-BR") + ")" : ""), codigo: diaMax < LIMITES_FORM.dia_max && limite > diaMax ? "limite_do_plano" : undefined };
   return { cfg: { nome, origens, campos, livres, redirecionar, limite_dia: limite, turnstile: d.turnstile === true && turnstileLigado(env) } };
 }
 
@@ -143,17 +147,26 @@ export function limparCampos(cfg, bruto) {
 const DIA_S = 86400;
 const corte = (agora, dias) => isoDe(agora - dias * DIA_S * 1000);
 
+/* Os ids dos formularios que cabem no plano: os mais antigos (pela criacao), ate `max`. */
+async function formulariosNoPlano(s, max) {
+  const l = [...(await s.list({ prefix: "form:" })).values()].sort((a, b) => String(a.criado).localeCompare(String(b.criado)) || String(a.id).localeCompare(String(b.id)));
+  return new Set(l.slice(0, Math.max(0, max)).map((f) => f.id));
+}
+
 /* As ops dos formularios: as da conta (form_*) e as do indice (fidx_*). `o` e o objeto. */
 export const OPS_FORMULARIOS = {
-  async form_lista(o) {
-    return { ok: true, formularios: [...(await o.ctx.storage.list({ prefix: "form:" })).values()] };
+  async form_lista(o, d) {
+    const s = o.ctx.storage;
+    const cabem = d && d.max !== undefined ? await formulariosNoPlano(s, Number(d.max)) : null;
+    return { ok: true, formularios: [...(await s.list({ prefix: "form:" })).values()].map((f) => (cabem ? { ...f, fora_do_plano: !cabem.has(f.id) } : f)) };
   },
   async form_ver(o, d) {
     return { ok: true, form: (await o.ctx.storage.get("form:" + d.id)) || null };
   },
   async form_criar(o, d, agora) {
     const s = o.ctx.storage;
-    if ((await s.list({ prefix: "form:" })).size >= LIMITES_FORM.formularios) return { ok: false, status: 409, erro: "cada conta tem no máximo " + LIMITES_FORM.formularios + " formulários: apague um para criar outro" };
+    const max = Number(d.max) || LIMITES_FORM.formularios;
+    if ((await s.list({ prefix: "form:" })).size >= max) return { ok: false, status: 409, codigo: "limite_do_plano", erro: "no seu plano, cada conta tem até " + max + (max === 1 ? " formulário" : " formulários") + ": apague um para criar outro" };
     if (!(await o.contar("fmud", 3600, agora, LIMITES_FORM.mudancas_hora))) return { ok: false, status: 429, erro: "muitas mudanças na última hora: espere um pouco" };
     const form = { id: d.id, ...d.cfg, ativo: true, bloqueado: null, criado: isoDe(agora), mudado: null };
     await s.put("form:" + d.id, form);
@@ -170,6 +183,9 @@ export const OPS_FORMULARIOS = {
       return { ok: true, apagado: d.id };
     }
     if (d.acao === "ligar" && f.bloqueado) return { ok: false, status: 403, erro: "a Atos desligou este formulário" + (f.bloqueado.motivo ? " (" + f.bloqueado.motivo + ")" : "") + ": escreva para contato@atos.dev.br" };
+    if (d.acao === "ligar" && d.max !== undefined && !(await formulariosNoPlano(s, Number(d.max))).has(d.id)) {
+      return { ok: false, status: 409, codigo: "limite_do_plano", erro: "este formulário está fora do plano (" + d.max + (Number(d.max) === 1 ? " formulário" : " formulários") + "): apague outro ou volte ao Pro para ele entregar de novo" };
+    }
     if (d.acao === "ligar" || d.acao === "desligar") f.ativo = d.acao === "ligar";
     else if (d.acao === "editar") Object.assign(f, d.cfg);
     else return { ok: false, status: 400, erro: "o que fazer com o formulário? (editar, ligar, desligar ou apagar)" };
@@ -186,12 +202,17 @@ export const OPS_FORMULARIOS = {
     await s.put("form:" + d.id, f);
     return { ok: true, form: f };
   },
-  /* Os limites de um envio que vai sair: 5 por hora do mesmo endereco (o resumo) e o limite diario do formulario. */
+  /* Os limites de um envio que vai sair: o formulario dentro do plano (os mais antigos, ate `max`), 5 por hora do mesmo
+     endereco (o resumo), o limite diario do formulario (no maximo o do plano) e o da conta no dia (`envios_dia`). */
   async form_contar(o, d, agora) {
-    const f = await o.ctx.storage.get("form:" + d.id);
+    const s = o.ctx.storage;
+    const f = await s.get("form:" + d.id);
     if (!f) return { ok: false, motivo: "inexistente" };
+    if (d.max !== undefined && !(await formulariosNoPlano(s, Number(d.max))).has(d.id)) return { ok: false, motivo: "fora_do_plano" };
     if (!(await o.contar("fip:" + d.id + ":" + d.ip, 3600, agora, LIMITES_FORM.por_ip_hora))) return { ok: false, motivo: "limite_ip" };
-    if (!(await o.contar("fdia:" + d.id + ":" + diaDe(agora), 2 * DIA_S, agora, f.limite_dia || LIMITES_FORM.dia_padrao))) return { ok: false, motivo: "limite_dia" };
+    const doPlano = Number(d.envios_dia) || LIMITES_FORM.dia_max;
+    if (!(await o.contar("fdia:" + d.id + ":" + diaDe(agora), 2 * DIA_S, agora, Math.min(f.limite_dia || LIMITES_FORM.dia_padrao, doPlano)))) return { ok: false, motivo: "limite_dia" };
+    if (!(await o.contar("fconta:" + diaDe(agora), 2 * DIA_S, agora, doPlano))) return { ok: false, motivo: "limite_dia" };
     return { ok: true };
   },
   async form_registrar(o, d, agora) {
@@ -299,8 +320,13 @@ function vista(f) {
   return {
     id: f.id, nome: f.nome, origens: f.origens || [], campos: f.campos || [], livres: f.livres || [], redirecionar: f.redirecionar || "", limite_dia: f.limite_dia,
     turnstile: Boolean(f.turnstile), ativo: f.ativo !== false, bloqueado: f.bloqueado ? { quando: f.bloqueado.quando, motivo: f.bloqueado.motivo || "" } : null,
-    criado: f.criado || null, mudado: f.mudado || null,
+    criado: f.criado || null, mudado: f.mudado || null, fora_do_plano: Boolean(f.fora_do_plano), pagina: f.pagina || "",
   };
+}
+
+/* Os limites dos formularios no plano da conta (worker/workspace-plano.js). */
+function limitesDoPlano(plano) {
+  return { ...LIMITES_FORM, formularios: plano.limites.formularios, dia_max: plano.limites.envios_dia, conta_dia: plano.limites.envios_dia, dia_padrao: Math.min(LIMITES_FORM.dia_padrao, plano.limites.envios_dia) };
 }
 
 const FORA = () => json({ erro: "não deu para falar com o registro do Workspace agora: tente de novo em instantes" }, 503);
@@ -310,19 +336,21 @@ export async function atenderFormularios(request, env, url, deps = {}) {
   if (!env.WS_DADOS) return json({ erro: "os formulários ainda não estão ligados neste Worker" }, 503);
   const porta = await portaoDoWorkspace(request, env);
   if (porta.resposta) return porta.resposta;
-  const { sessao, alias } = porta;
+  const { sessao, alias, plano } = porta;
   const conta = daConta(env, sessao.sub);
   const indice = doIndice(env);
   const recente = agora / 1000 - sessao.auth_time < RECENTE_S;
   const p = url.pathname;
+  const L = limitesDoPlano(plano);
   const tela = async (extra = {}) => {
-    const r = await conta.pedir("form_lista", { agora });
+    const r = await conta.pedir("form_lista", { agora, max: L.formularios });
     if (!r || !r.ok) return FORA();
     return json({
-      formularios: r.formularios.map(vista).sort((a, b) => String(a.criado).localeCompare(String(b.criado))), limites: LIMITES_FORM, campos_padrao: CAMPOS_PADRAO,
+      formularios: r.formularios.map(vista).sort((a, b) => String(a.criado).localeCompare(String(b.criado))), limites: L, plano: vistaDoPlano(plano), campos_padrao: CAMPOS_PADRAO,
       turnstile: { disponivel: turnstileLigado(env) }, limite_atos_dia: limiteGlobal(env), email_atos: alias.alias.endereco, recente, ...extra,
     });
   };
+  const recusa = (r, padrao) => (r && r.codigo === "limite_do_plano" ? limiteDoPlano(r.erro, plano) : json({ erro: (r && r.erro) || padrao }, (r && r.status) || 503));
   try {
     if (p === "/api/workspace/formularios" && request.method === "GET") return await tela();
     const mr = p.match(/^\/api\/workspace\/formularios\/(f-[a-z0-9]{12})\/registro$/);
@@ -337,8 +365,11 @@ export async function atenderFormularios(request, env, url, deps = {}) {
     if (!d || typeof d !== "object" || Array.isArray(d)) return json({ erro: "pedido inválido" }, 400);
 
     if (p === "/api/workspace/formularios") {
-      const c = conferirFormulario(d, env);
-      if (c.erro) return json({ erro: c.erro }, 400);
+      const c = conferirFormulario(d, env, L.dia_max);
+      if (c.erro) return c.codigo ? limiteDoPlano(c.erro, plano) : json({ erro: c.erro }, 400);
+      // O limite de formularios do plano, antes de reservar o id.
+      const ja = await conta.pedir("form_lista", { agora });
+      if (ja && ja.ok && ja.formularios.length >= L.formularios) return limiteDoPlano("no plano " + (plano.pro ? "Pro" : "gratuito") + ", cada conta tem até " + L.formularios + (L.formularios === 1 ? " formulário" : " formulários") + ": apague um para criar outro", plano);
       if (deps.dentroDoLimite && !(await deps.dentroDoLimite(request, env))) return json({ erro: "muitos pedidos seguidos: espere um pouco" }, 429);
       let id = "";
       for (let i = 0; i < 5 && !id; i++) {
@@ -347,10 +378,10 @@ export async function atenderFormularios(request, env, url, deps = {}) {
         if (r && r.ok) id = t;
       }
       if (!id) return json({ erro: "não deu para criar agora: tente de novo" }, 503);
-      const r = await conta.pedir("form_criar", { agora, id, cfg: c.cfg });
+      const r = await conta.pedir("form_criar", { agora, id, cfg: c.cfg, max: L.formularios });
       if (!r || !r.ok) {
         await indice.pedir("fidx_soltar", { id });
-        return json({ erro: (r && r.erro) || "não deu para criar agora" }, (r && r.status) || 503);
+        return recusa(r, "não deu para criar agora");
       }
       return await tela({ criado: id });
     }
@@ -359,13 +390,13 @@ export async function atenderFormularios(request, env, url, deps = {}) {
     const acao = String(d.acao || "");
     let cfg;
     if (acao === "editar") {
-      const c = conferirFormulario(d, env);
-      if (c.erro) return json({ erro: c.erro }, 400);
+      const c = conferirFormulario(d, env, L.dia_max);
+      if (c.erro) return c.codigo ? limiteDoPlano(c.erro, plano) : json({ erro: c.erro }, 400);
       cfg = c.cfg;
     }
     if (acao === "apagar" && d.confirmar !== true) return json({ erro: "confirme na página: o endereço para de receber na hora e o registro é apagado" }, 400);
-    const r = await conta.pedir("form_mudar", { agora, id: m[1], acao, cfg });
-    if (!r || !r.ok) return json({ erro: (r && r.erro) || "não deu agora" }, (r && r.status) || 503);
+    const r = await conta.pedir("form_mudar", { agora, id: m[1], acao, cfg, max: L.formularios });
+    if (!r || !r.ok) return recusa(r, "não deu agora");
     if (acao === "apagar") await indice.pedir("fidx_soltar", { id: m[1] });
     if (acao === "editar") await indice.pedir("fidx_nome", { id: m[1], nome: cfg.nome, conta: sessao.email });
     return await tela();
@@ -532,6 +563,10 @@ export async function atenderFormularioPublico(request, env, url, deps = {}) {
   if (deps.dentroDoLimite && !(await deps.dentroDoLimite(request, env))) return sair("limite_atos_ip");
   try { await achar(); } catch { return sair("parado"); }
   if (!cfg) return sair("inexistente");
+  // A pagina de links do dono (worker/links.js) pode ter este formulario como botao: o envio sai da pagina de contato da
+  // Atos (atos.dev.br/@<nome>/contato), entao a propria Atos vale como origem dele, e a volta e a pagina de links.
+  const origemAceita = (o) => cfg.origens.includes(o) || Boolean(cfg.pagina && o === url.origin);
+  const voltaDe = (o) => (cfg.pagina && o === url.origin ? url.origin + "/@" + cfg.pagina : o);
   if (cfg.origens.includes(origem)) cors = { "access-control-allow-origin": origem, vary: "origin" };
   const conta = daConta(env, dono.sub);
   const anotar = async (resultado, motivo, tamanho = 0, o = origem) => {
@@ -550,23 +585,23 @@ export async function atenderFormularioPublico(request, env, url, deps = {}) {
   let deOrigem = origem, campos, bilhete = null;
   if (bruto[BILHETE]) {
     bilhete = turnstileLigado(env) && (!request.headers.get("origin") || request.headers.get("origin") === url.origin) ? await lerBilhete(env, bruto[BILHETE], agora) : null;
-    if (!bilhete || bilhete.f !== id || !cfg.origens.includes(bilhete.o)) { await anotar("recusado", "bilhete", buf.byteLength); return sair("verificacao"); }
+    if (!bilhete || bilhete.f !== id || !origemAceita(bilhete.o)) { await anotar("recusado", "bilhete", buf.byteLength); return sair("verificacao"); }
     deOrigem = bilhete.o;
     const ip = request.headers.get("cf-connecting-ip") || "";
     if (!(await turnstileValido(env, bruto[TURNSTILE_CAMPO], url.hostname, ip, buscar))) {
       await anotar("recusado", "verificacao", buf.byteLength, deOrigem);
-      return pagina({ titulo: "Verificação contra robôs", texto: "A verificação não passou ou venceu. Volte ao site e envie de novo.", voltar: deOrigem, status: 400 });
+      return pagina({ titulo: "Verificação contra robôs", texto: "A verificação não passou ou venceu. Volte ao site e envie de novo.", voltar: voltaDe(deOrigem), status: 400 });
     }
     campos = bilhete.c;
   } else {
-    if (!cfg.origens.includes(origem)) { await anotar("recusado", "origem", buf.byteLength); return sair("origem"); }
+    if (!origemAceita(origem)) { await anotar("recusado", "origem", buf.byteLength); return sair("origem"); }
     // O campo-armadilha: quem o preenche recebe a resposta de sempre e nada sai.
     if (String(bruto[ARMADILHA] || "").trim()) { await anotar("armadilha", "", buf.byteLength); return sucesso(); }
   }
-  if (cfg.bloqueado || cfg.ativo === false) { await anotar("recusado", cfg.bloqueado ? "desligado_pela_atos" : "desligado", buf.byteLength, deOrigem); return sair("desligado", "", { voltar: emJson ? undefined : deOrigem }); }
+  if (cfg.bloqueado || cfg.ativo === false) { await anotar("recusado", cfg.bloqueado ? "desligado_pela_atos" : "desligado", buf.byteLength, deOrigem); return sair("desligado", "", { voltar: emJson ? undefined : voltaDe(deOrigem) }); }
   if (!bilhete) {
     const c = limparCampos(cfg, bruto);
-    if (c.erro) { await anotar("recusado", "campos", buf.byteLength); return sair("invalido", c.erro, { voltar: deOrigem }); }
+    if (c.erro) { await anotar("recusado", "campos", buf.byteLength); return sair("invalido", c.erro, { voltar: voltaDe(deOrigem) }); }
     campos = c.campos;
     if (cfg.turnstile && turnstileLigado(env)) {
       if (emJson) { await anotar("recusado", "verificacao_json", buf.byteLength); return json({ ok: false, codigo: "verificacao", erro: "este formulário pede a verificação contra robôs: envie pelo formulário HTML (method=post), que passa pela página de confirmação da Atos" }, 400, cors); }
@@ -574,17 +609,27 @@ export async function atenderFormularioPublico(request, env, url, deps = {}) {
     }
   }
 
-  // Os limites deste envio (por endereco de internet, pelo resumo com o sal do dia; o do dia do formulario).
+  // O dono: o Workspace ativo e sem suspensao, e o plano dele (worker/workspace-plano.js: quantos formularios entregam e
+  // quantos envios por dia).
+  let w;
+  try { w = await workspaceDe(env, dono.sub); } catch { await anotar("falhou", "workspace_fora", buf.byteLength, deOrigem); return sair("parado"); }
+  if (!w || !w.ativo || w.suspenso) { await anotar("recusado", w && w.suspenso ? "workspace_suspenso" : "sem_workspace", buf.byteLength, deOrigem); return sair("parado"); }
+  const P = planoDe(w, agora).limites;
+
+  // Os limites deste envio (o formulario dentro do plano; por endereco de internet, pelo resumo com o sal do dia; o do dia
+  // do formulario e o da conta).
   const ip = (await sha256("form-ip:" + diaDe(agora) + ":" + (request.headers.get("cf-connecting-ip") || "sem-ip"))).slice(0, 16);
   let lim;
-  try { lim = await conta.pedir("form_contar", { agora, id, ip }); } catch { return sair("parado"); }
-  if (!lim || !lim.ok) { await anotar("recusado", (lim && lim.motivo) || "limite", buf.byteLength, deOrigem); return sair(lim && lim.motivo === "limite_dia" ? "limite_dia" : "limite_ip"); }
+  try { lim = await conta.pedir("form_contar", { agora, id, ip, max: P.formularios, envios_dia: P.envios_dia }); } catch { return sair("parado"); }
+  if (!lim || !lim.ok) {
+    await anotar("recusado", (lim && lim.motivo) || "limite", buf.byteLength, deOrigem);
+    if (lim && lim.motivo === "fora_do_plano") return sair("parado", "", { voltar: emJson ? undefined : voltaDe(deOrigem) });
+    return sair(lim && lim.motivo === "limite_dia" ? "limite_dia" : "limite_ip");
+  }
 
-  // O dono: o Workspace ativo e sem suspensao, e o alias pronto (o destino confirmado e o encaminhamento ligado).
+  // O alias pronto (o destino confirmado e o encaminhamento ligado).
   let destino;
   try {
-    const w = await workspaceDe(env, dono.sub);
-    if (!w || !w.ativo || w.suspenso) { await anotar("recusado", w && w.suspenso ? "workspace_suspenso" : "sem_workspace", buf.byteLength, deOrigem); return sair("parado"); }
     destino = await destinoDoTitular(env, dono.sub);
   } catch { await anotar("falhou", "workspace_fora", buf.byteLength, deOrigem); return sair("parado"); }
   if (!destino.pronto) { await anotar("recusado", destino.motivo, buf.byteLength, deOrigem); return sair("parado"); }
@@ -600,7 +645,7 @@ export async function atenderFormularioPublico(request, env, url, deps = {}) {
   function sucesso() {
     if (emJson) return json({ ok: true }, 200, cors);
     if (cfg.redirecionar) return new Response(null, { status: 303, headers: { location: cfg.redirecionar, "cache-control": "no-store", "referrer-policy": "no-referrer" } });
-    return pagina({ titulo: "Mensagem enviada", texto: "Obrigado. A mensagem foi entregue a quem cuida deste site.", voltar: deOrigem });
+    return pagina({ titulo: "Mensagem enviada", texto: "Obrigado. A mensagem foi entregue a quem cuida deste site.", voltar: voltaDe(deOrigem) });
   }
 }
 

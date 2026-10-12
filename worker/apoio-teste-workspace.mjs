@@ -4,7 +4,7 @@
 import worker from "./index.js";
 import { comSeguranca, ligarSegundaEtapa } from "./apoio-teste-seguranca.mjs";
 import { sha256 } from "./comum.js";
-import { ClienteCobranca } from "./cobranca/cliente.js";
+import { ClienteCobranca, idDoCliente } from "./cobranca/cliente.js";
 import { PRODUTOS } from "./cobranca/catalogo.js";
 import { EmailAtos } from "./email-atos.js";
 import { WorkspaceDados } from "./workspace-dados.js";
@@ -131,5 +131,21 @@ export async function contaPronta(nome, { e = env } = {}) {
   await pedir("ligar", {});
   const cookie = await sessao(email, { alias, e });
   return { pessoal, cookie, sub, email, alias, endereco: alias + "@atos.dev.br", destino, pedirEmail: pedir };
+}
+/* O Atos Workspace Pro na conta `sub`, como a cobranca o deixa (cobranca/cliente.js, "estender": um mes, ou doze), e o
+   objeto do cliente para conferir. */
+let origemPro = 0;
+export async function darPro(sub, { e = env, meses = 1 } = {}) {
+  const o = e.CLIENTES.get(await idDoCliente(sub));
+  const r = await (await o.fetch("https://cliente/", { method: "POST", body: JSON.stringify({ op: "estender", produto: "workspace", plano: "pro", metadados: { plano: "pro" }, meses, origem: "order:teste-" + ++origemPro }) })).json();
+  return r.direito;
+}
+/* O Pro que venceu: o "ate" do direito no passado (`diasAtras`), como fica quando o periodo pago acaba. */
+export async function vencerPro(sub, { e = env, diasAtras = 1 } = {}) {
+  const o = e.CLIENTES.get(await idDoCliente(sub)).o;
+  const d = await o.ctx.storage.get("direito:workspace");
+  d.ate = new Date(Date.now() - diasAtras * 864e5).toISOString();
+  await o.ctx.storage.put("direito:workspace", d);
+  return d;
 }
 export { worker };

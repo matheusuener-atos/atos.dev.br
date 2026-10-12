@@ -38,6 +38,11 @@
     A.pedir("GET", "/api/admin/workspace").then(function (d) { G.dados = d; G.erro = ""; }, function (e) { if (e.status !== 401) G.erro = e.message; })
       .then(function () { G.carregando = false; pintarGeral(); });
   }
+  /* O plano da conta (worker/workspace-plano.js): "gratuito", "Pro até ..." ou "gratuito (o Pro venceu em ...)". */
+  function planoTexto(p) {
+    if (!p || p.id !== "pro") return "gratuito" + (p && p.venceu ? " (o Pro venceu em " + esc(U.ddmmaaaa(p.venceu)) + ")" : "");
+    return '<span class="pv-sit ok">Pro</span> até ' + esc(U.ddmmaaaa(p.ate));
+  }
   function telaGeral() {
     var h = "<h1>Atos Workspace</h1>" +
       '<p class="descricao">Quem ativou o Workspace, os endereços @atos.dev.br e os aplicativos que as pessoas cadastram, e o que precisa de atenção.</p>';
@@ -45,7 +50,7 @@
     if (!D) return h + '<div class="card"><p class="vazio">' + (G.erro ? esc(G.erro) + ' <button type="button" class="link" data-ws-adm="recarregar-geral">Tentar de novo</button>' : "Carregando…") + "</p></div>";
     var n = D.numeros, w = n.workspaces, e = n.enderecos, ap = n.apps, v = n.vagas;
     h += '<div class="card pv-topo"><div class="colunas pv-kpis">' +
-      kpi("Workspaces ativos", String(w.ativos), plural(w.suspensos, "suspenso", "suspensos") + " · " + plural(w.desativados, "desativado", "desativados") + (w.termos_antigos ? " · " + w.termos_antigos + " com termos antigos" : ""), w.suspensos ? "perigo" : "") +
+      kpi("Workspaces ativos", String(w.ativos), plural(w.suspensos, "suspenso", "suspensos") + " · " + plural(w.desativados, "desativado", "desativados") + (w.termos_antigos ? " · " + w.termos_antigos + " com termos antigos" : "") + " · " + (w.pro || 0) + " no Pro", w.suspensos ? "perigo" : "") +
       kpi("Endereços Atos", String(e.total), e.encaminhando + " encaminhando · " + plural(e.desligados, "desligado", "desligados") + " · " + plural(e.suspensos, "suspenso", "suspensos") + " · " + e.sem_destino + " sem destino confirmado") +
       kpi("Aplicativos de terceiros", String(ap.total), plural(ap.acessos, "acesso", "acessos") + " (" + ap.acessos_ligados + " ligados) · " + plural(ap.desligados, "desligado", "desligados") + " pela Atos · " + plural(ap.donos, "dono", "donos")) +
       kpi("Vagas de destino", v.usadas + " de " + v.limite, "na Cloudflare: " + (v.na_cf == null ? "não deu para consultar" : v.na_cf) + " de " + v.teto_cf + " (contando os do dono)", v.usadas >= v.limite ? "perigo" : "") +
@@ -66,8 +71,13 @@
       itens.push('<div class="item oa-item"><span class="nome"><strong>' + esc(x.nome) + ' <span class="nf-tag">' + esc(x.id) + '</span> <span class="pv-sit perigo">aplicativo desligado</span></strong><small>de ' + esc(x.dono) + " · " + esc(U.quando(x.bloqueado.quando)) + (x.bloqueado.motivo ? ": " + esc(x.bloqueado.motivo) : "") + "</small></span>" +
         '<span class="pv-par"><button type="button" class="btn mini" data-ws-adm="app" data-id="' + esc(x.id) + '">Abrir em Aplicativos</button></span></div>');
     });
-    h += '<h2 class="titulo-secao pv-h2"><span>Precisa de atenção</span></h2><div class="card">' + (itens.length ? itens.join("") : '<p class="vazio">Nada suspenso nem desligado agora.</p>') + "</div>" +
-      '<p class="nota">Denúncias: a Atos ainda não recebe denúncias pelo sistema. Elas chegam por contato@atos.dev.br (os termos dizem isso); daqui a equipe age na conta, no endereço ou no aplicativo.</p>';
+    (at.denuncias || []).forEach(function (x) {
+      itens.push('<div class="item oa-item"><span class="nome"><strong>Denúncia da página @' + esc(x.nome) + ' <span class="pv-sit perigo">aberta</span></strong><small>' + esc(U.quando(x.quando)) + " · " + esc(x.motivo) + "</small></span>" +
+        '<span class="pv-par"><a class="btn mini" href="#ws-links" data-secao="ws-links">Abrir em Páginas de links</a></span></div>');
+    });
+    h += '<h2 class="titulo-secao pv-h2"><span>Precisa de atenção</span></h2><div class="card">' + (itens.length ? itens.join("") : '<p class="vazio">Nada suspenso, desligado nem denunciado agora.</p>') + "</div>" +
+      '<p class="nota">Denúncias: as das páginas de links chegam pelo “Denunciar esta página” (sem dizer quem denunciou) e ficam em Páginas de links. As outras chegam por contato@atos.dev.br; daqui a equipe age na conta, no endereço, no aplicativo ou na página.' +
+      (n.links ? " Páginas de links: " + n.links.paginas + " (" + n.links.fora_do_ar + " fora do ar pela Atos)." : "") + "</p>";
 
     var vr = D.indice.varredura || {};
     h += '<h2 class="titulo-secao pv-h2"><span>O índice</span></h2><div class="card"><div class="nf-det"><dl class="nf-info">' +
@@ -107,7 +117,7 @@
       var al = x.alias ? esc(x.alias.endereco) + (x.alias.suspenso ? " (suspenso)" : x.alias.estado === "ligado" ? " (encaminhando)" : " (desligado)") : "sem endereço Atos";
       var t = x.termos ? "termos de " + esc(versao(x.termos.versao)) + (x.termos.versao !== atuais ? " (antigos)" : "") : "sem termos";
       return '<div class="item oa-item"><span class="nome"><strong>' + esc(x.email || x.sub) + " " + sit(x.estado) + "</strong>" +
-        "<small>" + al + " · ativado em " + esc(U.ddmmaaaa(x.ativado)) + " · " + t + " · " + plural(x.apps, "aplicativo", "aplicativos") + "</small></span>" +
+        "<small>" + al + " · ativado em " + esc(U.ddmmaaaa(x.ativado)) + " · " + t + " · " + plural(x.apps, "aplicativo", "aplicativos") + " · " + planoTexto(x.plano) + "</small></span>" +
         '<span class="pv-par"><button type="button" class="btn mini" data-ws-adm="abrir" data-sub="' + esc(x.sub) + '">Abrir</button></span></div>';
     }).join("");
   }
@@ -136,6 +146,7 @@
     h += '<div class="card"><div class="nf-det"><dl class="nf-info">' +
       "<dt>Conta</dt><dd>" + esc(D.conta.email) + " <small>(" + esc(D.conta.sub) + ')</small> <button type="button" class="link" data-ws-adm="conta-atos" data-email="' + esc(D.conta.email) + '">Ver em Contas Atos</button></dd>' +
       "<dt>Ativado em</dt><dd>" + esc(U.quando(W.ativado)) + (W.desativado ? " · desativado em " + esc(U.quando(W.desativado)) : "") + "</dd>" +
+      "<dt>Plano</dt><dd>" + planoTexto(W.plano) + (W.plano && W.plano.pro ? " (" + (W.plano.pago_por === "assinatura" ? "assinatura no cartão" : W.plano.periodo === "ano" ? "o ano pago de uma vez" : "pago de uma vez") + ")" : "") + "</dd>" +
       "<dt>Termos aceitos</dt><dd>" + (W.termos ? "versão de " + esc(versao(W.termos.versao)) + ", em " + esc(U.quando(W.termos.aceito)) + (W.termos.versao !== W.termos_atuais ? " (a atual é " + esc(versao(W.termos_atuais)) + ")" : "") : "—") + "</dd>" +
       "<dt>Histórico</dt><dd>" + ((W.historico || []).map(function (x) { return esc(U.quando(x.quando)) + " · " + esc(x.oque) + (x.por ? " (" + esc(x.por) + ")" : ""); }).join("<br>") || "—") + "</dd>" +
       "</dl></div></div>";

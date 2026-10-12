@@ -104,9 +104,9 @@ const VOLTA = "https://loja.exemplo.test/volta";
 
 console.log("o produto no catálogo");
 checar(PRODUTOS.workspace && PRODUTOS.workspace.nome === "Atos Workspace" && produtoGratuito("workspace") && !produtoGratuito("pavlvs"), "o Atos Workspace é um produto gratuito do catálogo");
-checar(PRODUTOS.workspace.precos.length === 0 && !resolveOffer("workspace.gratis.mes") && !PRODUTOS.workspace.eventos, "sem preço (nada passa pelo Mercado Pago) e sem eventos");
+checar(PRODUTOS.workspace.precos.map((x) => x.id + ":" + x.centavos).join() === "workspace.pro.mes:2900,workspace.pro.ano:29000" && !resolveOffer("workspace.gratis.mes") && !PRODUTOS.workspace.eventos, "o Pro: R$ 29/mês e R$ 290/ano; ativar continua gratuito; sem eventos");
 let r = await chamar("/api/cobranca/v1/catalogo/workspace", { metodo: "GET" });
-checar(r.status === 200 && r.d.gratuito === true && r.d.precos.length === 0 && catalogoPublico("workspace").nome === "Atos Workspace", "o catálogo público diz gratuito", r.d);
+checar(r.status === 200 && r.d.gratuito === true && r.d.precos.length === 2 && catalogoPublico("workspace").nome === "Atos Workspace", "o catálogo público diz gratuito", r.d);
 
 console.log("a área do Workspace");
 r = await chamar("/api/workspace", { metodo: "GET" });

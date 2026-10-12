@@ -1,0 +1,30 @@
+/* A pagina de links publica (/@<nome>; worker/links.js), sobre conta.css e publico.css. Sem script; angulos retos. A
+   pagina mais vista no celular: uma coluna, alvos grandes, o dominio de destino sempre visivel embaixo do link. */
+.lk { width: 100%; max-width: 560px; margin: 0 auto; padding: 40px 16px 48px; display: flex; flex-direction: column; gap: 24px; flex: 1; }
+.lk-topo { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.lk-foto { width: 96px; height: 96px; object-fit: cover; border: 1px solid var(--line); }
+.lk-inicial { display: inline-flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 40px; color: var(--text); background: var(--surface-2); }
+.lk-topo h1 { font-family: var(--serif); font-weight: 400; font-size: 28px; line-height: 1.15; color: var(--text); overflow-wrap: anywhere; }
+.lk-frase { font-size: 15px; line-height: 1.5; color: var(--text-soft); max-width: 44ch; text-wrap: pretty; overflow-wrap: anywhere; }
+.lk-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.lk-link { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 14px 16px; min-height: 56px; justify-content: center; text-align: center;
+  text-decoration: none; color: var(--text); background: var(--surface); border: 1px solid var(--line); }
+.lk-link:hover, .lk-link:focus-visible { border-color: var(--faint); background: var(--surface-hover); }
+.lk-titulo { font-size: 15px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+.lk-dominio { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.lk-proprio .lk-dominio { color: var(--faint); }
+.lk-vazio { text-align: center; font-size: 14px; color: var(--muted); }
+.lk-pe { margin-top: 8px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; text-align: center; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.lk-pe a { color: var(--text-soft); }
+/* O contato (o formulario da pessoa) e a denuncia */
+.lk-form { display: flex; flex-direction: column; gap: 12px; }
+.lk-form .campo, .lk-largo { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.lk-form input, .lk-form textarea, .lk-largo textarea { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 15px; outline: none; }
+.lk-form input:focus, .lk-form textarea:focus, .lk-largo textarea:focus { border-color: var(--faint); }
+.lk-form .btn { align-self: flex-start; }
+.lk-motivos { display: flex; flex-direction: column; gap: 8px; border: 0; margin: 0; padding: 0; }
+.lk-motivos legend { margin-bottom: 6px; }
+.lk-opcao { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: var(--text); cursor: pointer; }
+.lk-opcao input { margin-top: 3px; accent-color: var(--text); }
+.lk-armadilha { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+@media (max-width: 420px) { .lk { padding-top: 28px; } .lk-topo h1 { font-size: 24px; } }

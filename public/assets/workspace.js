@@ -16,7 +16,7 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var SECOES = ["geral", "integracoes", "formularios", "status", "email"];
+  var SECOES = ["geral", "integracoes", "formularios", "status", "links", "email", "plano"];
   var S = { conta: null, ws: null, erro: "", aceito: false, ocupado: false, confirmar: false, msg: "" };
 
   function esc(s) {
@@ -46,7 +46,7 @@
     return m && SECOES.indexOf(m[1]) > 0 ? m[1] : "geral";
   }
   var GUIAS = [["geral", "Visão geral", "/workspace/"], ["integracoes", "Integrações", "/workspace/integracoes"], ["formularios", "Formulários", "/workspace/formularios"],
-    ["status", "Status", "/workspace/status"],     ["email", "E-mail Atos", "/workspace/email"]];
+    ["status", "Status", "/workspace/status"], ["links", "Página de links", "/workspace/links"], ["email", "E-mail Atos", "/workspace/email"], ["plano", "Plano", "/workspace/plano"]];
   function guias() {
     var sec = secaoAtual();
     return '<nav class="guias" aria-label="Atos Workspace">' + GUIAS.map(function (g) {
@@ -79,7 +79,8 @@
         : "<p>Em preparação: o <strong>e-mail Atos</strong>, um endereço @atos.dev.br que encaminha para o seu e-mail.</p>") +
       "<p>E os <strong>Formulários</strong>: o seu site manda o formulário de contato para um endereço da Atos, e a Atos entrega o que foi preenchido no destino do seu e-mail Atos, sem guardar o conteúdo. " +
       "Pedem o e-mail Atos confirmado e o login por ele, como as Integrações.</p>" +
-      "<p>E a <strong>página de status</strong>: a Atos confere até 5 endereços do seu sistema a cada 5 minutos, publica atos.dev.br/status/&lt;nome&gt; (no ar, instável ou fora, com o histórico) e, se você quiser, avisa por e-mail quando um cai e quando volta.</p>" +
+      "<p>E a <strong>página de status</strong>: a Atos confere os endereços do seu sistema (no gratuito, 1 a cada 15 minutos; no Pro, até 10 a cada minuto) e publica atos.dev.br/status/&lt;nome&gt; (no ar, instável ou fora, com o histórico); no Pro, avisa por e-mail quando um cai e quando volta.</p>" +
+      "<p>E a <strong>página de links</strong>: atos.dev.br/@&lt;nome&gt;, com o seu nome, uma frase, uma foto e os seus links (com o domínio de cada um à mostra). No Pro, até 3 páginas e a contagem de cliques.</p>" +
       "<p>Para cadastrar um sistema: <strong>1.</strong> ative o Workspace; <strong>2.</strong> crie o seu e-mail Atos e confirme o destino; " +
       "<strong>3.</strong> entre com o endereço @atos.dev.br (a mesma senha da conta); <strong>4.</strong> cadastre o sistema em Integrações. " +
       "Quem entra nele vê o seu endereço @atos.dev.br como quem cadastrou, nunca o seu e-mail pessoal.</p></div>";
@@ -131,7 +132,8 @@
     if (temAliasAtivo(W) && !W.via_alias && !W.suspenso) h += entrarPeloAlias(W);
     h += h2("Ativação") + '<div class="card">' +
       '<div class="dado"><span class="rotulo">Situação</span><span>' + (W.suspenso ? "Suspenso pela Atos (ativo desde " + esc(data(W.ativado)) + ")" : "Ativo desde " + esc(data(W.ativado))) + "</span><span></span></div>" +
-      '<div class="dado"><span class="rotulo">Plano</span><span>Gratuito</span><span></span></div>' +
+      '<div class="dado"><span class="rotulo">Plano</span><span>' + esc(linhaDoPlano(W.plano)) + "</span>" +
+      '<a class="btn p" href="/workspace/plano" data-ws-secao="plano">' + (W.plano && W.plano.pro ? "Ver o plano" : "Conhecer o Pro") + "</a></div>" +
       '<div class="dado"><span class="rotulo">Termos aceitos</span><span>' + (W.aceito ? "Versão de " + esc(versao(W.aceito.versao)) + ", em " + esc(data(W.aceito.quando)) : "—") +
       '</span><a class="btn p" href="' + esc(W.termos.endereco) + '">Ler os termos</a></div>' +
       '<div class="dado"><span class="rotulo">Conta</span><span>' + esc(W.conta.email) + "</span><span></span></div>" +
@@ -142,14 +144,20 @@
           '<p class="erro" role="alert">' + esc(S.erro) + '</p><div class="ws-botoes"><button type="button" class="btn p primario" data-ws="ativar"' + (!S.aceito || S.ocupado ? " disabled" : "") + ">Aceitar os termos novos</button></div>"
           : '<p class="ws-aviso">Para aceitar, o login precisa ser das últimas ' + W.limites.recente_h + ' horas. <a href="' + VOLTA_ENTRAR() + '">Entrar de novo</a></p>') + "</div>";
     }
+    var Lm = (W.plano && W.plano.limites) || {};
     h += h2("O que está incluído") + '<div class="card"><a class="item" href="/workspace/integracoes" data-ws-secao="integracoes"><span class="logo inicial" aria-hidden="true">L</span>' +
-      '<span class="nome"><strong>Integrações</strong><small>O Login Atos para os seus sistemas, com os avisos ao sistema e o registro de entradas · ' + esc(String(W.apps)) + " de 5 aplicativos</small></span>" +
+      '<span class="nome"><strong>Integrações</strong><small>O Login Atos para os seus sistemas, com os avisos ao sistema e o registro de entradas · ' + esc(String(W.apps)) + " de " + esc(String(Lm.apps)) + " aplicativos</small></span>" +
       '<span class="seta" aria-hidden="true">→</span></a>' +
       '<a class="item" href="/workspace/formularios" data-ws-secao="formularios"><span class="logo inicial" aria-hidden="true">F</span>' +
-      '<span class="nome"><strong>Formulários</strong><small>O formulário de contato do seu site, entregue no destino do seu e-mail Atos · até 5</small></span>' +
+      '<span class="nome"><strong>Formulários</strong><small>O formulário de contato do seu site, entregue no destino do seu e-mail Atos · até ' + esc(String(Lm.formularios)) + "</small></span>" +
       '<span class="seta" aria-hidden="true">→</span></a>' +
       '<a class="item" href="/workspace/status" data-ws-secao="status"><span class="logo inicial" aria-hidden="true">S</span>' +
-      '<span class="nome"><strong>Status</strong><small>A página de status do seu sistema, com o aviso de queda por e-mail · até 5 endereços</small></span>' +
+      '<span class="nome"><strong>Status</strong><small>A página de status do seu sistema · ' + esc(String(Lm.status_enderecos)) + (Lm.status_enderecos === 1 ? " endereço" : " endereços") + " a cada " +
+      (Lm.status_intervalo_min === 1 ? "minuto" : esc(String(Lm.status_intervalo_min)) + " minutos") + (Lm.status_email ? ", com o aviso de queda por e-mail" : "") + "</small></span>" +
+      '<span class="seta" aria-hidden="true">→</span></a>' +
+      '<a class="item" href="/workspace/links" data-ws-secao="links"><span class="logo inicial" aria-hidden="true">@</span>' +
+      '<span class="nome"><strong>Página de links</strong><small>atos.dev.br/@&lt;nome&gt;, com os seus links · ' + esc(String(Lm.links_paginas)) + (Lm.links_paginas === 1 ? " página" : " páginas") +
+      (Lm.links_cliques ? ", com os cliques" : "") + "</small></span>" +
       '<span class="seta" aria-hidden="true">→</span></a>' +
       '<a class="item" href="/workspace/email" data-ws-secao="email"><span class="logo inicial" aria-hidden="true">@</span>' +
       '<span class="nome"><strong>E-mail Atos</strong><small>' + (W.alias ? esc(W.alias.endereco) + (W.alias.suspenso ? " · suspenso" : W.alias.confirmado ? "" : " · falta confirmar o destino")
@@ -171,6 +179,85 @@
     }
     return h + "</div>";
   }
+
+  // ------------------------------------------------------------ Plano (gratuito ou Pro; worker/workspace-plano.js)
+
+  function reais(c) { return (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
+  function linhaDoPlano(p) {
+    if (!p) return "Gratuito";
+    if (p.pro) return "Pro, até " + data(p.ate) + (p.pago_por === "assinatura" ? " (assinatura no cartão, renova todo mês)" : p.periodo === "ano" ? " (o ano pago de uma vez)" : "");
+    return "Gratuito" + (p.venceu ? " (o Pro venceu em " + data(p.venceu) + ")" : "");
+  }
+  // As linhas da comparacao: [rotulo, o que mostrar de um plano].
+  var COMPARA = [
+    ["Sistemas no Login Atos", function (x) { return String(x.apps); }],
+    ["Pessoas liberadas por sistema", function (x) { return x.liberados.toLocaleString("pt-BR"); }],
+    ["E-mail Atos", function () { return "1 endereço"; }],
+    ["Formulários", function (x) { return x.formularios + (x.formularios === 1 ? " formulário" : " formulários") + ", " + x.envios_dia.toLocaleString("pt-BR") + " envios por dia"; }],
+    ["Avisos ao sistema", function (x) { return "histórico de " + x.avisos_dias + " dias"; }],
+    ["Registro de entradas", function (x) { return x.entradas_dias + " dias" + (x.entradas_csv ? ", exportar CSV" : ", sem CSV"); }],
+    ["Página de status", function (x) { return (x.status_enderecos === 1 ? "1 endereço" : "até " + x.status_enderecos + " endereços") + " a cada " + (x.status_intervalo_min === 1 ? "minuto" : x.status_intervalo_min + " minutos") + (x.status_email ? ", aviso por e-mail" : ""); }],
+    ["Página de links", function (x) { return x.links_paginas + (x.links_paginas === 1 ? " página" : " páginas") + ", até " + x.links_por_pagina + " links" + (x.links_cliques ? ", cliques por dia" : ""); }],
+  ];
+  function plano() {
+    var h = titulo("Plano", "O Atos Workspace é gratuito; o Pro aumenta os limites.");
+    if (!S.ws) return h + (S.erro ? vazio(esc(S.erro) + ' <button type="button" class="link" data-ws="recarregar">Tentar de novo</button>') : vazio("Carregando…"));
+    var W = S.ws, p = W.plano || {}, G = W.planos.gratuito, P = W.planos.pro;
+    var mes = (W.precos || []).filter(function (x) { return x.periodo === "mes"; })[0], ano = (W.precos || []).filter(function (x) { return x.periodo === "ano"; })[0];
+    h += h2("O seu plano") + '<div class="card">' +
+      '<div class="dado"><span class="rotulo">Plano</span><span>' + esc(linhaDoPlano(p)) + "</span><span></span></div>";
+    if (p.pro) {
+      h += '<div class="dado"><span class="rotulo">Assinatura e faturas</span><span>Ficam na Minha conta da Atos (cancelar, ver as faturas e as notas)</span>' +
+        '<a class="btn p" href="/conta/assinaturas">Gerir</a></div>';
+    }
+    h += "</div>";
+    if (p.venceu) {
+      h += '<div class="card ws-ativar"><p class="ws-aviso">O Pro venceu em ' + esc(data(p.venceu)) + ". Nada foi apagado: o que passa dos limites do gratuito ficou fora do plano " +
+        "(sistemas só leitura, formulários e páginas sem entregar ou fora do ar, endereços sem conferência). Volta tudo ao assinar de novo, ou reduza até caber no gratuito.</p></div>";
+    }
+    if (!W.ativo) {
+      h += '<div class="card ws-ativar"><p>Para assinar o Pro, ative antes o Atos Workspace (gratuito), aceitando os termos.</p><div class="ws-botoes"><a class="btn primario" href="/workspace/" data-ws-secao="geral">Ativar o Atos Workspace</a></div></div>';
+    } else if (W.aceito && W.aceito.versao !== W.termos.versao) {
+      h += '<div class="card ws-ativar"><p class="ws-aviso">Os termos mudaram: aceite a versão atual na Visão geral antes de assinar o Pro.</p></div>';
+    } else if (W.suspenso) {
+      h += avisoSuspenso(W);
+    } else if (!p.pro && !W.pro_aberto) {
+      h += '<div class="card ws-ativar"><p>O Atos Workspace Pro ainda não vende por aqui. Os limites e o preço estão abaixo.</p></div>';
+    } else if (!p.pro) {
+      h += '<div class="card ws-ativar"><p><strong>Atos Workspace Pro:</strong> ' + (mes ? esc(reais(mes.centavos)) + " por mês, no cartão (assinatura; cancela quando quiser)" : "") +
+        (ano ? ", ou " + esc(reais(ano.centavos)) + " por ano, no cartão ou no Pix (pago de uma vez, sem renovação automática)" : "") + ". A cobrança é da Atos, como a do PAVLVS.</p>" +
+        '<div class="ws-botoes">' + (mes ? '<a class="btn primario" href="/workspace/assinar/?preco=workspace.pro.mes">Assinar · ' + esc(reais(mes.centavos)) + "/mês</a>" : "") +
+        (ano ? '<a class="btn" href="/workspace/assinar/?preco=workspace.pro.ano">Pagar o ano · ' + esc(reais(ano.centavos)) + "</a>" : "") + "</div></div>";
+    } else if (p.pago_por !== "assinatura" && ano) {
+      h += '<div class="card ws-ativar"><p>O Pro está pago até ' + esc(data(p.ate)) + ' e não renova sozinho. Perto do fim, pague mais um ano (soma ao que falta).</p><div class="ws-botoes"><a class="btn" href="/workspace/assinar/?preco=workspace.pro.ano">Pagar mais um ano · ' + esc(reais(ano.centavos)) + "</a></div></div>";
+    }
+    h += h2("Gratuito e Pro") + '<div class="card ws-tabela-rolagem"><table class="ws-planos"><thead><tr><th scope="col"></th><th scope="col"' + (p.pro ? "" : ' class="atual"') + ">Gratuito</th><th scope=\"col\"" + (p.pro ? ' class="atual"' : "") + ">Pro</th></tr></thead><tbody>" +
+      COMPARA.map(function (l) { return "<tr><th scope=\"row\">" + esc(l[0]) + "</th><td>" + esc(l[1](G)) + "</td><td>" + esc(l[1](P)) + "</td></tr>"; }).join("") + "</tbody></table></div>";
+    return h + '<p class="nota">Os limites valem no servidor: ao chegar num, a tela diz qual e oferece o Pro. Se o Pro acabar (venceu ou você cancelou e o período pago terminou), nada é apagado: ' +
+      "os sistemas mais antigos, até o limite, seguem normais e os outros ficam só leitura (continuam deixando entrar quem já entrava); os formulários e as páginas de links que passam do limite param ou saem do ar; " +
+      "os endereços da página de status que passam do limite deixam de ser conferidos; os registros do Pro ficam mais 30 dias e depois seguem a guarda do gratuito. " +
+      'O e-mail Atos é o mesmo nos dois (um endereço). Veja os <a href="/termos/#workspace">termos</a>.</p>';
+  }
+
+  // ------------------------------------------------------------ Pagina de links
+
+  function links() {
+    var h = titulo("Página de links", "atos.dev.br/@&lt;nome&gt;: o seu nome, uma frase e os seus links.");
+    if (!S.ws) return h + (S.erro ? vazio(esc(S.erro) + ' <button type="button" class="link" data-ws="recarregar">Tentar de novo</button>') : vazio("Carregando…"));
+    var W = S.ws;
+    if (!W.ativo) {
+      return h + '<div class="card ws-ativar"><p>A página de links faz parte do Atos Workspace. Ative o Workspace (gratuito) para criar a sua.</p>' +
+        '<div class="ws-botoes"><a class="btn primario" href="/workspace/" data-ws-secao="geral">Ativar o Atos Workspace</a></div></div>';
+    }
+    if (W.suspenso) return h + avisoSuspenso(W);
+    // O e-mail Atos nao e exigido; quem o tem confirmado entra por ele (como no resto do Workspace).
+    if (W.pendencia === "entrar_pelo_alias") return h + entrarPeloAlias(W);
+    return h + '<div id="lk-raiz"><div class="card"><p class="vazio">Carregando…</p></div></div>';
+  }
+  function montarLinks() {
+    script("/assets/workspace-links.js", function () { var r = $("lk-raiz"); if (r && window.WorkspaceLinks) window.WorkspaceLinks.montar(r); });
+  }
+  function liberadoLinks() { return Boolean(S.ws && S.ws.ativo && !S.ws.suspenso && S.ws.pendencia !== "entrar_pelo_alias"); }
 
   function geral() {
     var h = titulo("Atos Workspace", "Para quem constrói sistemas com a Conta Atos.");
@@ -242,7 +329,7 @@
   // ------------------------------------------------------------ Status
 
   function status() {
-    var h = titulo("Status", "A página de status do seu sistema, conferida pela Atos a cada 5 minutos.");
+    var h = titulo("Status", "A página de status do seu sistema, conferida pela Atos.");
     if (!S.ws) return h + (S.erro ? vazio(esc(S.erro) + ' <button type="button" class="link" data-ws="recarregar">Tentar de novo</button>') : vazio("Carregando…"));
     var bloqueio = portao({
       nome: "A página de status", fazer: "ter a página de status", porque: "Os avisos de queda chegam ao destino confirmado desse endereço.",
@@ -288,13 +375,14 @@
 
   // ------------------------------------------------------------ desenhar e carregar
 
-  var DESENHO = { geral: geral, integracoes: integracoes, formularios: formularios, status: status, email: email };
+  var DESENHO = { geral: geral, integracoes: integracoes, formularios: formularios, status: status, links: links, email: email, plano: plano };
   function desenhar() {
     var sec = secaoAtual();
     $("secao").innerHTML = DESENHO[sec]();
     if (sec === "integracoes" && liberado()) montarIntegracoes();
     if (sec === "formularios" && liberado()) montarFormularios();
     if (sec === "status" && liberado()) montarStatus();
+    if (sec === "links" && liberadoLinks()) montarLinks();
     if (sec === "email" && S.ws) montarEmail();
   }
   function ir(sec) {

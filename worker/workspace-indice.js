@@ -39,10 +39,12 @@ export function linhaDoIndice(sub, email, d) {
     sub: String(sub), email: normal(email), estado: estadoDe(d), ativo: Boolean(d && d.ativo), ativado: (d && d.ativado) || null, desativado: (d && d.desativado) || null,
     termos: d && d.termos ? { versao: String(d.termos.versao || ""), aceito: d.termos.aceito || null } : null,
     suspenso: d && d.suspenso ? { quando: d.suspenso.quando, motivo: d.suspenso.motivo || "", por: d.suspenso.por || "" } : null,
+    // O plano pago (worker/workspace-plano.js): "pro" e ate quando (o painel diz "Pro ate ..." ou "Pro venceu em ...").
+    plano: d && d.plano === "pro" && d.ate ? { id: "pro", ate: d.ate, periodo: d.periodo || null, pago_por: d.pago_por || null } : null,
   };
 }
 
-const CAMPOS = ["email", "estado", "ativo", "ativado", "desativado", "termos", "suspenso"];
+const CAMPOS = ["email", "estado", "ativo", "ativado", "desativado", "termos", "suspenso", "plano"];
 const igual = (a, b) => CAMPOS.every((k) => JSON.stringify(a[k] === undefined ? null : a[k]) === JSON.stringify(b[k] === undefined ? null : b[k]));
 
 /* O alias de uma conta como o indice mostra (sem o destino: o painel mascara). */

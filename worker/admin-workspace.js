@@ -40,6 +40,9 @@ import { bloqueioDoFormulario, formulariosParaPainel } from "./formularios.js";
 import { avisosDoDono, bloqueioDosAvisos } from "./avisos.js";
 import { entradasDoDono } from "./entradas.js";
 import { bloqueioDaPagina, statusParaPainel } from "./status.js";
+import { planoDe, vistaDoPlano } from "./workspace-plano.js";
+import { doIndice } from "./workspace-dados.js";
+import { atenderLinksNoPainel, ehRotaDosLinksNoPainel } from "./links.js";
 
 const SUB = /^[A-Za-z0-9_.:@-]{3,120}$/;
 const POR_VARREDURA = 25;
@@ -149,11 +152,22 @@ async function visaoGeral(env, c) {
   const acessos = apps.reduce((n, a) => n + Object.keys(a.clientes || {}).length, 0);
   const ligados = apps.reduce((n, a) => n + Object.values(a.clientes || {}).filter((x) => x && x.ativo !== false).length, 0);
   const conta = (sub) => contas.find((x) => x.sub === sub);
+  // As paginas de links e as denuncias abertas (worker/links.js).
+  let links = null;
+  if (env.WS_DADOS) {
+    try {
+      const r = await doIndice(env).pedir("lpag_painel", {});
+      if (r && r.ok) links = { paginas: r.paginas.length, fora_do_ar: r.paginas.filter((x) => x.bloqueado).length, abertas: r.denuncias.filter((x) => x.estado === "aberta") };
+    } catch { /* o painel abre sem elas */ }
+  }
+  const agora = c.agora || Date.now();
   return {
     disponivel: emailAtosLigado(env), simulada: simulada(env), termos_atuais: PRODUTOS[WORKSPACE].termos.versao,
     numeros: {
       workspaces: { total: contas.length, ativos: contas.filter((x) => x.estado === "ativo").length, suspensos: contas.filter((x) => x.estado === "suspenso").length,
-        desativados: contas.filter((x) => x.estado === "desativado").length, termos_antigos: contas.filter((x) => x.ativo && x.termos && x.termos.versao !== PRODUTOS[WORKSPACE].termos.versao).length },
+        desativados: contas.filter((x) => x.estado === "desativado").length, termos_antigos: contas.filter((x) => x.ativo && x.termos && x.termos.versao !== PRODUTOS[WORKSPACE].termos.versao).length,
+        pro: contas.filter((x) => x.plano && Date.parse(x.plano.ate) > agora).length },
+      links: links ? { paginas: links.paginas, fora_do_ar: links.fora_do_ar, denuncias_abertas: links.abertas.length } : null,
       enderecos: { total: aliases.length, encaminhando: aliases.filter((x) => !x.suspenso && x.estado === "ligado").length,
         desligados: aliases.filter((x) => !x.suspenso && x.estado !== "ligado").length, suspensos: aliases.filter((x) => x.suspenso).length,
         sem_destino: aliases.filter((x) => !(x.destino && x.destino.codigo_ok && x.destino.cf_ok)).length },
@@ -164,8 +178,8 @@ async function visaoGeral(env, c) {
       workspaces: contas.filter((x) => x.estado === "suspenso").map((x) => ({ sub: x.sub, email: x.email, suspenso: x.suspenso })),
       enderecos: aliases.filter((x) => x.suspenso).map((x) => ({ alias: x.alias, endereco: x.alias + "@" + DOMINIO, conta: x.conta, sub: x.sub, suspenso: { quando: x.suspenso.quando, motivo: x.suspenso.motivo || "", por: x.suspenso.por || "" } })),
       apps: apps.filter((a) => a.bloqueado).map((a) => ({ id: a.id, nome: a.nome, dono: a.dono.email, sub: a.dono.sub, no_indice: Boolean(conta(a.dono.sub)), bloqueado: { quando: a.bloqueado.quando, motivo: a.bloqueado.motivo || "", por: a.bloqueado.por || "" } })),
-      // Denuncias: a Atos ainda nao recebe denuncia pelo sistema; elas chegam por contato@atos.dev.br (os termos dizem).
-      denuncias: null,
+      // As denuncias abertas das paginas de links (worker/links.js; as outras chegam por contato@atos.dev.br).
+      denuncias: links ? links.abertas.slice(0, 20).map((x) => ({ id: x.id, nome: x.nome, motivo: x.motivo, quando: x.quando })) : null,
     },
     indice: { contas: contas.length, varredura, sem_indice: (ind.sem_indice || []).length },
     registro: await registroDaEquipe(env, { prefixo: "workspace", limite: 15 }),
@@ -181,7 +195,8 @@ async function listaDeContas(env, q) {
   for (const a of apps) porDono.set(a.dono.sub, (porDono.get(a.dono.sub) || 0) + 1);
   const t = normal(q);
   const l = ind.contas.filter((x) => !t || x.email.includes(t) || x.sub === q || (x.alias && x.alias.endereco.includes(t)))
-    .map((x) => ({ sub: x.sub, email: x.email, estado: x.estado, ativado: x.ativado, desativado: x.desativado, termos: x.termos, suspenso: x.suspenso, alias: x.alias, apps: porDono.get(x.sub) || 0, atualizado: x.atualizado }))
+    .map((x) => ({ sub: x.sub, email: x.email, estado: x.estado, ativado: x.ativado, desativado: x.desativado, termos: x.termos, suspenso: x.suspenso, alias: x.alias, apps: porDono.get(x.sub) || 0, atualizado: x.atualizado,
+      plano: vistaDoPlano(planoDe(x.plano ? { plano: "pro", ate: x.plano.ate, periodo: x.plano.periodo, pago_por: x.plano.pago_por } : null)) }))
     .sort((a, b) => String(b.ativado || "").localeCompare(String(a.ativado || "")));
   return { contas: l, total: ind.contas.length, termos_atuais: PRODUTOS[WORKSPACE].termos.versao, varredura: ind.varredura };
 }
@@ -208,6 +223,7 @@ async function contaNoWorkspace(env, sub) {
       termos: d.termos ? { versao: d.termos.versao, aceito: d.termos.aceito } : null, termos_atuais: PRODUTOS[WORKSPACE].termos.versao,
       suspenso: d.suspenso ? { quando: d.suspenso.quando, motivo: d.suspenso.motivo || "", por: d.suspenso.por || "", apps: d.suspenso.apps || [], alias: d.suspenso.alias || "" } : null,
       historico: (d.historico || []).slice(-20).reverse(),
+      plano: vistaDoPlano(planoDe(d)),
     },
     alias: aliasDoPainel(v.alias), alias_mudancas: mudancas,
     apps: apps.map(appResumido),
@@ -401,6 +417,8 @@ export async function atenderWorkspaceNoPainel(request, env, url, c) {
     }
     r = p.match(/^\/api\/admin\/workspace\/status\/([a-z0-9-]{3,30})\/(desligar|ligar)$/);
     if (r && m === "POST") return env.WS_DADOS ? await acaoNaPagina(env, c, r[1], r[2], (await lerJson(request)) || {}) : FORA();
+    // As paginas de links e as denuncias (worker/links.js).
+    if (ehRotaDosLinksNoPainel(p)) return await atenderLinksNoPainel(request, env, url, c);
     r = p.match(/^\/api\/admin\/workspace\/formularios\/(f-[a-z0-9]{12})\/(desligar|ligar)$/);
     if (r && m === "POST") return env.WS_DADOS ? await acaoNoFormulario(env, c, r[1], r[2], (await lerJson(request)) || {}) : FORA();
     r = p.match(/^\/api\/admin\/workspace\/apps\/(u-[a-z0-9]{10})\/(desligar|ligar|apagar)$/);

@@ -1,6 +1,7 @@
 // Os dados dos recursos do Atos Workspace que nao cabem no KV: os formularios de contato (worker/formularios.js), os
-// avisos ao sistema (webhooks; worker/avisos.js), o registro de entradas de cada aplicativo (worker/entradas.js) e as
-// paginas de status (worker/status.js). Um Durable Object (WorkspaceDados, migracao v5; binding WS_DADOS), com
+// avisos ao sistema (webhooks; worker/avisos.js), o registro de entradas de cada aplicativo (worker/entradas.js), as
+// paginas de status (worker/status.js) e as paginas de links (worker/links.js). No objeto da conta, "ws:plano" ({ate})
+// diz ate quando o Pro foi pago (worker/workspace-plano.js), para a guarda dos registros. Um Durable Object (WorkspaceDados, migracao v5; binding WS_DADOS), com
 // consistencia forte, um pedido de cada vez e o alarme para as entregas e a limpeza.
 //
 // As instancias:
@@ -19,6 +20,8 @@ import { OPS_FORMULARIOS, limparFormularios } from "./formularios.js";
 import { OPS_AVISOS, entregarAvisos, limparAvisos } from "./avisos.js";
 import { OPS_ENTRADAS, limparEntradas } from "./entradas.js";
 import { OPS_STATUS, limparStatus } from "./status.js";
+import { OPS_LINKS, limparLinks } from "./links.js";
+import { guardaDoPro } from "./workspace-plano.js";
 
 const LIMPEZA_H = 6;
 
@@ -88,9 +91,24 @@ export class WorkspaceDados {
   }
 
   async fazer(d, agora) {
-    const f = OPS_FORMULARIOS[d.op] || OPS_AVISOS[d.op] || OPS_ENTRADAS[d.op] || OPS_STATUS[d.op];
+    // Ate quando o Pro foi pago (worker/workspace-plano.js): a guarda dos registros segue o plano. Quem anota e o
+    // registro do cliente (cobranca/cliente.js, a cada mudanca do direito) e a porta da area (worker/workspace.js).
+    if (d.op === "plano_anotar") {
+      const s = this.ctx.storage;
+      const ate = typeof d.plano_ate === "string" && d.plano_ate ? d.plano_ate : null;
+      const antes = (await s.get("ws:plano")) || null;
+      if (!antes || antes.ate !== ate) await s.put("ws:plano", { ate, anotado: isoDe(agora) });
+      return { ok: true };
+    }
+    const f = OPS_FORMULARIOS[d.op] || OPS_AVISOS[d.op] || OPS_ENTRADAS[d.op] || OPS_STATUS[d.op] || OPS_LINKS[d.op];
     if (!f) return { ok: false, erro: "op desconhecida" };
     return f(this, d, agora);
+  }
+
+  /* Os registros do Pro ainda ficam? (o Pro pago, ou a carencia depois dele) */
+  async guardaDoPro(agora) {
+    const p = await this.ctx.storage.get("ws:plano");
+    return guardaDoPro(p && p.ate, agora);
   }
 
   /* Um contador de frequencia: true se ainda cabe (e conta), false se chegou ao limite. */
@@ -143,7 +161,7 @@ export class WorkspaceDados {
   }
   async temRegistro() {
     const s = this.ctx.storage;
-    for (const p of ["flog:", "fstat:", "avr:", "avq:", "lg:", "st:dia:", "st:evt|", "cnt:"]) if ((await s.list({ prefix: p, limit: 1 })).size) return true;
+    for (const p of ["flog:", "fstat:", "avr:", "avq:", "lg:", "st:dia:", "st:evt|", "cnt:", "lk:clk:", "lden:"]) if ((await s.list({ prefix: p, limit: 1 })).size) return true;
     return false;
   }
   async limpar(agora) {
@@ -154,6 +172,7 @@ export class WorkspaceDados {
     n += await limparAvisos(this, agora);
     n += await limparEntradas(this, agora);
     n += await limparStatus(this, agora);
+    n += await limparLinks(this, agora);
     return n;
   }
 }

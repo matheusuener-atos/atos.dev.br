@@ -95,7 +95,8 @@
   //   MP_ACCESS_TOKEN    o Access Token de producao do app (cobrar, assinar, devolver)
   //   MP_WEBHOOK_SECRET  a assinatura secreta do webhook (o aviso em https://atos.dev.br/api/mp/aviso)
   // MP_PUBLIC_KEY e a Public Key do mesmo app (nao e segredo; vai ao navegador por /api/mp-config).
-  // PRODUTOS_ABERTOS: os produtos que ja vendem pela Atos ("pavlvs,..."); vazio = nenhum cobra ainda.
+  // PRODUTOS_ABERTOS: os produtos que ja vendem pela Atos ("pavlvs,..."); vazio = nenhum cobra ainda. "workspace" (12/10/2026):
+  // o Atos Workspace Pro (worker/workspace-plano.js), aprovado pelo dono; tirar daqui fecha a venda (quem ja pagou continua).
   // CF_ACCOUNT_ID: a conta Cloudflare onde o painel cadastra o certificado A1 como mTLS e republica o auxiliar
   // atos-nfse-mtls (worker/nfse/mtls.js; o token de API fica cifrado no KV). Identificador, nao segredo.
   // A equipe do painel: no KV (atos:admin:equipe), mudada pela fila do painel. ATOS_EQUIPE (segredo, JSON
@@ -109,7 +110,7 @@
     // A chave publica do widget Turnstile (atos.dev.br); o segredo e TURNSTILE_SECRET (wrangler secret put).
     "TURNSTILE_SITEKEY": "0x4AAAAAAFUQ1_7SdDy3YIAH",
     "MP_PUBLIC_KEY": "APP_USR-0bb20e6b-f846-4b8e-a267-12bfc8c7fc1a",
-    "PRODUTOS_ABERTOS": "pavlvs",
+    "PRODUTOS_ABERTOS": "pavlvs,workspace",
     "CF_ACCOUNT_ID": "54164f67b5d5eb33c0a1d325dfebb449"
   },
   // O Worker de teste: npx wrangler deploy --env teste -> atos-teste.<conta>.workers.dev. As credenciais da aba
@@ -148,7 +149,7 @@
         "EMAIL_CF_SIMULADA": "1",
         "APP_URL": "https://atos.dev.br",
         "MP_PUBLIC_KEY": "APP_USR-8eddac59-2852-455f-8b12-04f7761ff00b",
-        "PRODUTOS_ABERTOS": "pavlvs",
+        "PRODUTOS_ABERTOS": "pavlvs,workspace",
         // O comprador de teste da conta (MLB, id 3701347744): o pagador de todo pagamento daqui.
         "MP_PAGADOR_TESTE": "test_user_4004064182913175927@testuser.com",
         // A equipe do painel de TESTE (veja a nota acima): as tres Contas Atos do dono, papel dono.

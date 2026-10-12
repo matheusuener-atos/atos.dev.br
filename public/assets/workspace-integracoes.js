@@ -26,13 +26,16 @@
   var VOLTA_ENTRAR = "/workspace/entrar/?modo=entrar&volta=" + encodeURIComponent("/workspace/integracoes");
 
   function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
+    // O erro de um limite do plano (codigo "limite_do_plano", worker/workspace-plano.js) traz a marca [Conhecer o Pro], que
+    // vira o link para /workspace/plano.
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; })
+      .replace("[Conhecer o Pro]", '<a href="/workspace/plano">Conhecer o Pro</a>');
   }
   function api(caminho, corpo) {
     var op = corpo === undefined ? { credentials: "same-origin" } :
       { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) };
     return fetch(caminho, op).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (d) { d._status = r.status; return d; });
+      return r.json().catch(function () { return {}; }).then(function (d) { d._status = r.status; if (d.codigo === "limite_do_plano" && d.erro) d.erro += " [Conhecer o Pro]"; return d; });
     }, function () { return { erro: "sem conexão com o servidor", _status: 0 }; });
   }
   function quando(iso) {
@@ -219,13 +222,15 @@
   function blocoEntradas(a) {
     var f = EN[a.id];
     var h = '<div class="ig-bloco"><h3 class="titulo-secao ig-h"><span>Entradas</span><button type="button" class="btn mini" data-ic="en-abrir" data-id="' + esc(a.id) + '" aria-expanded="' + Boolean(f) + '">' + (f ? "Fechar" : "Ver as entradas") + "</button></h3>";
-    if (!f) return h + '<p class="dica">Quem entrou no aplicativo nos últimos 90 dias (o que o seu sistema já recebe: o sub, e o e-mail e o nome se os escopos foram permitidos), de onde e com que navegador, e as recusas por não estar liberado (sem dizer quem).</p></div>';
+    var L = S.dados.limites;
+    if (!f) return h + '<p class="dica">Quem entrou no aplicativo nos últimos ' + L.entradas_dias + ' dias (o que o seu sistema já recebe: o sub, e o e-mail e o nome se os escopos foram permitidos), de onde e com que navegador, e as recusas por não estar liberado (sem dizer quem).</p></div>';
     var opt = function (v, t, atual) { return '<option value="' + v + '"' + (String(atual) === String(v) ? " selected" : "") + ">" + t + "</option>"; };
     h += '<form class="en-filtro" data-ic-form="entradas" data-id="' + esc(a.id) + '">' +
-      '<label class="campo"><span class="rotulo">Período</span><select name="dias">' + opt(7, "7 dias", f.dias) + opt(30, "30 dias", f.dias) + opt(90, "90 dias", f.dias) + "</select></label>" +
+      '<label class="campo"><span class="rotulo">Período</span><select name="dias">' + [7, 30, 90].filter(function (n) { return n <= L.entradas_dias; }).map(function (n) { return opt(n, n + " dias", f.dias); }).join("") + "</select></label>" +
       '<label class="campo"><span class="rotulo">Resultado</span><select name="resultado">' + opt("", "todos", f.resultado) + opt("entrou", "entrou", f.resultado) + opt("recusado", "recusado (não liberado)", f.resultado) + "</select></label>" +
       '<label class="campo"><span class="rotulo">Buscar (sub, e-mail, nome, lugar)</span><input name="q" value="' + esc(f.q) + '" autocomplete="off" spellcheck="false"></label>' +
-      '<div class="ig-acoes"><button type="submit" class="btn mini">Filtrar</button><a class="btn mini" href="/api/integracoes/apps/' + esc(a.id) + "/entradas.csv?" + esc(consultaEntradas(a.id)) + '" download>Exportar CSV</a></div></form>';
+      '<div class="ig-acoes"><button type="submit" class="btn mini">Filtrar</button>' + (L.entradas_csv ? '<a class="btn mini" href="/api/integracoes/apps/' + esc(a.id) + "/entradas.csv?" + esc(consultaEntradas(a.id)) + '" download>Exportar CSV</a>'
+        : '<span class="dica">Exportar em CSV e ver até 90 dias: no Pro. <a href="/workspace/plano">Conhecer o Pro</a></span>') + "</div></form>";
     var D = f.dados;
     if (!D) return h + '<p class="dica">Carregando…</p></div>';
     if (D.erro) return h + '<p class="erro">' + esc(D.erro) + "</p></div>";
@@ -250,11 +255,15 @@
     var h = '<div class="card ig-app">' +
       '<div class="item">' + icone(a) + '<span class="nome"><strong>' + esc(a.nome) + "</strong><small>" + esc(a.descricao) + " · " + esc(a.site) + "</small>" +
       "<small>Criado em " + esc(quando(a.criado)) + (a.mudado ? " · mudado em " + esc(quando(a.mudado)) : "") + "</small></span>" +
-      '<span class="ig-acoes"><button type="button" class="btn mini" data-ic="editar-app" data-id="' + esc(a.id) + '">Editar</button>' +
+      '<span class="ig-acoes">' + (a.fora_do_plano ? "" : '<button type="button" class="btn mini" data-ic="editar-app" data-id="' + esc(a.id) + '">Editar</button>') +
       '<button type="button" class="btn mini perigo" data-ic="apagar-app" data-id="' + esc(a.id) + '">Apagar</button></span></div>';
     if (a.bloqueado) {
       h += '<p class="ig-aviso">A Atos desligou este aplicativo em ' + esc(quando(a.bloqueado.quando)) + (a.bloqueado.motivo ? ": " + esc(a.bloqueado.motivo) : "") +
         ". Ninguém entra por ele enquanto estiver assim. Para conversar, escreva para contato@atos.dev.br.</p>";
+    }
+    if (a.fora_do_plano) {
+      h += '<p class="ig-aviso">Fora do plano: este aplicativo passa do limite do seu plano (' + S.dados.limites.apps + ' aplicativos). Ele continua deixando entrar quem já entrava, mas fica só leitura: ' +
+        'dá para tirar pessoas, desligar ou apagar acessos e apagar o aplicativo. Volta ao normal com o Pro ou apagando outro. <a href="/workspace/plano">Conhecer o Pro</a></p>';
     }
     return h + blocoQuem(a) + blocoAcessos(a) + blocoAvisos(a) + blocoEntradas(a) + blocoRegistro(a) + "</div>";
   }
@@ -268,13 +277,13 @@
     if (!D.recente) h += '<p class="ig-aviso">Para criar ou mudar integrações, o login precisa ser das últimas ' + D.limites.recente_h + ' horas. <a href="' + VOLTA_ENTRAR + '">Entrar de novo</a></p>';
     if (S.aviso) h += '<p class="ok ig-ok">' + esc(S.aviso) + "</p>";
     h += '<h2 class="titulo-secao ig-h"><span>Seus aplicativos (' + D.apps.length + " de " + D.limites.apps + ")</span>" +
-      (D.apps.length < D.limites.apps ? '<button type="button" class="btn p primario" data-ic="novo-app">Novo aplicativo</button>' : "") + "</h2>";
+      (D.apps.length < D.limites.apps ? '<button type="button" class="btn p primario" data-ic="novo-app">Novo aplicativo</button>' : D.plano && !D.plano.pro ? '<a class="btn p" href="/workspace/plano">Conhecer o Pro</a>' : "") + "</h2>";
     if (!D.apps.length) {
       h += '<div class="card"><p class="vazio">Nenhum aplicativo. Cadastre o seu sistema para as pessoas entrarem nele com a Conta Atos: você recebe o client_id e diz quem pode entrar.</p></div>';
     } else h += D.apps.map(cartaoDoApp).join("");
     h += '<p class="nota">O aplicativo é seu e você responde por ele: a Atos só confirma quem é a pessoa e, com a permissão dela, passa ao seu sistema o identificador da conta, o nome e o e-mail. ' +
       "Na tela de permitir, quem entra vê que o aplicativo foi cadastrado por " + esc(D.email_atos || "uma Conta Atos") + " (o seu e-mail Atos; o pessoal não aparece) e não é da Atos. A Atos pode desligar um aplicativo usado para abuso. " +
-      'Limites: ' + D.limites.apps + " aplicativos por conta, " + D.limites.acessos + " acessos por aplicativo e " + D.limites.liberados + ' pessoas liberadas por aplicativo. Veja os <a href="/termos/#workspace">termos do Atos Workspace</a> e a <a href="/privacidade/">política de privacidade</a>.</p>';
+      'Limites do plano ' + (D.plano && D.plano.pro ? "Pro" : "gratuito") + ": " + D.limites.apps + " aplicativos por conta, " + D.limites.acessos + " acessos por aplicativo e " + D.limites.liberados.toLocaleString("pt-BR") + ' pessoas liberadas por aplicativo. Veja os <a href="/termos/#workspace">termos do Atos Workspace</a> e a <a href="/privacidade/">política de privacidade</a>.</p>';
     return h;
   }
 
@@ -449,7 +458,7 @@
       mudar("/api/integracoes/apps/" + id, { acao: "tirar", email: b.getAttribute("data-email") }).then(function (d) { if (d.erro) { S.erro = d.erro; pintar(); } });
       return;
     }
-    if (a === "en-abrir") { if (EN[id]) { delete EN[id]; pintar(); } else { EN[id] = { dias: 30, resultado: "", q: "", dados: null }; lerEntradas(id); } return; }
+    if (a === "en-abrir") { if (EN[id]) { delete EN[id]; pintar(); } else { EN[id] = { dias: Math.min(30, (S.dados.limites && S.dados.limites.entradas_dias) || 30), resultado: "", q: "", dados: null }; lerEntradas(id); } return; }
     if (a === "av-guardei") { AV.segredo = null; pintar(); return; }
     if (a === "av-copiar") {
       var sv = AV.segredo && AV.segredo.valor; if (!sv) return;
@@ -495,7 +504,7 @@
     if (!emails) { erro.textContent = "diga pelo menos um e-mail"; return; }
     botao.disabled = true;
     mudar("/api/integracoes/apps/" + id, { acao: "liberar", emails: emails }).then(function (d) {
-      if (d.erro) { botao.disabled = false; erro.textContent = d.erro; }
+      if (d.erro) { botao.disabled = false; erro.innerHTML = esc(d.erro); }
     });
   });
   document.addEventListener("input", function (e) {

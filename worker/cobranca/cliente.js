@@ -19,6 +19,7 @@
 // Pedidos: POST com {op, ...}; a resposta e JSON. Quem chama e so o Worker (api.js e o aviso).
 
 import { entregar, REENTREGAS_S } from "./eventos.js";
+import { PRODUTOS } from "./catalogo.js";
 
 const PREFIXOS = { assinatura: "assinatura:", compra: "compra:", cobranca: "cobranca:" };
 const VIVAS = ["authorized", "pending", "paused"];
@@ -244,13 +245,27 @@ export class ClienteCobranca {
     };
   }
 
-  /* Uma versao nova do direito vai para a fila do produto. */
+  /* Uma versao nova do direito vai para a fila do produto. O produto da propria Atos (sem `eventos` no catalogo: o Atos
+     Workspace) nao tem para onde mandar: o Worker le o direito daqui mesmo; so a data ate quando o Pro foi pago vai ao
+     objeto dos dados do Workspace da conta (worker/workspace-dados.js, "ws:plano"), que guarda os registros pelo plano. */
   async publicarDireito(produto) {
     const s = this.ctx.storage;
     const chave = "direito:" + produto;
     const dir = (await s.get(chave)) || { produto, ate: null, plano: null, creditos: [], aplicados: [], versao: 0 };
     dir.versao = (dir.versao || 0) + 1;
     await s.put(chave, dir);
+    if (PRODUTOS[produto] && !PRODUTOS[produto].eventos) {
+      const dono = (await s.get("dono")) || {};
+      if (produto === "workspace" && dono.sub && this.env && this.env.WS_DADOS) {
+        try {
+          const stub = this.env.WS_DADOS.get(this.env.WS_DADOS.idFromName("conta:" + dono.sub));
+          await stub.fetch("https://ws-dados/", { method: "POST", body: JSON.stringify({ op: "plano_anotar", plano_ate: dir.plano === "pro" ? dir.ate || null : null }) });
+        } catch {
+          // a guarda dos registros e o segundo lugar: o objeto anota de novo no proximo pedido da area
+        }
+      }
+      return;
+    }
     await this.enfileirar("direito.atualizado", produto, await this.retrato(produto));
   }
 

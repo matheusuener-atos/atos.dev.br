@@ -4,7 +4,7 @@
 // CSP, sem os enderecos, 30/90 dias, nao publica, inexistente), o painel (ver, tirar do ar, ligar), a limpeza e apagar.
 // Sem rede.
 //   node worker/teste-status.mjs
-import { GET, chamar, checar, contaPronta, env, fim, novoEnv, objeto, rede, sessao } from "./apoio-teste-workspace.mjs";
+import { GET, chamar, checar, contaPronta, darPro, env, fim, novoEnv, objeto, rede, sessao } from "./apoio-teste-workspace.mjs";
 import { conferirStatus, conferirStatusAgendado } from "./status.js";
 
 console.log("a configuração");
@@ -13,7 +13,7 @@ checar(conferirStatus({ nome: "minha-loja", enderecos: [E("https://loja.com.br/s
 checar(Boolean(conferirStatus({ nome: "ab", enderecos: [E("https://loja.com.br")] }).erro), "nome curto");
 checar(Boolean(conferirStatus({ nome: "atos-loja", enderecos: [E("https://loja.com.br")] }).erro) && Boolean(conferirStatus({ nome: "status", enderecos: [E("https://loja.com.br")] }).erro), "nomes reservados");
 checar(Boolean(conferirStatus({ nome: "minha-loja", enderecos: [] }).erro), "sem endereço");
-checar(/no máximo 5/.test(conferirStatus({ nome: "minha-loja", enderecos: [1, 2, 3, 4, 5, 6].map((i) => E("https://a" + i + ".com.br")) }).erro), "mais de 5");
+checar(/no máximo 10/.test(conferirStatus({ nome: "minha-loja", enderecos: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => E("https://a" + i + ".com.br")) }).erro), "mais de 10 (o teto do Pro)");
 for (const u of ["http://loja.com.br", "https://10.0.0.1/", "https://localhost/", "https://atos.dev.br/", "https://servidor.internal/", "https://loja.com.br:8080/"]) {
   checar(Boolean(conferirStatus({ nome: "minha-loja", enderecos: [E(u)] }).erro), "recusa " + u);
 }
@@ -23,6 +23,7 @@ console.log("a porta e o salvar");
 let r = await GET("/api/workspace/status");
 checar(r.status === 401, "sem sessão: 401");
 const maria = await contaPronta("maria");
+await darPro(maria.sub); // dois endereços e o aviso por e-mail: o Pro (o gratuito está em teste-plano.mjs)
 r = await GET("/api/workspace/status", maria.pessoal);
 checar(r.status === 403 && r.d.codigo === "entrar_pelo_alias", "pelo e-mail pessoal: 403");
 r = await GET("/api/workspace/status", maria.cookie);
@@ -33,6 +34,7 @@ checar(r.status === 200 && r.d.cfg.nome === "horta" && r.d.cfg.enderecos.length 
 const EIDS = r.d.cfg.enderecos.map((e) => e.id);
 checar((await objeto("indice").ctx.storage.get("spag:horta")).sub === maria.sub && (await objeto("indice").ctx.storage.get("sag:" + maria.sub)), "o índice: o nome e a agenda");
 const joao = await contaPronta("joao");
+await darPro(joao.sub);
 r = await chamar("/api/workspace/status", { cookie: joao.cookie, corpo: CFG });
 checar(r.status === 409, "o mesmo nome em outra conta: 409");
 r = await chamar("/api/workspace/status", { cookie: await sessao(maria.email, { alias: maria.alias, idade: 13 * 3600 }), corpo: CFG });
@@ -53,8 +55,8 @@ checar(x.contas === 1, "o Cron confere a conta vencida", x);
 checar(rede.chamadas.length === 2 && rede.chamadas.every((c) => c.op.method === "GET" && c.op.redirect === "manual" && /AtosStatus/.test(c.op.headers["user-agent"])), "GET em cada endereço, sem seguir redirecionamento");
 r = await GET("/api/workspace/status", maria.cookie);
 checar(r.d.estados[EIDS[0]].ult.estado === "ok" && r.d.estados[EIDS[0]].recentes.length === 1, "no ar, com a conferência recente", r.d.estados);
-x = await conferirStatusAgendado(env, { agora: () => agora + 60000, enviarEmail });
-checar(x.contas === 0, "no minuto seguinte, não confere de novo (5 minutos)");
+x = await conferirStatusAgendado(env, { agora: () => agora + 30000, enviarEmail });
+checar(x.contas === 0, "antes de 1 minuto (o intervalo do Pro), não confere de novo");
 agora += 5 * 60000;
 respostas["https://api.horta.com.br/saude"] = () => new Response("erro", { status: 503 });
 respostas["https://horta.com.br/"] = () => new Response(null, { status: 301, headers: { location: "https://10.0.0.1/" } });
@@ -95,7 +97,7 @@ console.log("o limite por minuto");
   const e2 = novoEnv({ STATUS_POR_MINUTO: "2" });
   for (const nome of ["ana", "bia", "caio"]) {
     const c = await contaPronta(nome, { e: e2 });
-    await chamar("/api/workspace/status", { cookie: c.cookie, corpo: { ...CFG, nome: "pagina-" + nome }, e: e2 });
+    await chamar("/api/workspace/status", { cookie: c.cookie, corpo: { ...CFG, nome: "pagina-" + nome, avisar: false, enderecos: CFG.enderecos.slice(0, 1) }, e: e2 });
   }
   const y = await conferirStatusAgendado(e2, { agora: () => Date.now() + 1000, enviarEmail });
   checar(y.contas === 2 && y.restantes === 1, "STATUS_POR_MINUTO=2: confere 2, a terceira fica para o minuto seguinte", y);

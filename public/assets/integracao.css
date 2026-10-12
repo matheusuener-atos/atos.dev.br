@@ -100,3 +100,10 @@ main.integracao { flex: 1; width: 100%; max-width: 920px; margin: 0 auto; paddin
   .pratica > li::before { position: static; width: 32px; height: 32px; font-size: 14px; }
 }
 .pratica > li > .captura img { width: auto; max-width: 100%; }
+/* Gratuito e Pro (#pro): a comparacao dos planos */
+.tabela-rolagem { margin-top: 20px; overflow-x: auto; border: 1px solid var(--line); background: var(--surface); }
+.planos-tabela { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 13px; line-height: 1.55; color: var(--text-soft); }
+.planos-tabela th, .planos-tabela td { padding: 12px 16px; text-align: left; vertical-align: top; border-top: 1px solid var(--line); }
+.planos-tabela thead th { border-top: 0; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.planos-tabela tbody th { font-weight: 500; color: var(--text); width: 30%; }
+@media (max-width: 560px) { .tabela-ref > div { grid-template-columns: 1fr; gap: 4px; } }

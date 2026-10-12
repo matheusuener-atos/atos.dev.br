@@ -238,6 +238,14 @@ async function preparar(env, meu, precoId) {
   const oferta = resolveOffer(precoId);
   if (!oferta) return { falha: erro(400, "preço desconhecido") };
   if (!produtoAberto(env, oferta.produto)) return { falha: erro(409, `o ${oferta.produtoNome} ainda não vende pela Atos`, "produto_fechado") };
+  // Um produto com nivel gratuito (o Atos Workspace): o plano pago e dele ativo, com os termos aceitos e sem suspensao.
+  if (PRODUTOS[oferta.produto].gratuito) {
+    const dir = (await meu.pedir("direito", { produto: oferta.produto })).direito;
+    if (!dir || !dir.ativo) return { falha: erro(409, `ative o ${oferta.produtoNome} (gratuito, aceitando os termos) antes de assinar o plano pago`, "sem_ativacao") };
+    if (dir.suspenso) return { falha: erro(409, `a Atos suspendeu o seu ${oferta.produtoNome}: escreva para contato@atos.dev.br`, "suspenso") };
+    const termos = PRODUTOS[oferta.produto].termos;
+    if (termos && (!dir.termos || dir.termos.versao !== termos.versao)) return { falha: erro(409, `os termos do ${oferta.produtoNome} mudaram: aceite a versão atual na área dele antes de assinar`, "termos") };
+  }
   const perfil = (await meu.pedir("perfil_ler")).perfil;
   if (!perfil) return { falha: erro(409, "preencha os dados para a nota fiscal antes de pagar", "sem_perfil") };
   return { oferta, perfil, situacao: await situacaoDoProduto(meu, oferta.produto) };
@@ -530,26 +538,29 @@ async function minhaConta(meu) {
   const gratuitos = [];
   for (const [produto, p] of Object.entries(PRODUTOS)) {
     const dir = direitos.find((x) => x.produto === produto) || null;
-    if (p.gratuito) {
-      gratuitos.push({ produto, nome: p.nome, endereco: new URL(p.site).pathname, ativo: Boolean(dir && dir.ativo), ativado: (dir && dir.ativo && dir.ativado) || null,
-        desativado: (dir && !dir.ativo && dir.desativado) || null, termos: dir && dir.termos ? { versao: dir.termos.versao, aceito: dir.termos.aceito } : null });
-      continue;
-    }
     const minhas = l.assinatura.filter((a) => a.produto === produto && !["criando", "recusada"].includes(a.status))
       .sort((a, b) => String(b.criada).localeCompare(String(a.criada)));
     const a = minhas.find((x) => VIVAS.includes(x.status)) || minhas[0] || null;
+    if (p.gratuito) {
+      // O plano pago do gratuito (o Atos Workspace Pro): ate quando, para a linha e o cartao do produto.
+      const pago = dir && dir.plano && dir.ate ? { plano: dir.plano, ate: dir.ate, pro: Date.parse(dir.ate) > Date.now() } : null;
+      gratuitos.push({ produto, nome: p.nome, endereco: new URL(p.site).pathname, ativo: Boolean(dir && dir.ativo), ativado: (dir && dir.ativo && dir.ativado) || null,
+        desativado: (dir && !dir.ativo && dir.desativado) || null, termos: dir && dir.termos ? { versao: dir.termos.versao, aceito: dir.termos.aceito } : null, pago });
+      // Quem ja pagou (ou assina) o plano pago tambem aparece entre os produtos pagos: a assinatura, o cancelar, o renovar.
+      if (!pago && !a) continue;
+    }
     if (!dir && !a) continue;
     const plano = (dir && dir.plano) || (a && a.plano) || null;
     produtos.push({
-      produto, nome: p.nome, plano, plano_nome: plano ? nomeDoPreco(`${produto}.${plano}.mes`).replace(p.nome + " ", "") : null,
+      produto, nome: p.nome, plano, plano_nome: plano ? nomeDoPreco(`${produto}.${plano}.mes`).replace(p.nome + " ", "") : null, endereco: new URL(p.site).pathname,
       direito: dir ? { ate: dir.ate || null, periodo: dir.periodo || null, pago_por: dir.pago_por || null } : null,
       assinatura: a ? { ...publicaAssinatura(a), nome: nomeDoPreco(a.preco) } : null,
     });
   }
   const faturas = [
     ...l.compra.filter((c) => ["paga", "aguardando", "processando", "devolvida"].includes(c.status))
-      .map((c) => ({ id: c.ref, data: c.paga_em || c.criada, descricao: nomeDoPreco(c.preco), centavos: c.centavos, status: c.status, forma: c.forma })),
-    ...l.cobranca.map((c) => ({ id: c.ref, data: c.quando || c.criada, descricao: nomeDoPreco(c.preco) + " · mensalidade", centavos: c.centavos, status: c.status, forma: "cartao" })),
+      .map((c) => ({ id: c.ref, data: c.paga_em || c.criada, descricao: nomeDoPreco(c.preco), centavos: c.centavos, status: c.status, forma: c.forma, produto: c.produto || "" })),
+    ...l.cobranca.map((c) => ({ id: c.ref, data: c.quando || c.criada, descricao: nomeDoPreco(c.preco) + " · mensalidade", centavos: c.centavos, status: c.status, forma: "cartao", produto: c.produto || "" })),
   ].sort((x, y) => String(y.data).localeCompare(String(x.data)));
   return { perfil, produtos, gratuitos, faturas };
 }

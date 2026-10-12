@@ -1,8 +1,10 @@
 // Atos Workspace > Status (atos.dev.br/workspace/status; a tela e public/assets/workspace-status.js): a pagina de status do
-// sistema do dono. Ele cadastra ate 5 enderecos https; a Atos confere cada um a cada 5 minutos e publica, se ele quiser,
+// sistema do dono. Pelo plano (worker/workspace-plano.js): no gratuito, 1 endereco https conferido a cada 15 minutos; no
+// Pro, ate 10 a cada minuto e o aviso por e-mail. A Atos publica, se ele quiser,
 // uma pagina simples em atos.dev.br/status/<nome>: no ar / instavel / fora, o tempo de resposta e o historico de 30 ou
-// 90 dias. Opcional: um aviso por e-mail ao destino do alias do dono quando um endereco cai (duas conferencias seguidas
-// fora) e quando volta.
+// 90 dias. No Pro: um aviso por e-mail ao destino do alias do dono quando um endereco cai (duas conferencias seguidas
+// fora) e quando volta. A capacidade: STATUS_POR_MINUTO contas por minuto (padrao 10, ate 50); com mais contas vencidas
+// do que isso, a agenda atrasa (o painel mostra), e o intervalo de 1 minuto do Pro vira "o mais cedo que a fila deixar".
 //
 // A conferencia: GET ao endereco, sem seguir redirecionamento (um 3xx conta como no ar), 10 s no maximo, sem ler o
 // corpo, com o User-Agent "AtosStatus/1". 2xx e 3xx: no ar (acima de 3 s: lento); 4xx, 5xx, erro de conexao ou tempo
@@ -39,9 +41,14 @@ import { destinoDoTitular } from "./email-atos.js";
 import { enviarEmail as enviarPadrao } from "./email.js";
 import { apagarAntigos, apagarPrefixo, daConta, doIndice, isoDe, sorteio } from "./workspace-dados.js";
 import { conferirUrlExterna } from "./url-externa.js";
+import { PLANOS_WS, limiteDoPlano, planoDe, vistaDoPlano } from "./workspace-plano.js";
+import { workspaceDe } from "./workspace.js";
 
+// `enderecos` e o teto tecnico (o do Pro); o intervalo, quantos enderecos e o aviso por e-mail vem do plano
+// (worker/workspace-plano.js: gratuito 1 endereco a cada 15 minutos, sem e-mail; Pro ate 10 a cada 1 minuto, com e-mail).
+// `intervalo_min` e o padrao da agenda quando ela ainda nao sabe o plano da conta (o do gratuito).
 export const LIMITES_STATUS = {
-  enderecos: 5, intervalo_min: 5, tempo_ms: 10000, lento_ms: 3000, historico_dias: 90, recentes: 48, avisos_dia: 10, recente_h: 12,
+  enderecos: 10, intervalo_min: 15, tempo_ms: 10000, lento_ms: 3000, historico_dias: 90, recentes: 48, avisos_dia: 10, recente_h: 12,
 };
 const DIA_S = 86400;
 const RECENTE_S = LIMITES_STATUS.recente_h * 3600;
@@ -50,8 +57,11 @@ const diaDe = (ms) => isoDe(ms - 3 * 3600 * 1000).slice(0, 10);
 const RESERVADOS = new Set(["atos", "admin", "api", "status", "workspace", "conta", "entrar", "pavlvs", "paulus", "teste", "exemplo", "www", "suporte", "contato", "oficial"]);
 const limparTexto = (t, max) => String(t == null ? "" : t).replace(/[\u0000-\u001f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 
-/* A configuracao: {cfg} ou {erro}. `antes`: a guardada (os ids dos enderecos que ficam). */
-export function conferirStatus(d, antes) {
+/* A configuracao: {cfg} ou {erro} (com codigo "limite_do_plano" quando passa do plano). `antes`: a guardada (os ids dos
+   enderecos que ficam). `plano`: os limites do plano (worker/workspace-plano.js); sem ele, os do Pro. Quem voltou ao
+   gratuito com mais enderecos do que ele permite pode salvar sem acrescentar (os que passam ficam sem conferencia). */
+export function conferirStatus(d, antes, plano) {
+  const P = plano ? plano.limites : PLANOS_WS.pro;
   const nome = String(d.nome || "").trim().toLowerCase();
   if (!/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){2,29}$/.test(nome)) return { erro: "o nome da página: de 3 a 30 letras minúsculas, números e hífen (vira atos.dev.br/status/<nome>)" };
   if (RESERVADOS.has(nome) || /atos|pavlvs|paulus/.test(nome)) return { erro: "esse nome é reservado: escolha outro" };
@@ -59,6 +69,12 @@ export function conferirStatus(d, antes) {
   const lista = Array.isArray(d.enderecos) ? d.enderecos : [];
   if (!lista.length) return { erro: "cadastre pelo menos um endereço" };
   if (lista.length > LIMITES_STATUS.enderecos) return { erro: "no máximo " + LIMITES_STATUS.enderecos + " endereços" };
+  const tinha = ((antes && antes.enderecos) || []).length;
+  if (lista.length > P.status_enderecos && lista.length > tinha) {
+    return { codigo: "limite_do_plano", erro: "no plano " + (P.id === "pro" ? "Pro" : "gratuito") + ", a página confere até " + P.status_enderecos + (P.status_enderecos === 1 ? " endereço" : " endereços") };
+  }
+  const querAvisar = d.avisar === true;
+  if (querAvisar && !P.status_email && !(antes && antes.avisar)) return { codigo: "limite_do_plano", erro: "o aviso de queda por e-mail é do Atos Workspace Pro" };
   const enderecos = [];
   const velhos = new Map(((antes && antes.enderecos) || []).map((e) => [e.url, e.id]));
   for (const e of lista) {
@@ -130,10 +146,13 @@ export const OPS_STATUS = {
     const cfg = await s.get("st:cfg");
     if (!cfg || cfg.bloqueado) return { ok: true, conferidos: 0, avisos: [] };
     const buscar = (u, i) => fetch(u, i);
-    const res = await Promise.all(cfg.enderecos.map((e) => conferirUm(e, buscar)));
+    // So os enderecos do plano (os primeiros, ate `max`); o aviso por e-mail so com `email` (o Pro).
+    const lista = cfg.enderecos.slice(0, d.max === undefined ? cfg.enderecos.length : Math.max(0, Number(d.max)));
+    const res = await Promise.all(lista.map((e) => conferirUm(e, buscar)));
     const avisos = [];
-    for (let i = 0; i < cfg.enderecos.length; i++) {
-      const e = cfg.enderecos[i], x = res[i];
+    const comEmail = d.email === undefined ? true : Boolean(d.email);
+    for (let i = 0; i < lista.length; i++) {
+      const e = lista[i], x = res[i];
       const ult = (await s.get("st:ult:" + e.id)) || { estado: null, desde: null, seguidas_fora: 0, caiu: false };
       if (ult.estado !== x.r) { ult.estado = x.r; ult.desde = isoDe(agora); }
       ult.ultima = isoDe(agora); ult.ms = x.ms; ult.codigo = x.codigo;
@@ -150,7 +169,7 @@ export const OPS_STATUS = {
       await s.put(kd, dia);
       if (oque) {
         await s.put("st:evt|" + isoDe(agora) + "|" + sorteio(), { quando: isoDe(agora), eid: e.id, nome: e.nome, oque, codigo: x.codigo });
-        if (cfg.avisar && (await o.contar("stmail:" + diaDe(agora), 2 * DIA_S, agora, LIMITES_STATUS.avisos_dia))) avisos.push({ oque, nome: e.nome, url: e.url, codigo: x.codigo });
+        if (cfg.avisar && comEmail && (await o.contar("stmail:" + diaDe(agora), 2 * DIA_S, agora, LIMITES_STATUS.avisos_dia))) avisos.push({ oque, nome: e.nome, url: e.url, codigo: x.codigo });
       }
     }
     await o.marcarLimpeza(agora);
@@ -163,7 +182,8 @@ export const OPS_STATUS = {
     if (!cfg || cfg.bloqueado || !cfg.publica) return { ok: true, pagina: null };
     const dias = d.dias === 90 ? 90 : 30;
     const lista = [];
-    for (const e of cfg.enderecos) {
+    // So os enderecos do plano: os que passam dele nao sao conferidos e nao aparecem.
+    for (const e of cfg.enderecos.slice(0, d.max === undefined ? cfg.enderecos.length : Math.max(0, Number(d.max)))) {
       const porDia = [];
       for (let i = dias - 1; i >= 0; i--) {
         const dd = diaDe(agora - i * DIA_S * 1000);
@@ -172,7 +192,7 @@ export const OPS_STATUS = {
       lista.push({ nome: e.nome, ult: (await s.get("st:ult:" + e.id)) || null, dias: porDia });
     }
     const eventos = [...(await s.list({ prefix: "st:evt|", reverse: true, limit: 10 })).values()].map((x) => ({ quando: x.quando, nome: x.nome, oque: x.oque }));
-    return { ok: true, pagina: { titulo: cfg.titulo, nome: cfg.nome, enderecos: lista, eventos, dias } };
+    return { ok: true, pagina: { titulo: cfg.titulo, nome: cfg.nome, enderecos: lista, eventos, dias, intervalo_min: Number(d.intervalo) || LIMITES_STATUS.intervalo_min } };
   },
 
   // ---- o indice
@@ -204,20 +224,30 @@ export const OPS_STATUS = {
     const s = o.ctx.storage;
     if (d.tirar) { await s.delete("sag:" + d.sub); return { ok: true }; }
     const x = (await s.get("sag:" + d.sub)) || { ultima: null };
-    x.proxima = d.proxima ?? agora;
+    if (d.proxima !== undefined || !x.proxima) x.proxima = d.proxima ?? agora;
+    // O intervalo do plano da conta (o Cron confere a cada `intervalo` minutos).
+    if (d.intervalo) {
+      const antes = x.intervalo || LIMITES_STATUS.intervalo_min;
+      x.intervalo = Math.max(1, Math.min(60, Number(d.intervalo)));
+      // Diminuiu (virou Pro): a proxima conferencia nao espera o intervalo antigo.
+      if (x.intervalo < antes && x.ultima) x.proxima = Math.min(x.proxima, Date.parse(x.ultima) + x.intervalo * 60000);
+    }
     await s.put("sag:" + d.sub, x);
     return { ok: true };
   },
-  /* As contas vencidas, as mais atrasadas primeiro; ja ficam marcadas para daqui a 5 minutos (se a conferencia falhar, a
-     conta volta na vez seguinte, sem repetir no mesmo minuto). */
+  /* As contas vencidas, as mais atrasadas primeiro; ja ficam marcadas para daqui a `intervalo` minutos (o do plano de
+     cada conta; se a conferencia falhar, a conta volta na vez seguinte, sem repetir no mesmo minuto). */
   async sag_vencidos(o, d, agora) {
     const s = o.ctx.storage;
     const vencidos = [];
     for (const [k, x] of await s.list({ prefix: "sag:" })) if (x.proxima <= agora) vencidos.push([k, x]);
     vencidos.sort((a, b) => a[1].proxima - b[1].proxima);
     const escolhidos = vencidos.slice(0, d.limite || 10);
-    for (const [k, x] of escolhidos) await s.put(k, { proxima: agora + LIMITES_STATUS.intervalo_min * 60000, ultima: isoDe(agora), atraso_s: Math.round((agora - x.proxima) / 1000) });
-    return { ok: true, subs: escolhidos.map(([k]) => k.slice(4)), restantes: vencidos.length - escolhidos.length };
+    for (const [k, x] of escolhidos) {
+      const intervalo = x.intervalo || LIMITES_STATUS.intervalo_min;
+      await s.put(k, { proxima: agora + intervalo * 60000, ultima: isoDe(agora), atraso_s: Math.round((agora - x.proxima) / 1000), intervalo });
+    }
+    return { ok: true, subs: escolhidos.map(([k]) => k.slice(4)), intervalos: Object.fromEntries(escolhidos.map(([k, x]) => [k.slice(4), x.intervalo || LIMITES_STATUS.intervalo_min])), restantes: vencidos.length - escolhidos.length };
   },
   async spag_painel(o, d, agora) {
     const s = o.ctx.storage;
@@ -260,8 +290,16 @@ export async function conferirStatusAgendado(env, deps = {}) {
   if (!v || !v.ok) return { contas: 0 };
   let emails = 0;
   await Promise.all(v.subs.map(async (sub) => {
+    // O plano da conta (worker/workspace-plano.js): quantos enderecos, o aviso por e-mail e o intervalo. Sem o registro do
+    // cliente agora, vale o gratuito nesta vez.
+    let P = PLANOS_WS.gratuito;
+    try { P = planoDe(await workspaceDe(env, sub), agora).limites; } catch { /* o gratuito */ }
+    const antes = (v.intervalos && v.intervalos[sub]) || LIMITES_STATUS.intervalo_min;
+    if (antes !== P.status_intervalo_min) {
+      try { await doIndice(env).pedir("sag_marcar", { agora, sub, intervalo: P.status_intervalo_min, ...(P.status_intervalo_min > antes ? { proxima: agora + P.status_intervalo_min * 60000 } : {}) }); } catch { /* na proxima vez */ }
+    }
     let r;
-    try { r = await daConta(env, sub).pedir("st_conferir", { agora }); } catch { return; }
+    try { r = await daConta(env, sub).pedir("st_conferir", { agora, max: P.status_enderecos, email: P.status_email }); } catch { return; }
     if (!r || !r.ok || !r.avisos || !r.avisos.length) return;
     let destino;
     try { destino = await destinoDoTitular(env, sub); } catch { return; }
@@ -293,14 +331,20 @@ export async function atenderStatus(request, env, url, deps = {}) {
   if (!env.WS_DADOS) return json({ erro: "a página de status ainda não está ligada neste Worker" }, 503);
   const porta = await portaoDoWorkspace(request, env);
   if (porta.resposta) return porta.resposta;
-  const { sessao, alias } = porta;
+  const { sessao, alias, plano } = porta;
+  const P = plano.limites;
   const conta = daConta(env, sessao.sub);
   const indice = doIndice(env);
   const recente = agora / 1000 - sessao.auth_time < RECENTE_S;
   const tela = async (extra = {}) => {
     const r = await conta.pedir("st_ver", { agora });
     if (!r || !r.ok) return json({ erro: "não deu agora" }, 503);
-    return json({ ...r, ok: undefined, limites: LIMITES_STATUS, recente, email_atos: alias.alias.endereco, base: url.origin + "/status/", ...extra });
+    // Os enderecos fora do plano (os que passam de P.status_enderecos): guardados, sem conferencia.
+    const fora = r.cfg ? r.cfg.enderecos.slice(P.status_enderecos).map((e) => e.id) : [];
+    return json({
+      ...r, ok: undefined, limites: { ...LIMITES_STATUS, enderecos: P.status_enderecos, intervalo_min: P.status_intervalo_min, email: P.status_email },
+      plano: vistaDoPlano(plano), fora_do_plano: fora, recente, email_atos: alias.alias.endereco, base: url.origin + "/status/", ...extra,
+    });
   };
   try {
     if (request.method === "GET") return await tela();
@@ -317,8 +361,8 @@ export async function atenderStatus(request, env, url, deps = {}) {
     }
     if (d.acao !== "salvar") return json({ erro: "o que fazer? (salvar ou apagar)" }, 400);
     const atual = await conta.pedir("st_ver", { agora });
-    const c = conferirStatus(d, atual && atual.cfg);
-    if (c.erro) return json({ erro: c.erro }, 400);
+    const c = conferirStatus(d, atual && atual.cfg, plano);
+    if (c.erro) return c.codigo ? limiteDoPlano(c.erro, plano) : json({ erro: c.erro }, 400);
     if (deps.dentroDoLimite && !(await deps.dentroDoLimite(request, env))) return json({ erro: "muitos pedidos seguidos: espere um pouco" }, 429);
     const res = await indice.pedir("spag_reservar", { agora, nome: c.cfg.nome, sub: sessao.sub, conta: sessao.email });
     if (!res || !res.ok) return json({ erro: "esse nome já é de outra página: escolha outro" }, 409);
@@ -328,8 +372,8 @@ export async function atenderStatus(request, env, url, deps = {}) {
       return json({ erro: (r && r.erro) || "não deu agora" }, (r && r.status) || 503);
     }
     if (r.nome_antes && r.nome_antes !== c.cfg.nome) await indice.pedir("spag_soltar", { nome: r.nome_antes, sub: sessao.sub });
-    // A primeira conferencia no proximo minuto do Cron.
-    await indice.pedir("sag_marcar", { agora, sub: sessao.sub, proxima: agora });
+    // A primeira conferencia no proximo minuto do Cron, e depois no intervalo do plano.
+    await indice.pedir("sag_marcar", { agora, sub: sessao.sub, proxima: agora, intervalo: P.status_intervalo_min });
     return await tela({ salvo: true });
   } catch {
     return json({ erro: "não deu para falar com o registro do Workspace agora: tente de novo em instantes" }, 503);
@@ -355,7 +399,7 @@ function classeDoDia(x) {
 }
 
 function paginaHtml(p, agora, status = 200) {
-  const atual = (u) => (!u || !u.ultima || agora - Date.parse(u.ultima) > 15 * 60000 ? "" : u.estado);
+  const atual = (u) => (!u || !u.ultima || agora - Date.parse(u.ultima) > ((p.intervalo_min || LIMITES_STATUS.intervalo_min) * 2 + 5) * 60000 ? "" : u.estado);
   const estados = p.enderecos.map((e) => atual(e.ult));
   // As classes com "e-": a .ok de conta.css esconde o que esta vazio.
   const geral = estados.every((x) => !x) ? ["", "Sem conferência recente"]
@@ -384,7 +428,7 @@ function paginaHtml(p, agora, status = 200) {
     '<div class="card st-geral"><span class="st-ponto ' + geral[0] + '"></span> ' + esc(geral[1]) + "</div>" +
     '<nav class="st-periodo" aria-label="Período"><a href="?dias=30"' + (p.dias === 30 ? ' aria-current="page"' : "") + '>30 dias</a><a href="?dias=90"' + (p.dias === 90 ? ' aria-current="page"' : "") + ">90 dias</a></nav>" +
     '<div class="card">' + itens + "</div>" + eventos +
-    '<p class="nota pub-pe">A Atos confere cada endereço a cada 5 minutos (no ar: respondeu em até 10 segundos, sem erro; lento: acima de 3 segundos). Página mantida por quem cuida deste sistema, no Atos Workspace. <a href="/integracao/#status">O que é</a> · <a href="/privacidade/">Privacidade</a></p>' +
+    '<p class="nota pub-pe">A Atos confere cada endereço a cada ' + (p.intervalo_min === 1 ? "minuto" : p.intervalo_min + " minutos") + ' (no ar: respondeu em até 10 segundos, sem erro; lento: acima de 3 segundos). Página mantida por quem cuida deste sistema, no Atos Workspace. <a href="/integracao/#status">O que é</a> · <a href="/privacidade/">Privacidade</a></p>' +
     "</main></body></html>";
   return new Response(html, {
     status, headers: {
@@ -414,7 +458,10 @@ export async function atenderPaginaDeStatus(request, env, url, deps = {}) {
   if (cache) { const c = await cache.match(chave); if (c) return c; }
   const x = await doIndice(env).pedir("spag_dono", { nome });
   if (!x || !x.ok || !x.dono || x.dono.bloqueado) return naoEncontrada();
-  const r = await daConta(env, x.dono.sub).pedir("st_publico", { agora, dias });
+  // Os enderecos e o intervalo do plano do dono (worker/workspace-plano.js); sem o registro do cliente agora, o gratuito.
+  let P = PLANOS_WS.gratuito;
+  try { P = planoDe(await workspaceDe(env, x.dono.sub), agora).limites; } catch { /* o gratuito */ }
+  const r = await daConta(env, x.dono.sub).pedir("st_publico", { agora, dias, max: P.status_enderecos, intervalo: P.status_intervalo_min });
   if (!r || !r.ok || !r.pagina) return naoEncontrada();
   const resp = paginaHtml(r.pagina, agora);
   if (cache) await cache.put(chave, resp.clone());

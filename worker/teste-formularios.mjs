@@ -5,7 +5,7 @@
 // guardado), o registro e a limpeza (30 dias), o Turnstile (a pagina da Atos, o bilhete assinado, a verificacao), o
 // painel da equipe (ver, desligar, ligar; papeis) e o conferidor de enderecos de fora. Sem rede.
 //   node worker/teste-formularios.mjs
-import { A, GET, chamar, checar, contaPronta, enviados, env, fim, novoEnv, objeto, rede, resendFalhar, sessao, ativar } from "./apoio-teste-workspace.mjs";
+import { A, GET, chamar, checar, contaPronta, darPro, enviados, env, fim, novoEnv, objeto, rede, resendFalhar, sessao, ativar } from "./apoio-teste-workspace.mjs";
 import { conferirOrigem, conferirUrlExterna } from "./url-externa.js";
 import { atenderFormularioPublico, conferirFormulario, limparCampos } from "./formularios.js";
 
@@ -39,7 +39,8 @@ checar(/padrão/.test(conferirFormulario({ ...BASE, livres: ["email"] }, env).er
 checar(/no máximo 5/.test(conferirFormulario({ ...BASE, livres: ["a1", "a2", "a3", "a4", "a5", "a6"] }, env).erro), "mais de 5 livres");
 checar(/um dos sites/.test(conferirFormulario({ ...BASE, redirecionar: "https://outro.com.br/obrigado" }, env).erro), "o “obrigado” fora dos sites do formulário");
 checar(/https/.test(conferirFormulario({ ...BASE, redirecionar: "http://loja.exemplo.com.br/obrigado" }, env).erro), "o “obrigado” sem https");
-checar(/1 a 200/.test(conferirFormulario({ ...BASE, limite_dia: 500 }, env).erro) && /1 a 200/.test(conferirFormulario({ ...BASE, limite_dia: 0 }, env).erro), "o limite por dia vai de 1 a 200");
+checar(/1 a 1\.000/.test(conferirFormulario({ ...BASE, limite_dia: 1001 }, env).erro) && /1 a 1\.000/.test(conferirFormulario({ ...BASE, limite_dia: 0 }, env).erro), "o limite por dia vai de 1 a 1.000 (o teto do Pro)");
+checar(/1 a 50 no plano gratuito/.test(conferirFormulario({ ...BASE, limite_dia: 51 }, env, 50).erro) && conferirFormulario({ ...BASE, limite_dia: 51 }, env, 50).codigo === "limite_do_plano", "no gratuito, de 1 a 50");
 checar(conferirFormulario({ ...BASE, turnstile: true }, env).cfg.turnstile === false, "sem o Turnstile na Atos, a verificação não liga");
 const cf = conferirFormulario({ ...BASE, livres: "telefone", campos: ["email", "mensagem"] }, env).cfg;
 checar(limparCampos(cf, { email: "x@y.com.br", mensagem: "oi", telefone: "99", outro: "z" }).ignorados === 1, "campos não aceitos são ignorados");
@@ -59,6 +60,7 @@ await ativar(semWs);
 r = await GET("/api/workspace/formularios", semWs);
 checar(r.status === 403 && r.d.codigo === "sem_alias", "sem o e-mail Atos: 403 sem_alias", r.d);
 const maria = await contaPronta("maria");
+await darPro(maria.sub); // varios formularios: o Pro (o gratuito e a volta dele estão em teste-plano.mjs)
 r = await GET("/api/workspace/formularios", maria.pessoal);
 checar(r.status === 403 && r.d.codigo === "entrar_pelo_alias", "com o e-mail pessoal: 403 entrar_pelo_alias", r.d);
 r = await GET("/api/workspace/formularios", maria.cookie);
@@ -80,13 +82,13 @@ r = await chamar("/api/workspace/formularios/" + F1, { cookie: maria.cookie, cor
 checar(r.status === 200 && r.d.formularios[0].nome === "Contato" && r.d.formularios[0].livres[0] === "telefone", "edita", r.d);
 checar((await objeto("indice").ctx.storage.get("fidx:" + F1)).nome === "Contato", "o nome novo vai ao índice");
 const outros = [];
-for (let i = 0; i < 4; i++) outros.push((await chamar("/api/workspace/formularios", { cookie: maria.cookie, corpo: { ...BASE, nome: "F" + i } })).d.criado);
+for (let i = 0; i < 9; i++) outros.push((await chamar("/api/workspace/formularios", { cookie: maria.cookie, corpo: { ...BASE, nome: "F" + i } })).d.criado);
 r = await chamar("/api/workspace/formularios", { cookie: maria.cookie, corpo: BASE });
-checar(r.status === 409, "o sexto: 409 (5 por conta)", r.d);
+checar(r.status === 409 && r.d.codigo === "limite_do_plano", "o 11º: 409 (10 por conta no Pro)", r.d);
 r = await chamar("/api/workspace/formularios/" + outros[0], { cookie: maria.cookie, corpo: { acao: "apagar" } });
 checar(r.status === 400, "apagar sem confirmar: 400");
 r = await chamar("/api/workspace/formularios/" + outros[0], { cookie: maria.cookie, corpo: { acao: "apagar", confirmar: true } });
-checar(r.status === 200 && r.d.formularios.length === 4 && !(await objeto("indice").ctx.storage.get("fidx:" + outros[0])), "apaga (e sai do índice)");
+checar(r.status === 200 && r.d.formularios.length === 9 && !(await objeto("indice").ctx.storage.get("fidx:" + outros[0])), "apaga (e sai do índice)");
 const joao = await contaPronta("joao");
 r = await chamar("/api/workspace/formularios/" + F1, { cookie: joao.cookie, corpo: { acao: "desligar" } });
 checar(r.status === 404, "outra conta não mexe: 404", r.d);

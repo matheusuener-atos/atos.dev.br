@@ -17,13 +17,16 @@
     document.head.appendChild(l);
   }
   function esc(s) {
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
+    // O erro de um limite do plano (codigo "limite_do_plano", worker/workspace-plano.js) traz a marca [Conhecer o Pro], que
+    // vira o link para /workspace/plano.
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; })
+      .replace("[Conhecer o Pro]", '<a href="/workspace/plano">Conhecer o Pro</a>');
   }
   function api(caminho, corpo) {
     var op = corpo === undefined ? { credentials: "same-origin" } :
       { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) };
     return fetch(caminho, op).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (d) { d._status = r.status; return d; });
+      return r.json().catch(function () { return {}; }).then(function (d) { d._status = r.status; if (d.codigo === "limite_do_plano" && d.erro) d.erro += " [Conhecer o Pro]"; return d; });
     }, function () { return { erro: "sem conexão com o servidor", _status: 0 }; });
   }
   function quando(iso) {
@@ -81,7 +84,10 @@
     if (c) {
       var url = D.base + c.nome;
       h += '<h2 class="titulo-secao">Agora</h2><div class="card ig-app"><div class="ig-bloco"><p>' + (c.publica ? 'Página pública: <a href="/status/' + esc(c.nome) + '">' + esc(url) + "</a>" : "A página não é pública (só você vê o estado aqui).") + "</p>" +
-        c.enderecos.map(function (e) { return '<div class="ws-st-item"><strong>' + esc(e.nome) + "</strong> <small>" + esc(e.url) + "</small><div>" + estadoDe(e.id) + "</div>" + recentes(e.id) + "</div>"; }).join("") +
+        c.enderecos.map(function (e) {
+          var fora = (D.fora_do_plano || []).indexOf(e.id) >= 0;
+          return '<div class="ws-st-item"><strong>' + esc(e.nome) + "</strong> <small>" + esc(e.url) + "</small><div>" + (fora ? '<span class="ig-sit">fora do plano: sem conferência e fora da página pública</span>' : estadoDe(e.id)) + "</div>" + (fora ? "" : recentes(e.id)) + "</div>";
+        }).join("") +
         (D.eventos && D.eventos.length ? '<h3 class="titulo-secao">Acontecimentos</h3><ul class="fm-registro">' + D.eventos.map(function (x) {
           return "<li><span>" + esc(quando(x.quando)) + "</span> " + esc(x.nome) + (x.oque === "caiu" ? " ficou fora do ar" : " voltou") + "</li>";
         }).join("") + "</ul>" : "") + "</div></div>";
@@ -96,12 +102,15 @@
           (v.enderecos.length > 1 ? '<button type="button" class="btn mini" data-st="tirar" data-i="' + i + '">Tirar</button>' : "") + "</div>";
       }).join("") + (v.enderecos.length < D.limites.enderecos ? '<div><button type="button" class="btn mini" data-st="mais">Mais um endereço</button></div>' : "") + "</div>" +
       '<label class="ig-marcar"><input type="checkbox" data-st-in="publica"' + (v.publica ? " checked" : "") + "><span>Página pública em " + esc(D.base) + "&lt;nome&gt; (sem os endereços; o nome que você deu a cada um)</span></label>" +
-      '<label class="ig-marcar"><input type="checkbox" data-st-in="avisar"' + (v.avisar ? " checked" : "") + "><span>Avisar por e-mail (no destino de " + esc(D.email_atos) + ") quando um endereço cair (duas conferências seguidas fora) e quando voltar; até " + D.limites.avisos_dia + " avisos por dia</span></label>" +
+      (D.limites.email || (c && c.avisar)
+        ? '<label class="ig-marcar"><input type="checkbox" data-st-in="avisar"' + (v.avisar ? " checked" : "") + "><span>Avisar por e-mail (no destino de " + esc(D.email_atos) + ") quando um endereço cair (duas conferências seguidas fora) e quando voltar; até " + D.limites.avisos_dia + " avisos por dia" + (D.limites.email ? "" : " (o aviso é do Pro: guardado, mas sem enviar no gratuito)") + "</span></label>"
+        : '<p class="dica">O aviso de queda por e-mail é do Atos Workspace Pro. <a href="/workspace/plano">Conhecer o Pro</a></p>') +
       (S.erroForm ? '<p class="erro" role="alert">' + esc(S.erroForm) + "</p>" : "") +
       '<div class="ig-acoes"><button type="submit" class="btn p primario"' + (S.ocupado || (c && c.bloqueado) ? " disabled" : "") + ">" + (S.ocupado ? "Um momento…" : c ? "Salvar" : "Criar a página") + "</button>" +
       (c ? (S.confirmar ? '<button type="button" class="btn p perigo" data-st="apagar-sim">Apagar a página e o histórico</button><button type="button" class="btn p" data-st="apagar-nao">Voltar</button>'
         : '<button type="button" class="btn p perigo" data-st="apagar">Apagar</button>') : "") + "</div></form></div>";
-    h += '<p class="nota">A Atos confere cada endereço a cada ' + D.limites.intervalo_min + " minutos: um GET, sem seguir redirecionamento, esperando até 10 segundos. No ar: respondeu 2xx ou 3xx (lento, acima de 3 segundos); fora: 4xx, 5xx, erro ou tempo esgotado. " +
+    if (D.fora_do_plano && D.fora_do_plano.length) h += '<p class="ig-aviso">' + D.fora_do_plano.length + (D.fora_do_plano.length === 1 ? " endereço passa" : " endereços passam") + ' do limite do seu plano (' + D.limites.enderecos + '): ficam guardados, sem conferência, até voltar ao Pro ou tirar outros. <a href="/workspace/plano">Conhecer o Pro</a></p>';
+    h += '<p class="nota">No plano ' + (D.plano && D.plano.pro ? "Pro" : "gratuito") + ", até " + D.limites.enderecos + (D.limites.enderecos === 1 ? " endereço" : " endereços") + ". A Atos confere cada endereço a cada " + (D.limites.intervalo_min === 1 ? "minuto (com muitas páginas na fila, o mais cedo que der)" : D.limites.intervalo_min + " minutos") + ": um GET, sem seguir redirecionamento, esperando até 10 segundos. No ar: respondeu 2xx ou 3xx (lento, acima de 3 segundos); fora: 4xx, 5xx, erro ou tempo esgotado. " +
       "Só endereços https públicos (sem IP, rede interna nem a Atos). O histórico fica " + D.limites.historico_dias + " dias. A Atos não garante o horário exato de cada conferência: com muitas páginas, a fila pode atrasar. " +
       'Veja os <a href="/termos/#workspace-status">termos</a> e a <a href="/privacidade/">política de privacidade</a>.</p>';
     return h;

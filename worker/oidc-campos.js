@@ -8,7 +8,8 @@ import { emailValido, limparNome, normal } from "./comum.js";
 // fora. Sem icone, as paginas mostram a inicial do nome.
 const ICONE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
 const ICONE_MAX = 40000;
-export const LIBERADOS_MAX = 500;
+// O teto tecnico de pessoas liberadas num aplicativo (o do Atos Workspace Pro; o gratuito tem 100: worker/workspace-plano.js).
+export const LIBERADOS_MAX = 5000;
 
 const ehLoopback = (h) => h === "127.0.0.1" || h === "[::1]";
 

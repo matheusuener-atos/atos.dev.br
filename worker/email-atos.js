@@ -555,6 +555,20 @@ export async function destinoDoTitular(env, sub) {
   return { pronto: true, endereco, destino: r.destino.email };
 }
 
+/* O nome e o de uma pagina de links (atos.dev.br/@<nome>; worker/links.js) de outra conta? Pergunta ao indice do
+   Workspace (WorkspaceDados "indice", op lpag_dono). Sem o objeto ou sem resposta: false (o nome com ponto nunca e de
+   pagina). */
+async function paginaDeLinksDeOutro(env, nome, sub) {
+  if (!env || !env.WS_DADOS || !/^[a-z0-9-]{3,30}$/.test(nome)) return false;
+  try {
+    const r = await env.WS_DADOS.get(env.WS_DADOS.idFromName("indice")).fetch("https://ws-dados/", { method: "POST", body: JSON.stringify({ op: "lpag_dono", nome }) });
+    const d = await r.json();
+    return Boolean(d && d.ok && d.dono && d.dono.sub !== sub);
+  } catch {
+    return false;
+  }
+}
+
 /* O endereco e um <alias>@atos.dev.br bem formado? Devolve o alias ou "". */
 export function aliasDoTexto(endereco) {
   const e = normal(endereco);
@@ -704,7 +718,8 @@ export async function atenderEmailAtos(request, env, url, deps = {}) {
     if (c.erro) return json({ ok: false, erro: c.erro });
     const v = await pedir("livre", { alias: c.alias });
     if (!v || !v.ok) return FORA();
-    return json(v.livre ? { ok: true, alias: c.alias } : { ok: false, erro: "esse endereço não está disponível: escolha outro" });
+    const deOutro = v.livre ? await paginaDeLinksDeOutro(env, c.alias, sessao.sub) : false;
+    return json(v.livre && !deOutro ? { ok: true, alias: c.alias } : { ok: false, erro: "esse endereço não está disponível: escolha outro" });
   }
   if (request.method !== "POST") return json({ erro: "use POST" }, 405);
   if (!ligado) return DESLIGADO();
@@ -725,6 +740,8 @@ export async function atenderEmailAtos(request, env, url, deps = {}) {
     if (deps.dentroDoLimite && !(await deps.dentroDoLimite(request, env))) return json({ erro: "muitos pedidos seguidos: espere um pouco" }, 429);
     const c = conferirAlias(corpo.alias);
     if (c.erro) return json({ erro: c.erro }, 400);
+    // O nome da pagina de links de outra pessoa (atos.dev.br/@<nome>; worker/links.js) nao vira o e-mail Atos de ninguem.
+    if (await paginaDeLinksDeOutro(env, c.alias, sessao.sub)) return json({ erro: "esse endereço não está disponível: escolha outro" }, 409);
     const r = await pedir("reservar", { alias: c.alias });
     if (!r || !r.ok) return falhou(r);
     return tela(r.alias);

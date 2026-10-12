@@ -101,8 +101,9 @@
   function gratuitos() { return (S.atos && S.atos.gratuitos) || []; }
   var LOGO_WS = '<span class="logo inicial" aria-hidden="true">W</span>';
   function linhaDoGratuito(x) {
-    if (x.ativo) return "Gratuito · ativo desde " + data(x.ativado) + " · o Login Atos para os seus sistemas";
-    return "Para quem constrói sistemas: o Login Atos para os seus sistemas. Gratuito" + (x.desativado ? " · desativado em " + data(x.desativado) : "");
+    var pro = x.pago && x.pago.pro;
+    if (x.ativo) return (pro ? "Pro até " + data(x.pago.ate) : "Gratuito") + " · ativo desde " + data(x.ativado) + " · o Login Atos, os formulários, o status e a página de links";
+    return "Para quem constrói sistemas: o Login Atos, os formulários, o status e a página de links. Gratuito" + (x.desativado ? " · desativado em " + data(x.desativado) : "");
   }
   function itemDoGratuito(x) {
     return '<a class="item" href="' + esc(x.endereco) + '">' + LOGO_WS +
@@ -111,11 +112,11 @@
   }
   function cartaoDoGratuito(x) {
     var h = '<div class="card">' +
-      '<div class="assinatura-topo">' + LOGO_WS + '<span class="nome"><strong>' + esc(x.nome) + "</strong><small>Gratuito</small></span>" +
+      '<div class="assinatura-topo">' + LOGO_WS + '<span class="nome"><strong>' + esc(x.nome) + "</strong><small>" + esc(x.pago && x.pago.pro ? "Pro até " + data(x.pago.ate) : "Gratuito") + "</small></span>" +
       selo(x.ativo ? "ativo" : "inativo") + "</div>" +
       '<div class="colunas">' +
       '<div><span class="rotulo">Situação</span><span>' + esc(x.ativo ? "Ativo desde " + data(x.ativado) : x.desativado ? "Desativado em " + data(x.desativado) : "Não ativado") + "</span></div>" +
-      '<div><span class="rotulo">Inclui</span><span>O Login Atos para os seus sistemas</span></div>' +
+      '<div><span class="rotulo">Inclui</span><span>O Login Atos, o e-mail Atos, os formulários, a página de status e a página de links' + (x.pago && x.pago.pro ? ", com os limites do Pro (a assinatura fica acima, em Atos Workspace · Pro)" : "") + "</span></div>" +
       (x.termos ? '<div><span class="rotulo">Termos aceitos</span><span>' + esc("Versão de " + data(String(x.termos.versao).slice(0, 10) + "T12:00:00Z") + (/\.\d+$/.test(x.termos.versao) ? " (revisão " + String(x.termos.versao).split(".").pop() + ")" : "") + ", em " + data(x.termos.aceito)) + "</span></div>" : "") +
       "</div>" +
       '<div class="botoes"><a class="btn p' + (x.ativo ? "" : " primario") + '" href="' + esc(x.endereco) + '">' + (x.ativo ? "Ir ao Workspace" : "Ativar o " + esc(x.nome)) + "</a></div>";
@@ -124,7 +125,7 @@
 
   function itemDoResumo(x) {
     var s = situacaoDe(x);
-    return '<a class="item" href="/conta/assinaturas" data-ir="assinaturas">' + LOGO +
+    return '<a class="item" href="/conta/assinaturas" data-ir="assinaturas">' + (x.produto === "workspace" ? LOGO_WS : LOGO) +
       '<span class="nome"><strong>' + esc(x.nome) + (x.plano_nome ? " · " + esc(x.plano_nome) : "") + "</strong><small>" + esc(s.linha) + "</small></span>" +
       selo(s.sit) + '<span class="seta" aria-hidden="true">→</span></a>';
   }
@@ -135,7 +136,7 @@
     var id = s.viva ? s.viva.id : "";
     var ocupado = S.mudando && S.mudando === id;
     var h = '<div class="card">' +
-      '<div class="assinatura-topo"><img class="logo" src="/assets/paulus-p.png" alt="" width="40" height="40"><span class="nome"><strong>' + esc(x.nome) + "</strong><small>" +
+      '<div class="assinatura-topo">' + (x.produto === "workspace" ? LOGO_WS : '<img class="logo" src="/assets/paulus-p.png" alt="" width="40" height="40">') + '<span class="nome"><strong>' + esc(x.nome) + "</strong><small>" +
       esc(x.plano_nome ? "Plano " + x.plano_nome : "") + "</small></span>" + selo(s.sit) + "</div>" +
       '<div class="colunas">' +
       '<div><span class="rotulo">Situação</span><span>' + esc(s.linha) + "</span></div>" +
@@ -294,7 +295,7 @@
       }).join("") + "</div>" +
       '<div class="filtros-campos">' +
       '<select class="seletor" data-filtro="ano" aria-label="Ano">' + opcao("", "Todos os anos", f.ano) + anos.map(function (a) { return opcao(a, a, f.ano); }).join("") + "</select>" +
-      '<select class="seletor" data-filtro="produto" aria-label="Produto">' + opcao("", "Todos os produtos", f.produto) + opcao("pavlvs", "PAVLVS", f.produto) + "</select>" +
+      '<select class="seletor" data-filtro="produto" aria-label="Produto">' + opcao("", "Todos os produtos", f.produto) + opcao("pavlvs", "PAVLVS", f.produto) + opcao("workspace", "Atos Workspace", f.produto) + "</select>" +
       '<input class="seletor busca" type="search" data-filtro="q" aria-label="Buscar" placeholder="Buscar" value="' + esc(f.q) + '">' +
       "</div></div>";
     if (!lista.length) {

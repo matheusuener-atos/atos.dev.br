@@ -4,12 +4,13 @@
 // formula), o limite do dia, a limpeza (90 dias), outra conta nao ve, apagar o aplicativo leva junto, e o painel so com
 // as contagens. Sem rede.
 //   node worker/teste-entradas.mjs
-import { A, GET, chamar, checar, contaPronta, env, fim, objeto, sessao } from "./apoio-teste-workspace.mjs";
+import { A, GET, chamar, checar, contaPronta, darPro, env, fim, objeto, sessao } from "./apoio-teste-workspace.mjs";
 import { anotarEntrada } from "./entradas.js";
 
 const SITE = { nome: "Horta Viva", descricao: "controle de canteiros", site: "https://horta.com.br", privacidade: "https://horta.com.br/privacidade", termos: "https://horta.com.br/termos" };
 const VOLTA = "https://horta.com.br/volta";
 const maria = await contaPronta("maria");
+await darPro(maria.sub); // 90 dias e o CSV: o Pro (o gratuito, 7 dias e sem CSV, está em teste-plano.mjs)
 let r = await chamar("/api/integracoes/apps", { cookie: maria.cookie, corpo: SITE });
 const APP = r.d.app.id;
 r = await chamar("/api/integracoes/apps/" + APP + "/acessos", { cookie: maria.cookie, corpo: { tipo: "publico", voltas: [VOLTA] } });

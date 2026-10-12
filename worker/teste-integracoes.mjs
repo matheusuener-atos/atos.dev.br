@@ -8,7 +8,7 @@ import { comSeguranca, ligarSegundaEtapa } from "./apoio-teste-seguranca.mjs";
 import { conferirIdToken } from "./oidc.js";
 import { nomeReservado } from "./integracoes.js";
 import { sha256 } from "./comum.js";
-import { ClienteCobranca } from "./cobranca/cliente.js";
+import { ClienteCobranca, idDoCliente } from "./cobranca/cliente.js";
 import { PRODUTOS } from "./cobranca/catalogo.js";
 import { EmailAtos } from "./email-atos.js";
 const PRODUTOS_TERMOS = PRODUTOS.workspace.termos.versao;
@@ -138,8 +138,12 @@ r = await ativar(ana);
 checar(r.status === 200 && r.d.ativo === true, "a dona ativa o Workspace", r.d);
 checar((await ativar(bia)).d.ativo === true, "a Bia também (para as recusas de outra conta abaixo)");
 r = await chamar("/api/integracoes", { metodo: "GET", cookie: ana });
-checar(r.status === 200 && r.d.apps.length === 0 && r.d.limites.apps === 5 && r.d.limites.acessos === 5 && r.d.recente && r.d.descoberta === A + "/.well-known/openid-configuration",
-  "com sessão: nenhum aplicativo, os limites e o que precisa para integrar", r.d);
+checar(r.status === 200 && r.d.apps.length === 0 && r.d.limites.apps === 2 && r.d.limites.liberados === 100 && r.d.plano.id === "gratuito" && r.d.limites.acessos === 5 && r.d.recente && r.d.descoberta === A + "/.well-known/openid-configuration",
+  "com sessão: nenhum aplicativo, os limites do gratuito e o que precisa para integrar", r.d);
+// A dona assina o Pro (os limites maiores abaixo; o gratuito e a volta dele estão em teste-plano.mjs).
+await env.CLIENTES.get(await idDoCliente("sub-ana")).fetch("https://cliente/", { method: "POST", body: JSON.stringify({ op: "estender", produto: "workspace", plano: "pro", meses: 1, origem: "order:pro-ana" }) });
+r = await chamar("/api/integracoes", { metodo: "GET", cookie: ana });
+checar(r.d.limites.apps === 10 && r.d.limites.liberados === 5000 && r.d.plano.id === "pro", "no Pro: 10 aplicativos e 5.000 pessoas", r.d.limites);
 r = await chamar("/conta/integracoes", { metodo: "GET" });
 checar(r.status === 301 && r.r.headers.get("location") === A + "/workspace/integracoes", "/conta/integracoes leva ao Atos Workspace", r.r.headers.get("location"));
 r = await chamar("/workspace/integracoes", { metodo: "GET", cookie: ana });
@@ -274,11 +278,11 @@ for (let i = 0; i < 3; i++) {
 }
 r = await chamar("/api/integracoes/apps/" + app.id + "/acessos", { cookie: ana, corpo: { tipo: "publico", loopback: true } });
 checar(r.status === 409 && r.d.erro.includes("5"), "o sexto acesso: recusado", r.d);
-for (let i = 2; i <= 5; i++) await chamar("/api/integracoes/apps", { cookie: ana, corpo: { ...SITE, nome: "Horta " + i } });
-r = await chamar("/api/integracoes/apps", { cookie: ana, corpo: { ...SITE, nome: "Horta 6" } });
-checar(r.status === 409 && r.d.erro.includes("5"), "o sexto aplicativo: recusado", r.d);
-r = await chamar("/api/integracoes/apps/" + app.id, { cookie: ana, corpo: { acao: "liberar", emails: Array.from({ length: 501 }, (_, i) => "p" + i + "@x.example") } });
-checar(r.status === 400 && r.d.erro.includes("500"), "mais de 500 liberados: recusado", r.d);
+for (let i = 2; i <= 10; i++) await chamar("/api/integracoes/apps", { cookie: ana, corpo: { ...SITE, nome: "Horta " + i } });
+r = await chamar("/api/integracoes/apps", { cookie: ana, corpo: { ...SITE, nome: "Horta 11" } });
+checar(r.status === 409 && r.d.erro.includes("10") && r.d.codigo === "limite_do_plano", "o 11º aplicativo: recusado", r.d);
+r = await chamar("/api/integracoes/apps/" + app.id, { cookie: ana, corpo: { acao: "liberar", emails: Array.from({ length: 5001 }, (_, i) => "p" + i + "@x.example") } });
+checar(r.status === 400 && r.d.erro.includes("5000"), "mais de 5.000 liberados: recusado", r.d);
 guardados.set("atos:oidc:ritmo:sub-ana", JSON.stringify({ n: 60 }));
 r = await chamar("/api/integracoes/apps/" + app.id, { cookie: ana, corpo: { acao: "acesso", acesso: "todos" } });
 checar(r.status === 429, "mais de 60 mudanças na hora: espera", r.d);
@@ -291,7 +295,7 @@ checar(r.status === 429 && limitado, "criar passa pelo limite por endereço de i
 console.log("o painel da equipe");
 r = await chamar("/api/admin/workspace/apps", { metodo: "GET", cookie: dono });
 const naTela = r.d.apps.find((x) => x.id === app.id);
-checar(r.status === 200 && r.d.apps.length === 5 && naTela && naTela.dono === "ana@dev.example" && naTela.acessos.length === 5, "a equipe vê todos os de terceiros, com o dono (Atos Workspace > Aplicativos de terceiros)", r.d.apps && r.d.apps.length);
+checar(r.status === 200 && r.d.apps.length === 10 && naTela && naTela.dono === "ana@dev.example" && naTela.acessos.length === 5, "a equipe vê todos os de terceiros, com o dono (Atos Workspace > Aplicativos de terceiros)", r.d.apps && r.d.apps.length);
 r = await chamar("/api/admin/oauth", { metodo: "GET", cookie: dono });
 checar(r.status === 200 && r.d.terceiros === undefined, "o Login Atos não mostra mais os de terceiros (só os da Atos)");
 r = await chamar("/api/admin/workspace/apps/" + app.id + "/desligar", { cookie: ana, corpo: { motivo: "teste" } });
@@ -324,7 +328,7 @@ checar(r.status === 400 && r.d.erro.includes("não está registrado"), "apagado:
 console.log("a dona apaga");
 r = await chamar("/api/integracoes", { metodo: "GET", cookie: ana });
 const outro = r.d.apps[0];
-checar(r.d.apps.length === 4, "sobram quatro (pode criar mais um)");
+checar(r.d.apps.length === 9, "sobram nove (pode criar mais um)");
 r = await chamar("/api/integracoes/apps/" + outro.id, { cookie: ana, corpo: { acao: "apagar" } });
 checar(r.status === 400, "apagar sem confirmar: recusado");
 r = await chamar("/api/integracoes/apps/" + outro.id, { cookie: ana, corpo: { acao: "apagar", confirmar: true } });

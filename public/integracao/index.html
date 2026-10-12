@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Atos Workspace: o Login Atos nos seus sistemas · Atos</title>
-<meta name="description" content="O Atos Workspace é o produto da Atos para quem constrói sistemas com a Conta Atos. Hoje inclui o Login Atos (Entrar com Atos) para os seus sistemas, login por OpenID Connect como o Entrar com o Google, e os formulários de contato entregues no seu e-mail Atos. Gratuito.">
+<meta name="description" content="O Atos Workspace é o produto da Atos para quem constrói sistemas com a Conta Atos: o Login Atos (Entrar com Atos) para os seus sistemas, por OpenID Connect como o Entrar com o Google, os formulários de contato entregues no seu e-mail Atos, a página de status e a página de links. Ativar é gratuito; o Pro aumenta os limites.">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#080707">
 <meta property="og:title" content="Atos Workspace: o Login Atos nos seus sistemas">
@@ -33,11 +33,12 @@
 
 <main class="integracao">
   <h1>Atos Workspace</h1>
-  <p class="lead">O produto da Atos para quem constrói sistemas com a Conta Atos. Hoje ele traz o Login Atos para os seus sistemas: o “Entrar com Atos”, um login pronto para o seu site, aplicativo ou servidor, em que a pessoa entra com a Conta Atos dela, do mesmo jeito que entra com o Google. E os <a href="#formularios">Formulários</a> (o formulário de contato do seu site, entregue no seu e-mail Atos) e a <a href="#status">página de status</a> do seu sistema. Gratuito: ativar é aceitar os termos do Workspace.</p>
+  <p class="lead">O produto da Atos para quem constrói sistemas com a Conta Atos. Hoje ele traz o Login Atos para os seus sistemas: o “Entrar com Atos”, um login pronto para o seu site, aplicativo ou servidor, em que a pessoa entra com a Conta Atos dela, do mesmo jeito que entra com o Google. E os <a href="#formularios">Formulários</a> (o formulário de contato do seu site, entregue no seu e-mail Atos), a <a href="#status">página de status</a> do seu sistema e a <a href="#links">página de links</a> (atos.dev.br/@nome). Ativar é gratuito: é aceitar os termos do Workspace. O <a href="#pro">Pro</a>, opcional, aumenta os limites.</p>
   <div class="chamadas">
     <a class="btn primario" href="/entrar/?volta=/workspace/">Ativar o Atos Workspace<span class="seta" aria-hidden="true">→</span></a>
     <a class="btn" href="/workspace/entrar/">Já tenho, ir ao Workspace</a>
     <a class="btn" href="#passo-a-passo">Ver o passo a passo</a>
+    <a class="btn" href="#pro">Gratuito e Pro</a>
   </div>
 
   <section id="workspace" aria-labelledby="workspace-titulo">
@@ -49,20 +50,40 @@
       </div>
       <div>
         <h3>O que inclui hoje</h3>
-        <p>O Login Atos para os seus sistemas: até 5 aplicativos por conta, 5 acessos por aplicativo e 500 pessoas liberadas por aplicativo, em Atos Workspace › Integrações, com os <a href="#avisos">avisos ao seu sistema</a> quando o acesso das pessoas muda e o registro de entradas de cada aplicativo (90 dias, com filtro e CSV).</p>
-        <p>A página de status: até 5 endereços do seu sistema conferidos a cada 5 minutos, publicados em atos.dev.br/status/&lt;nome&gt;, com o aviso de queda por e-mail. <a href="#status">Como funciona</a>.</p>
-        <p>Os Formulários: o formulário de contato de um site estático (até 5 por conta), entregue no destino do seu e-mail Atos, em Atos Workspace › Formulários. Pedem o e-mail Atos com o destino confirmado, como as Integrações. <a href="#formularios">Como usar</a>.</p>
+        <p>O Login Atos para os seus sistemas, em Atos Workspace › Integrações (5 acessos por aplicativo; quantos aplicativos e pessoas, pelo <a href="#pro">plano</a>), com os <a href="#avisos">avisos ao seu sistema</a> quando o acesso das pessoas muda e o registro de entradas de cada aplicativo, com filtro.</p>
+        <p>A página de status: endereços do seu sistema conferidos pela Atos e publicados em atos.dev.br/status/&lt;nome&gt;. <a href="#status">Como funciona</a>.</p>
+        <p>Os Formulários: o formulário de contato de um site estático, entregue no destino do seu e-mail Atos, em Atos Workspace › Formulários. Pedem o e-mail Atos com o destino confirmado, como as Integrações. <a href="#formularios">Como usar</a>.</p>
+        <p>A página de links: atos.dev.br/@nome, com o seu nome, uma frase, uma foto e os seus links, gerada pela Atos. <a href="#links">Como é</a>.</p>
         <p>O e-mail Atos (em preparação na Atos): um endereço @atos.dev.br que encaminha para o seu e-mail (não é caixa de entrada) e que também entra na sua Conta Atos, com a mesma senha. Cadastrar um sistema pede o e-mail Atos com o destino confirmado; enquanto ele estiver em preparação, a área do Workspace avisa e o cadastro de sistemas espera.</p>
       </div>
       <div>
         <h3>Preço</h3>
-        <p>Gratuito. Ativar é aceitar os <a href="/termos/#workspace">termos do Atos Workspace</a>: não pede cartão nem pagamento.</p>
+        <p>Ativar é gratuito: é aceitar os <a href="/termos/#workspace">termos do Atos Workspace</a>, sem cartão nem pagamento. O <a href="#pro">Atos Workspace Pro</a>, opcional, custa R$ 29 por mês (cartão, assinatura) ou R$ 290 por ano (cartão ou Pix).</p>
       </div>
       <div>
         <h3>Desativar</h3>
         <p>Quando quiser, na área do Workspace. Os aplicativos que você cadastrou continuam funcionando para quem entra neles; para vê-los e mudá-los, você ativa de novo.</p>
       </div>
     </div>
+  </section>
+
+  <section id="pro" aria-labelledby="pro-titulo">
+    <h2 id="pro-titulo">Gratuito e Pro</h2>
+    <div class="corpo">
+      <p>Todo Workspace começa no gratuito. O <strong>Atos Workspace Pro</strong> custa <strong>R$ 29 por mês</strong> no cartão (uma assinatura; você cancela quando quiser em Minha conta) ou <strong>R$ 290 por ano</strong> no cartão ou no Pix (pago de uma vez, sem renovação automática). A cobrança é da Atos, pelo mesmo checkout do PAVLVS; a assinatura e as faturas ficam em Minha conta.</p>
+    </div>
+      <div class="tabela-rolagem"><table class="planos-tabela"><thead><tr><th scope="col"></th><th scope="col">Gratuito</th><th scope="col">Pro</th></tr></thead><tbody>
+        <tr><th scope="row">Sistemas no Login Atos</th><td>2</td><td>10</td></tr>
+        <tr><th scope="row">Pessoas liberadas por sistema</th><td>100</td><td>5.000</td></tr>
+        <tr><th scope="row">E-mail Atos</th><td>1 endereço</td><td>1 endereço</td></tr>
+        <tr><th scope="row">Formulários</th><td>1, com até 50 envios por dia</td><td>10, com até 1.000 envios por dia (somando todos)</td></tr>
+        <tr><th scope="row">Avisos ao sistema</th><td>histórico de 30 dias</td><td>histórico de 90 dias</td></tr>
+        <tr><th scope="row">Registro de entradas</th><td>7 dias</td><td>90 dias, e exportar em CSV</td></tr>
+        <tr><th scope="row">Página de status</th><td>1 endereço, a cada 15 minutos</td><td>até 10 endereços, a cada minuto, e o aviso de queda por e-mail</td></tr>
+        <tr><th scope="row">Página de links</th><td>1 página, até 5 links</td><td>3 páginas, até 50 links cada, e os cliques por dia</td></tr>
+      </tbody></table></div>
+    <p class="nota-fim">Os limites valem no servidor; ao chegar num, a área do Workspace diz qual. Se o Pro acabar, nada é apagado: o que passa dos limites do gratuito fica fora do plano (sistemas só leitura, que continuam deixando entrar quem já entrava; formulários e páginas de links acima do limite parados ou fora do ar; endereços de status sem conferência) até você voltar ao Pro ou reduzir. A conferência “a cada minuto” depende da fila da Atos e pode atrasar com muitas páginas. Detalhes nos <a href="/termos/#workspace-pro">termos</a>.</p>
+    <div class="chamadas"><a class="btn primario" href="/workspace/plano">Assinar o Pro<span class="seta" aria-hidden="true">→</span></a></div>
   </section>
 
   <section id="o-que-e" aria-labelledby="o-que-e-titulo">
@@ -842,7 +863,7 @@ app.get(new URL(atos.voltaPara).pathname, async (req, res) =&gt; {
       <div><dt>Entrega</dt><dd>Responda 2xx. Senão, a Atos tenta de novo em 1 min, 5 min, 30 min, 2 h e 12 h e marca “falhou”; na área você vê cada entrega, a última resposta e “Tentar de novo”. Ela espera até 10 s e não segue redirecionamentos. O endereço precisa ser público (sem IP, rede interna ou a própria Atos).</dd></div>
     </dl>
     <h3>O registro de entradas</h3>
-    <p class="nota-fim">Também em cada aplicativo: quem entrou nos últimos 90 dias (o <code>sub</code>, e o e-mail e o nome só com os escopos <code>email</code> e <code>profile</code> permitidos), quando, o lugar aproximado e o navegador resumido, e as recusas de quem não está liberado (sem dizer quem). Com filtro por período, resultado e busca, e exportar em CSV.</p>
+    <p class="nota-fim">Também em cada aplicativo: quem entrou nos últimos 7 dias (no gratuito) ou 90 dias (no Pro) (o <code>sub</code>, e o e-mail e o nome só com os escopos <code>email</code> e <code>profile</code> permitidos), quando, o lugar aproximado e o navegador resumido, e as recusas de quem não está liberado (sem dizer quem). Com filtro por período, resultado e busca; no Pro, exportar em CSV.</p>
     <h3>Conferir no Node</h3>
     <pre class="codigo" tabindex="0" aria-label="Exemplo de conferência de aviso"><code>import { verificarAviso } from "@atos.dev.br/entrar"; // 0.3.0
 
@@ -862,12 +883,26 @@ app.post("/atos/avisos", express.text({ type: "application/json" }), async (req,
   <section id="status" aria-labelledby="status-titulo">
     <h2 id="status-titulo">Página de status</h2>
     <div class="corpo">
-      <p>Em Atos Workspace › Status, cadastre até 5 endereços https do seu sistema (uma página por conta; pede o e-mail Atos confirmado, como os Formulários). A Atos confere cada um a cada 5 minutos, mais ou menos, e publica, se você quiser, <code>atos.dev.br/status/&lt;nome&gt;</code>: no ar, instável ou fora, o tempo de resposta e o histórico de 30 ou 90 dias, sem as URLs. Se você ligar, ela avisa por e-mail (no destino do seu e-mail Atos) quando um endereço cai, depois de duas conferências seguidas fora, e quando volta.</p>
+      <p>Em Atos Workspace › Status, cadastre os endereços https do seu sistema (uma página por conta; pede o e-mail Atos confirmado, como os Formulários): no gratuito, 1 endereço conferido a cada 15 minutos; no Pro, até 10 a cada minuto, mais ou menos. A Atos publica, se você quiser, <code>atos.dev.br/status/&lt;nome&gt;</code>: no ar, instável ou fora, o tempo de resposta e o histórico de 30 ou 90 dias, sem as URLs. No Pro, se você ligar, ela avisa por e-mail (no destino do seu e-mail Atos) quando um endereço cai, depois de duas conferências seguidas fora, e quando volta.</p>
     </div>
     <dl class="tabela-ref">
       <div><dt>A conferência</dt><dd><code>GET</code> com <code>User-Agent: AtosStatus/1</code>, sem seguir redirecionamentos, até 10 s, sem ler o corpo. 2xx e 3xx: no ar (acima de 3 s, lento); 4xx, 5xx, erro ou tempo esgotado: fora.</dd></div>
       <div><dt>Os endereços</dt><dd>Só https público, na porta padrão: sem IP, rede interna, nomes reservados ou a Atos. Um endereço leve, como <code>/saude</code>, é o melhor.</dd></div>
       <div><dt>Histórico</dt><dd>90 dias. A página pública não carrega script e fica 60 s em cache.</dd></div>
+    </dl>
+  </section>
+
+  <section id="links" aria-labelledby="links-titulo">
+    <h2 id="links-titulo">Página de links</h2>
+    <div class="corpo">
+      <p>Em Atos Workspace › Página de links, crie <code>atos.dev.br/@nome</code>: o seu nome, uma frase curta, uma foto opcional e a lista dos seus links, com o seu e-mail Atos e um formulário seu como botões, se quiser. A Atos gera a página (sem código seu e sem script), com o domínio de destino escrito embaixo de cada link. O e-mail Atos não é exigido.</p>
+    </div>
+    <dl class="tabela-ref">
+      <div><dt>Os links</dt><dd>Só https, sem endereço IP, rede interna, encurtador de links (o destino precisa ficar à vista) nem endereço da Atos. Títulos com o nome da Atos são recusados.</dd></div>
+      <div><dt>O nome</dt><dd>De 3 a 30 letras minúsculas, números e hífen. Nomes que lembrem a Atos, bancos, o governo ou marcas conhecidas são recusados, e o nome não pode ser o e-mail Atos de outra pessoa.</dd></div>
+      <div><dt>Embaixo, sempre</dt><dd>“Página criada por uma pessoa com Conta Atos. A Atos não verificou estes links.” e “Denunciar esta página”: a denúncia chega à equipe da Atos, que pode tirar a página do ar (a pessoa vê o motivo).</dd></div>
+      <div><dt>Os cliques</dt><dd>No Pro, cada link passa por <code>atos.dev.br/@nome/ir/…</code> e a Atos conta os cliques por dia e por link (90 dias), sem guardar nada de quem clicou. No gratuito, os links vão direto e nada é contado.</dd></div>
+      <div><dt>Limites</dt><dd>Gratuito: 1 página, até 5 links. Pro: 3 páginas, até 50 links cada. A página fica até 1 minuto em cache.</dd></div>
     </dl>
   </section>
 

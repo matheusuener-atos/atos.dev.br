@@ -1,5 +1,6 @@
-// Atos Workspace > Integracoes > Entradas: o registro dos logins em cada aplicativo de terceiro, para o dono ver. 90 dias,
-// com filtro (o periodo, o resultado, a busca) e exportar em CSV.
+// Atos Workspace > Integracoes > Entradas: o registro dos logins em cada aplicativo de terceiro, para o dono ver, com
+// filtro (o periodo, o resultado, a busca). Pelo plano (worker/workspace-plano.js): o gratuito guarda e mostra 7 dias; o
+// Pro, 90 dias e exportar em CSV (depois do Pro, o que ja estava guardado fica a carencia e segue a guarda do gratuito).
 //
 // O que fica (so o que o aplicativo ja recebe, decisao de 12/10/2026):
 //   "entrou"    a Atos emitiu o codigo de volta ao aplicativo (a pessoa entrou e permitiu): quando, o `sub` (o aplicativo
@@ -26,6 +27,7 @@
 import { json } from "./comum.js";
 import { ondeDe, navegadorDe } from "./seguranca/atividade.js";
 import { apagarAntigos, apagarPrefixo, daConta, isoDe, sorteio } from "./workspace-dados.js";
+import { PLANOS_WS, limiteDoPlano } from "./workspace-plano.js";
 
 export const LIMITES_ENTRADAS = { retencao_dias: 90, por_dia: 2000, tela: 500, csv: 20000 };
 const DIA_S = 86400;
@@ -95,7 +97,9 @@ export const OPS_ENTRADAS = {
 
 export async function limparEntradas(o, agora) {
   const s = o.ctx.storage;
-  const corte = isoDe(agora - LIMITES_ENTRADAS.retencao_dias * DIA_S * 1000);
+  // A guarda segue o plano (worker/workspace-plano.js): 90 dias no Pro (e na carencia depois dele), 7 no gratuito.
+  const dias = (await o.guardaDoPro(agora)) ? PLANOS_WS.pro.entradas_dias : PLANOS_WS.gratuito.entradas_dias;
+  const corte = isoDe(agora - dias * DIA_S * 1000);
   let n = 0;
   for (const app of (await s.get("lg-apps")) || []) n += await apagarAntigos(s, "lg:" + app + "|", corte);
   return n;
@@ -129,15 +133,20 @@ const celula = (v) => {
   return /[",\n;]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
 };
 
-export async function atenderEntradas(request, env, a, url, agora) {
+export async function atenderEntradas(request, env, a, url, agora, plano) {
   if (!env.WS_DADOS) return json({ erro: "o registro de entradas ainda não está ligado neste Worker" }, 503);
   const csv = url.pathname.endsWith(".csv");
+  // O plano (worker/workspace-plano.js): o gratuito ve os ultimos 7 dias, o Pro ate 90; exportar CSV e do Pro.
+  const P = plano ? plano.limites : PLANOS_WS.pro;
+  if (csv && !P.entradas_csv) return limiteDoPlano("exportar o registro de entradas em CSV é do Atos Workspace Pro", plano);
+  const pedidos = Number(url.searchParams.get("dias")) || 30;
+  const dias = Math.min([7, 30, 90].includes(pedidos) ? pedidos : 30, P.entradas_dias);
   const resultado = ["entrou", "recusado"].includes(url.searchParams.get("resultado")) ? url.searchParams.get("resultado") : "";
   const r = await daConta(env, a.dono.sub).pedir("lg_listar", {
-    agora, app: a.id, dias: url.searchParams.get("dias"), resultado, q: url.searchParams.get("q") || "", limite: csv ? LIMITES_ENTRADAS.csv : LIMITES_ENTRADAS.tela,
+    agora, app: a.id, dias, resultado, q: url.searchParams.get("q") || "", limite: csv ? LIMITES_ENTRADAS.csv : LIMITES_ENTRADAS.tela,
   });
   if (!r || !r.ok) return json({ erro: "não deu para ler as entradas agora" }, 503);
-  if (!csv) return json({ linhas: r.linhas, total: r.total, dias: r.dias, nao_registradas_hoje: r.nao_registradas_hoje, limites: LIMITES_ENTRADAS });
+  if (!csv) return json({ linhas: r.linhas, total: r.total, dias: r.dias, nao_registradas_hoje: r.nao_registradas_hoje, limites: { ...LIMITES_ENTRADAS, dias_max: P.entradas_dias, csv_permitido: P.entradas_csv } });
   const linhas = [["quando", "resultado", "sub", "email", "nome", "onde", "navegador"].join(",")];
   for (const x of r.linhas) linhas.push([x.quando, x.resultado, x.sub, x.email, x.nome, x.onde, x.navegador].map(celula).join(","));
   return new Response("﻿" + linhas.join("\r\n") + "\r\n", {

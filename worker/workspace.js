@@ -33,11 +33,12 @@
 
 import { json, kv, lerJson } from "./comum.js";
 import { sessaoDe } from "./contas.js";
-import { PRODUTOS } from "./cobranca/catalogo.js";
+import { PRODUTOS, produtoAberto } from "./cobranca/catalogo.js";
 import { cliente, idDoCliente } from "./cobranca/cliente.js";
 import { ID_APP_TERCEIRO, KO } from "./oidc.js";
 import { aliasDaConta, emailAtosLigado } from "./email-atos.js";
 import { anotarNoIndice } from "./workspace-indice.js";
+import { PLANOS_WS, planoDe, vistaDoPlano } from "./workspace-plano.js";
 
 export const WORKSPACE = "workspace";
 /* Para onde a tela /workspace/entrar volta: so um caminho de /workspace/ (sem consulta), nunca a propria tela de entrar.
@@ -113,8 +114,11 @@ export const WORKSPACE_FORA = () => json({ erro: "não deu para conferir o Atos 
 
 /* A porta dos recursos do Workspace que pedem o mesmo que as Integracoes (os Formularios, worker/formularios.js; a pagina
    de status, worker/status.js): a sessao, o Workspace ativo e sem suspensao, e o e-mail Atos com o destino confirmado e
-   a sessao aberta por ele. {sessao, alias} ou {resposta} (o 401/403/503 pronto, com o codigo que a tela entende). */
-export async function portaoDoWorkspace(request, env) {
+   a sessao aberta por ele. {sessao, alias, plano} ou {resposta} (o 401/403/503 pronto, com o codigo que a tela entende).
+   `plano`: o do direito (worker/workspace-plano.js), que cada recurso aplica.
+   {alias: "se_tiver"} (a pagina de links, worker/links.js): o e-mail Atos nao e exigido; so quem tem o alias confirmado
+   precisa ter entrado por ele (a regra de 11/10/2026: quem tem o alias usa o Workspace pelo alias). */
+export async function portaoDoWorkspace(request, env, op = {}) {
   const sessao = await sessaoDe(request, env);
   if (!sessao) return { resposta: json({ erro: "entre na sua conta", entrar: true }, 401) };
   let w;
@@ -123,8 +127,24 @@ export async function portaoDoWorkspace(request, env) {
   if (w.suspenso) return { resposta: WORKSPACE_SUSPENSO(w.suspenso) };
   let alias;
   try { alias = await estadoDoAlias(env, sessao); } catch { return { resposta: WORKSPACE_FORA() }; }
-  if (alias.pendencia) return { resposta: recusaDoAlias(alias, emailAtosLigado(env)) };
-  return { sessao, alias };
+  const barra = op.alias === "se_tiver" ? alias.pendencia === "entrar_pelo_alias" : Boolean(alias.pendencia);
+  if (barra) return { resposta: recusaDoAlias(alias, emailAtosLigado(env)) };
+  const plano = planoDe(w);
+  await anotarPlanoNosDados(env, sessao.sub, w);
+  return { sessao, alias, plano, direito: w };
+}
+
+/* A data ate quando o Pro foi pago, no objeto dos dados da conta (worker/workspace-dados.js, "ws:plano"): a guarda dos
+   registros segue o plano mesmo sem ninguem na tela. So escreve quando muda. Nunca lanca. */
+export async function anotarPlanoNosDados(env, sub, d) {
+  if (!env || !env.WS_DADOS || !sub) return;
+  try {
+    await env.WS_DADOS.get(env.WS_DADOS.idFromName("conta:" + sub)).fetch("https://ws-dados/", {
+      method: "POST", body: JSON.stringify({ op: "plano_anotar", plano_ate: d && d.plano === "pro" ? d.ate || null : null }),
+    });
+  } catch {
+    // o segundo lugar
+  }
 }
 
 export function ehRotaDoWorkspace(url) {
@@ -146,6 +166,12 @@ export async function atenderWorkspace(request, env, url, deps = {}) {
   const tela = async (d) => json({
     conta: { email: sessao.email }, recente, limites: { recente_h: RECENTE_H }, produto: { id: WORKSPACE, nome: PRODUTOS[WORKSPACE].nome, gratuito: true },
     termos, ...vistaDoWorkspace(d), apps: await quantosApps(env, sessao.sub),
+    // O plano (worker/workspace-plano.js): o atual com os limites dele, a tabela gratuito x Pro e os precos do Pro (o
+    // catalogo; a compra e o checkout da Atos, /workspace/assinar/, e a assinatura e as faturas ficam na Minha conta).
+    plano: { ...vistaDoPlano(planoDe(d, agora)), limites: planoDe(d, agora).limites }, planos: PLANOS_WS,
+    precos: PRODUTOS[WORKSPACE].precos.map((x) => ({ id: x.id, periodo: x.periodo, centavos: x.centavos, formas: x.formas })),
+    // O Pro ja vende por este Worker? (PRODUTOS_ABERTOS) Sem ele, a tela nao oferece a compra.
+    pro_aberto: produtoAberto(env, WORKSPACE),
     // O e-mail Atos (worker/email-atos.js): ligado neste Worker? (a guia diz "em preparacao" sem ele) E o alias da conta,
     // por onde a sessao entrou e o que falta para as Integracoes (estadoDoAlias).
     email: { disponivel: emailAtosLigado(env) }, ...(await estadoDoAlias(env, sessao)),
@@ -158,6 +184,7 @@ export async function atenderWorkspace(request, env, url, deps = {}) {
     try { d = await workspaceDe(env, sessao.sub); } catch { return WORKSPACE_FORA(); }
     // A auto-indexacao (worker/workspace-indice.js): quem ativou antes do indice entra nele ao abrir a area.
     await anotarNoIndice(env, sessao.sub, sessao.email, d, "visita");
+    if (d) await anotarPlanoNosDados(env, sessao.sub, d);
     try { return await tela(d); } catch { return WORKSPACE_FORA(); }
   }
   if (p !== "/api/workspace/ativar" && p !== "/api/workspace/desativar") return json({ erro: "rota não existe" }, 404);
