@@ -958,7 +958,8 @@ app.get(new URL(atos.voltaPara).pathname, async (req, res) =&gt; {
     <h3>O registro de entradas</h3>
     <p class="nota-fim">Também em cada aplicativo: quem entrou nos últimos 7 dias (no gratuito) ou 90 dias (no Pro) (o <code>sub</code>, e o e-mail e o nome só com os escopos <code>email</code> e <code>profile</code> permitidos), quando, o lugar aproximado e o navegador resumido, e as recusas de quem não está liberado (sem dizer quem). Com filtro por período, resultado e busca; no Pro, exportar em CSV.</p>
     <h3>Conferir no Node</h3>
-    <pre class="codigo" tabindex="0" aria-label="Exemplo de conferência de aviso"><code>import { verificarAviso } from "@atos.dev.br/entrar"; // 0.3.0
+    <p>O <code>verificarAviso()</code> é do <code>@atos.dev.br/entrar</code> 0.3.0 ou mais novo. No npm ainda está a 0.2.0, que não tem essa função: enquanto isso, salve no seu projeto o arquivo servido pela Atos, <code>https://atos.dev.br/pacotes/entrar/0.4.0/entrar.js</code> (o mesmo código, um arquivo só, licença MIT), e importe de <code>"./entrar.js"</code>. Ou confira à mão, como no fim desta seção.</p>
+    <pre class="codigo" tabindex="0" aria-label="Exemplo de conferência de aviso"><code>import { verificarAviso } from "./entrar.js"; // salvo de https://atos.dev.br/pacotes/entrar/0.4.0/entrar.js
 
 app.post("/atos/avisos", express.text({ type: "application/json" }), async (req, res) =&gt; {
   let aviso;
