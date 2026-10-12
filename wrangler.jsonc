@@ -69,6 +69,8 @@
   // teto de envios por dia da Atos inteira. A verificacao contra robos (Cloudflare Turnstile) e opcional e so aparece
   // com as duas: TURNSTILE_SITEKEY (var, a chave publica do widget, com atos.dev.br na lista de hostnames dele) e
   // TURNSTILE_SECRET (segredo: npx wrangler secret put TURNSTILE_SECRET). Sem elas, valem a armadilha e os limites.
+  // As paginas de status (worker/status.js) sao conferidas pelo Cron de cada minuto: STATUS_POR_MINUTO (var, opcional;
+  // padrao 10, ate 50) e quantas contas entram por minuto (cada uma com ate 5 enderecos, a cada 5 minutos).
   // O e-mail Atos (worker/email-atos.js, EmailAtos): uma instancia so (idFromName("registro")) com os aliases, os destinos,
   // os contadores e o registro (30 dias). A mensagem chega pelo handler email() do Worker: o dono configura, no painel da
   // Cloudflare (atos.dev.br > Email > Email Routing > Routing rules), o catch-all com a acao "Send to a Worker" -> atos

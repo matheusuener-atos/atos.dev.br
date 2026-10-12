@@ -39,6 +39,7 @@ import { anotarDaEquipe, anotarNoIndice, estadoDe, registroDaEquipe } from "./wo
 import { bloqueioDoFormulario, formulariosParaPainel } from "./formularios.js";
 import { avisosDoDono, bloqueioDosAvisos } from "./avisos.js";
 import { entradasDoDono } from "./entradas.js";
+import { bloqueioDaPagina, statusParaPainel } from "./status.js";
 
 const SUB = /^[A-Za-z0-9_.:@-]{3,120}$/;
 const POR_VARREDURA = 25;
@@ -317,6 +318,22 @@ async function acaoNoFormulario(env, c, id, acao, d) {
   return json({ ok: true });
 }
 
+/* Tirar do ar (com o motivo, que o dono ve; as conferencias param) ou ligar de novo uma pagina de status: dono e suporte. */
+async function acaoNaPagina(env, c, nome, acao, d) {
+  if (!PODE_AGIR.includes(c.quem.papel)) return json({ erro: "o papel " + c.quem.papel + " não desliga páginas de status" }, 403);
+  const motivo = limparMotivo(d.motivo);
+  if (acao === "desligar" && motivo.length < 3) return json({ erro: "diga o motivo (o dono vê)" }, 400);
+  const r = await bloqueioDaPagina(env, nome, acao, motivo, c.quem, c.agora);
+  if (r.status !== 200) return json({ erro: r.erro }, r.status);
+  try {
+    await anotarDaEquipe(env, { por: c.quem.email, tipo: "workspace.status." + acao, sub: r.dono.sub, email: r.dono.conta, alvo: nome, motivo,
+      oque: (acao === "desligar" ? "tirou do ar a página de status " : "ligou de novo a página de status ") + nome });
+  } catch {
+    // a acao ja valeu
+  }
+  return json({ ok: true });
+}
+
 /* Desligar os avisos ao sistema de um aplicativo por abuso (o endereco usado contra um terceiro) ou ligar de novo. */
 async function acaoNosAvisos(env, c, id, acao, d) {
   if (!PODE_AGIR.includes(c.quem.papel)) return json({ erro: "o papel " + c.quem.papel + " não desliga avisos" }, 403);
@@ -378,6 +395,12 @@ export async function atenderWorkspaceNoPainel(request, env, url, c) {
       if (!env.WS_DADOS) return json({ erro: "os formulários não estão neste Worker" }, 503);
       return json(await formulariosParaPainel(env, c.agora));
     }
+    if (p === "/api/admin/workspace/status" && m === "GET") {
+      if (!env.WS_DADOS) return json({ erro: "as páginas de status não estão neste Worker" }, 503);
+      return json(await statusParaPainel(env, c.agora));
+    }
+    r = p.match(/^\/api\/admin\/workspace\/status\/([a-z0-9-]{3,30})\/(desligar|ligar)$/);
+    if (r && m === "POST") return env.WS_DADOS ? await acaoNaPagina(env, c, r[1], r[2], (await lerJson(request)) || {}) : FORA();
     r = p.match(/^\/api\/admin\/workspace\/formularios\/(f-[a-z0-9]{12})\/(desligar|ligar)$/);
     if (r && m === "POST") return env.WS_DADOS ? await acaoNoFormulario(env, c, r[1], r[2], (await lerJson(request)) || {}) : FORA();
     r = p.match(/^\/api\/admin\/workspace\/apps\/(u-[a-z0-9]{10})\/(desligar|ligar|apagar)$/);

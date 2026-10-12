@@ -19,6 +19,7 @@ import { VOLTA_DO_WORKSPACE, atenderWorkspace, ehRotaDoWorkspace } from "./works
 import { atenderEmailAtos, ehRotaDoEmailAtos, receberEmail } from "./email-atos.js";
 import { atenderSeguranca, ehRotaDaSeguranca } from "./seguranca.js";
 import { atenderFormularioPublico, atenderFormularios, ehRotaDoFormularioPublico, ehRotaDosFormularios } from "./formularios.js";
+import { atenderPaginaDeStatus, atenderStatus, conferirStatusAgendado, ehRotaDaPaginaDeStatus, ehRotaDoStatus } from "./status.js";
 
 // O registro de cada cliente da Atos Cobranca (docs/COBRANCA.md): o Durable Object precisa sair do modulo principal.
 export { ClienteCobranca } from "./cobranca/cliente.js";
@@ -125,6 +126,8 @@ export default {
       // O envio de um formulario do Workspace (/f/<id>; worker/formularios.js): vem do site do dono (outra origem; o
       // formulario confere a origem cadastrada) e responde com os proprios cabecalhos (as paginas tem CSP propria).
       if (ehRotaDoFormularioPublico(url)) return await atenderFormularioPublico(request, env, url, { dentroDoLimite });
+      // A pagina de status publica (/status/<nome>; worker/status.js): gerada aqui, com a CSP propria e 60 s de cache.
+      if (ehRotaDaPaginaDeStatus(url)) return await atenderPaginaDeStatus(request, env, url);
       // A Atos Cobranca: o aviso do Mercado Pago chega de fora (sem Origin; quem garante e a assinatura
       // HMAC); o resto e da propria pagina.
       if (ehRotaDaCobrancaV1(url)) {
@@ -154,6 +157,11 @@ export default {
       if (ehRotaDosFormularios(url)) {
         if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
         return comCabecalhos(await atenderFormularios(request, env, url, { dentroDoLimite }));
+      }
+      // A pagina de status do Workspace (worker/status.js): as rotas do dono.
+      if (ehRotaDoStatus(url)) {
+        if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
+        return comCabecalhos(await atenderStatus(request, env, url, { dentroDoLimite }));
       }
       if (ehRotaDoWorkspace(url)) {
         if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
@@ -202,17 +210,17 @@ export default {
     }
     // A area do Workspace sem sessao: a tela de entrar do Workspace (que tem o caminho da Conta Atos para quem nao tem o
     // alias), voltando a esta guia.
-    if (/^\/workspace(\/(integracoes|email|formularios))?\/?$/.test(url.pathname) && request.method === "GET" && !(await sessaoDe(request, env))) {
+    if (/^\/workspace(\/(integracoes|email|formularios|status))?\/?$/.test(url.pathname) && request.method === "GET" && !(await sessaoDe(request, env))) {
       return irPara(url, "/workspace/entrar/?volta=" + encodeURIComponent(url.pathname));
     }
-    if (/^\/workspace\/(integracoes|email|formularios)\/?$/.test(url.pathname)) {
+    if (/^\/workspace\/(integracoes|email|formularios|status)\/?$/.test(url.pathname)) {
       return comCabecalhos(await env.ASSETS.fetch(new Request(new URL("/workspace/", url), request)), true);
     }
     return comCabecalhos(await env.ASSETS.fetch(request), conta);
   },
 
   // O Cron de cada minuto (wrangler.jsonc, triggers): o PDF (e o e-mail) de uma NFS-e emitida que ainda nao tem
-  // (worker/nfse/api.js, depoisPendentes; sem nota esperando, uma leitura do KV).
+  // (worker/nfse/api.js, depoisPendentes; sem nota esperando, uma leitura do KV), e as conferencias das paginas de status.
   // O e-mail que chega a <alias>@atos.dev.br pelo catch-all da Cloudflare Email Routing (worker/email-atos.js): encaminha
   // ao destino confirmado ou recusa na entrega. As regras especificas do dominio (contato@, master@...) nao passam aqui.
   async email(message, env, ctx) {
@@ -221,6 +229,8 @@ export default {
 
   async scheduled(controller, env, ctx) {
     ctx.waitUntil(depoisPendentes(env).catch(() => null));
+    // As paginas de status do Workspace (worker/status.js): as contas vencidas da agenda, no maximo STATUS_POR_MINUTO.
+    ctx.waitUntil(conferirStatusAgendado(env).catch(() => null));
   },
 };
 

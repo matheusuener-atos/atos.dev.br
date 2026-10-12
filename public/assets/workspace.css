@@ -43,3 +43,15 @@
 .en-filtro select { height: 36px; padding: 0 10px; background: var(--bg); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 13px; outline: none; }
 .en-filtro select:focus { border-color: var(--faint); }
 .en-filtro a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+/* Status (workspace-status.js) */
+.ws-st-item { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); font-size: 13px; color: var(--text-soft); }
+.ws-st-item small { color: var(--muted); overflow-wrap: anywhere; }
+.ws-st-barras { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; height: 18px; max-width: 480px; }
+.ws-st-barras span { display: block; background: var(--line); }
+.ws-st-barras span.e-ok { background: var(--success); }
+.ws-st-barras span.e-instavel { background: var(--warning); }
+.ws-st-barras span.e-fora { background: var(--danger); }
+.ws-st-linha { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 8px; align-items: center; }
+.ws-st-linha input { height: 36px; width: 100%; min-width: 0; padding: 0 12px; background: var(--bg); border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 14px; outline: none; }
+.ws-st-linha input:focus { border-color: var(--faint); }
+@media (max-width: 560px) { .ws-st-linha { grid-template-columns: 1fr; } }

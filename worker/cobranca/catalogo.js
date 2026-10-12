@@ -51,8 +51,8 @@ export const PRODUTOS = {
     site: "https://atos.dev.br/workspace/",
     voltas: ["https://atos.dev.br/workspace/"],
     gratuito: true,
-    // A versao e a data (AAAA-MM-DD) e, numa segunda revisao no mesmo dia, ".N": "2026-10-11.2" (o e-mail Atos), "2026-10-11.3" (o alias como login e exigido para cadastrar sistemas), "2026-10-11.4" (a suspensao do Workspace pela equipe), "2026-10-12" (os Formularios), "2026-10-12.2" (os avisos ao sistema), "2026-10-12.3" (o registro de entradas).
-    termos: { versao: "2026-10-12.3", endereco: "/termos/#workspace" },
+    // A versao e a data (AAAA-MM-DD) e, numa segunda revisao no mesmo dia, ".N": "2026-10-11.2" (o e-mail Atos), "2026-10-11.3" (o alias como login e exigido para cadastrar sistemas), "2026-10-11.4" (a suspensao do Workspace pela equipe), "2026-10-12" (os Formularios), "2026-10-12.2" (os avisos ao sistema), "2026-10-12.3" (o registro de entradas), "2026-10-12.4" (a pagina de status).
+    termos: { versao: "2026-10-12.4", endereco: "/termos/#workspace" },
     precos: [],
   },
 };

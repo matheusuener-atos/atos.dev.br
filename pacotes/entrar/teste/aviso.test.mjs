@@ -20,7 +20,7 @@ test("recusa outro segredo, o corpo mexido e a assinatura trocada", async () => 
   const cab = await assinarEvento(SEGREDO, corpo);
   await assert.rejects(verificarAviso(corpo, cab, "outro"), ErroAtos);
   await assert.rejects(verificarAviso(corpo.replace("sub-ana", "sub-bia"), cab, SEGREDO), (e) => e.codigo === "aviso");
-  await assert.rejects(verificarAviso(corpo, cab.replace(/v1=./, "v1=0"), SEGREDO), ErroAtos);
+  await assert.rejects(verificarAviso(corpo, cab.replace(/v1=(.)/, (m, c) => "v1=" + (c === "0" ? "1" : "0")), SEGREDO), ErroAtos);
 });
 
 test("recusa o aviso de mais de 5 minutos e o cabecalho fora do formato", async () => {

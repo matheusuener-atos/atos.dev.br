@@ -16,7 +16,7 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var SECOES = ["geral", "integracoes", "formularios", "email"];
+  var SECOES = ["geral", "integracoes", "formularios", "status", "email"];
   var S = { conta: null, ws: null, erro: "", aceito: false, ocupado: false, confirmar: false, msg: "" };
 
   function esc(s) {
@@ -46,7 +46,7 @@
     return m && SECOES.indexOf(m[1]) > 0 ? m[1] : "geral";
   }
   var GUIAS = [["geral", "Visão geral", "/workspace/"], ["integracoes", "Integrações", "/workspace/integracoes"], ["formularios", "Formulários", "/workspace/formularios"],
-    ["email", "E-mail Atos", "/workspace/email"]];
+    ["status", "Status", "/workspace/status"],     ["email", "E-mail Atos", "/workspace/email"]];
   function guias() {
     var sec = secaoAtual();
     return '<nav class="guias" aria-label="Atos Workspace">' + GUIAS.map(function (g) {
@@ -79,6 +79,7 @@
         : "<p>Em preparação: o <strong>e-mail Atos</strong>, um endereço @atos.dev.br que encaminha para o seu e-mail.</p>") +
       "<p>E os <strong>Formulários</strong>: o seu site manda o formulário de contato para um endereço da Atos, e a Atos entrega o que foi preenchido no destino do seu e-mail Atos, sem guardar o conteúdo. " +
       "Pedem o e-mail Atos confirmado e o login por ele, como as Integrações.</p>" +
+      "<p>E a <strong>página de status</strong>: a Atos confere até 5 endereços do seu sistema a cada 5 minutos, publica atos.dev.br/status/&lt;nome&gt; (no ar, instável ou fora, com o histórico) e, se você quiser, avisa por e-mail quando um cai e quando volta.</p>" +
       "<p>Para cadastrar um sistema: <strong>1.</strong> ative o Workspace; <strong>2.</strong> crie o seu e-mail Atos e confirme o destino; " +
       "<strong>3.</strong> entre com o endereço @atos.dev.br (a mesma senha da conta); <strong>4.</strong> cadastre o sistema em Integrações. " +
       "Quem entra nele vê o seu endereço @atos.dev.br como quem cadastrou, nunca o seu e-mail pessoal.</p></div>";
@@ -146,6 +147,9 @@
       '<span class="seta" aria-hidden="true">→</span></a>' +
       '<a class="item" href="/workspace/formularios" data-ws-secao="formularios"><span class="logo inicial" aria-hidden="true">F</span>' +
       '<span class="nome"><strong>Formulários</strong><small>O formulário de contato do seu site, entregue no destino do seu e-mail Atos · até 5</small></span>' +
+      '<span class="seta" aria-hidden="true">→</span></a>' +
+      '<a class="item" href="/workspace/status" data-ws-secao="status"><span class="logo inicial" aria-hidden="true">S</span>' +
+      '<span class="nome"><strong>Status</strong><small>A página de status do seu sistema, com o aviso de queda por e-mail · até 5 endereços</small></span>' +
       '<span class="seta" aria-hidden="true">→</span></a>' +
       '<a class="item" href="/workspace/email" data-ws-secao="email"><span class="logo inicial" aria-hidden="true">@</span>' +
       '<span class="nome"><strong>E-mail Atos</strong><small>' + (W.alias ? esc(W.alias.endereco) + (W.alias.suspenso ? " · suspenso" : W.alias.confirmado ? "" : " · falta confirmar o destino")
@@ -235,6 +239,21 @@
     if (bloqueio) return h + bloqueio;
     return h + '<div id="fm-raiz"><div class="card"><p class="vazio">Carregando…</p></div></div>';
   }
+  // ------------------------------------------------------------ Status
+
+  function status() {
+    var h = titulo("Status", "A página de status do seu sistema, conferida pela Atos a cada 5 minutos.");
+    if (!S.ws) return h + (S.erro ? vazio(esc(S.erro) + ' <button type="button" class="link" data-ws="recarregar">Tentar de novo</button>') : vazio("Carregando…"));
+    var bloqueio = portao({
+      nome: "A página de status", fazer: "ter a página de status", porque: "Os avisos de queda chegam ao destino confirmado desse endereço.",
+      antigos: " Enquanto isso, a página que você já criou continua sendo conferida.",
+    });
+    if (bloqueio) return h + bloqueio.replace("A página de status fazem", "A página de status faz").replace("ficam paradas", "fica parada").replace("pedem o e-mail", "pede o e-mail").replace("Elas abrem", "Ela abre");
+    return h + '<div id="st-raiz"><div class="card"><p class="vazio">Carregando…</p></div></div>';
+  }
+  function montarStatus() {
+    script("/assets/workspace-status.js", function () { var r = $("st-raiz"); if (r && window.WorkspaceStatus) window.WorkspaceStatus.montar(r); });
+  }
   function montarFormularios() {
     script("/assets/workspace-formularios.js", function () { var r = $("fm-raiz"); if (r && window.WorkspaceFormularios) window.WorkspaceFormularios.montar(r); });
   }
@@ -269,12 +288,13 @@
 
   // ------------------------------------------------------------ desenhar e carregar
 
-  var DESENHO = { geral: geral, integracoes: integracoes, formularios: formularios, email: email };
+  var DESENHO = { geral: geral, integracoes: integracoes, formularios: formularios, status: status, email: email };
   function desenhar() {
     var sec = secaoAtual();
     $("secao").innerHTML = DESENHO[sec]();
     if (sec === "integracoes" && liberado()) montarIntegracoes();
     if (sec === "formularios" && liberado()) montarFormularios();
+    if (sec === "status" && liberado()) montarStatus();
     if (sec === "email" && S.ws) montarEmail();
   }
   function ir(sec) {

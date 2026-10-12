@@ -4,7 +4,11 @@
    Formularios (worker/formularios.js):
      GET  /api/admin/workspace/formularios                      todos, com o dono, os numeros do dia e da semana e o teto
                                                                 diario da Atos
-     POST /api/admin/workspace/formularios/:id/desligar         {motivo} (o dono ve)  | /ligar */
+     POST /api/admin/workspace/formularios/:id/desligar         {motivo} (o dono ve)  | /ligar
+
+   Paginas de status (worker/status.js):
+     GET  /api/admin/workspace/status                           todas, a agenda do Cron e o atraso
+     POST /api/admin/workspace/status/:nome/desligar            {motivo} (o dono ve)  | /ligar */
 (function () {
   "use strict";
   var A = window.AdminAtos;
@@ -84,6 +88,73 @@
   });
   document.addEventListener("input", function (e) {
     if (e.target && e.target.getAttribute && e.target.getAttribute("data-wr-in") === "motivo" && F.acao) F.acao.motivo = e.target.value;
+  });
+
+  // ------------------------------------------------------------ Paginas de status
+
+  var P = { raiz: null, dados: null, erro: "", carregando: false, acao: null };
+  function pintarP() { if (P.raiz && document.body.contains(P.raiz)) P.raiz.innerHTML = telaP(); }
+  function carregarP() {
+    P.carregando = true;
+    A.pedir("GET", "/api/admin/workspace/status").then(function (d) { P.dados = d; P.erro = ""; }, function (e) { if (e.status !== 401) P.erro = e.message; })
+      .then(function () { P.carregando = false; pintarP(); });
+  }
+  function telaP() {
+    var h = "<h1>Páginas de status</h1>", D = P.dados;
+    if (!D) return h + '<div class="card"><p class="vazio">' + (P.erro ? esc(P.erro) + ' <button type="button" class="link" data-wr="recarregar-p">Tentar de novo</button>' : "Carregando…") + "</p></div>";
+    h += '<p class="nota">As páginas atos.dev.br/status/&lt;nome&gt;: a Atos confere os endereços de cada uma a cada ' + D.limites.intervalo_min + " minutos pelo Cron, até " + D.por_minuto +
+      " contas por minuto (STATUS_POR_MINUTO). Só https público; sem IP, rede interna nem a Atos.</p>" +
+      '<div class="card"><div class="nf-det"><dl class="nf-info"><dt>Agenda</dt><dd>' + D.agenda.contas + " contas · " + D.agenda.atrasadas + " atrasadas" +
+      (D.agenda.atrasadas ? " (a maior, " + Math.round(D.agenda.maior_atraso_s / 60) + " min: aumente STATUS_POR_MINUTO)" : "") + "</dd></dl></div></div>";
+    var l = D.paginas || [];
+    h += '<h2 class="titulo-secao pv-h2"><span>Páginas (' + l.length + ")</span></h2>";
+    if (!l.length) return h + '<div class="card"><p class="vazio">Ninguém criou uma página de status ainda.</p></div>';
+    return h + '<div class="card">' + l.map(function (x) {
+      var botoes = podeMudar() ? (x.bloqueado ? '<button type="button" class="btn mini" data-wr="ligar-p" data-id="' + esc(x.nome) + '">Ligar de novo</button>'
+        : '<button type="button" class="btn mini perigo" data-wr="desligar-p" data-id="' + esc(x.nome) + '">Tirar do ar</button>') : "";
+      if (x.sub && A.atalhos && A.atalhos.contaWs) botoes = '<button type="button" class="btn mini" data-wr="conta" data-sub="' + esc(x.sub) + '">Conta</button>' + botoes;
+      return '<div class="oa-cliente"><div class="item oa-item"><span class="logo inicial" aria-hidden="true">S</span><span class="nome"><strong><a href="/status/' + esc(x.nome) + '">' + esc(x.nome) + "</a>" +
+        (x.bloqueado ? ' <span class="pv-sit perigo">tirada do ar pela Atos</span>' : "") + "</strong>" +
+        "<small>de " + esc(x.conta || x.sub) + " · criada em " + esc(U.quando(x.criado)) + (x.agenda && x.agenda.ultima ? " · conferida em " + esc(U.quando(x.agenda.ultima)) : " · ainda não conferida") + "</small>" +
+        (x.bloqueado ? "<small>Tirada do ar em " + esc(U.quando(x.bloqueado.quando)) + " por " + esc(x.bloqueado.por || "") + ": " + esc(x.bloqueado.motivo || "") + "</small>" : "") +
+        '</span><span class="pv-par">' + botoes + "</span></div></div>";
+    }).join("") + "</div>" + '<p class="nota">Tirar do ar some com a página pública e para as conferências na hora; o dono vê o motivo e não consegue mudar a página até a Atos ligar de novo. Fica no registro da equipe.</p>';
+  }
+  function modalP() {
+    var T = P.acao;
+    return '<h2 id="modal-titulo">Tirar do ar a página ' + esc(T.id) + "</h2><p>A página pública some e as conferências param na hora. O dono vê o motivo.</p>" +
+      '<label class="campo"><span class="rotulo">Motivo (o dono vê)</span><input data-wr-in="motivo-p" maxlength="200" autocomplete="off" value="' + esc(T.motivo || "") + '"></label>' +
+      (T.erro ? '<p class="erro" role="alert">' + esc(T.erro) + "</p>" : "") +
+      '<div class="botoes"><button type="button" class="btn p" data-admin="fechar-modal">Voltar</button><button type="button" class="btn p perigo" data-wr="ok-p"' + (T.enviando ? " disabled" : "") + ">" +
+      (T.enviando ? "Um momento…" : "Tirar do ar") + "</button></div>";
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-wr]");
+    if (!b || b.disabled) return;
+    var a = b.getAttribute("data-wr"), id = b.getAttribute("data-id");
+    if (a === "recarregar-p") { carregarP(); pintarP(); return; }
+    if (a === "desligar-p") { P.acao = { id: id, motivo: "", erro: "", enviando: false }; A.modal.abrir({ html: modalP, aoFechar: function () { P.acao = null; } }); return; }
+    if (a === "ligar-p") {
+      b.disabled = true;
+      A.pedir("POST", "/api/admin/workspace/status/" + encodeURIComponent(id) + "/ligar", {}).then(function () { A.toast("Ligada de novo"); carregarP(); },
+        function (er) { b.disabled = false; if (er.status !== 401) A.toast(er.message, true); });
+      return;
+    }
+    if (a === "ok-p") {
+      var T = P.acao; if (!T || T.enviando) return;
+      T.enviando = true; T.erro = ""; A.modal.repintar();
+      A.pedir("POST", "/api/admin/workspace/status/" + encodeURIComponent(T.id) + "/desligar", { motivo: T.motivo }).then(function () {
+        if (P.acao !== T) return;
+        A.modal.fechar(); A.toast("Tirada do ar"); carregarP();
+      }, function (er) { if (P.acao !== T) return; T.enviando = false; T.erro = er.status === 401 ? "" : er.message; A.modal.repintar(); });
+    }
+  });
+  document.addEventListener("input", function (e) {
+    if (e.target && e.target.getAttribute && e.target.getAttribute("data-wr-in") === "motivo-p" && P.acao) P.acao.motivo = e.target.value;
+  });
+  A.secoes.push({
+    id: "ws-status", nome: "Páginas de status", grupo: "Atos Workspace", area: "atos", ordem: 6,
+    desenhar: function (raiz) { P.raiz = raiz; pintarP(); if (!P.carregando) carregarP(); },
   });
 
   A.secoes.push({

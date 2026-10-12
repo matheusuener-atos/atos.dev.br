@@ -33,7 +33,7 @@
 
 <main class="integracao">
   <h1>Atos Workspace</h1>
-  <p class="lead">O produto da Atos para quem constrói sistemas com a Conta Atos. Hoje ele traz o Login Atos para os seus sistemas: o “Entrar com Atos”, um login pronto para o seu site, aplicativo ou servidor, em que a pessoa entra com a Conta Atos dela, do mesmo jeito que entra com o Google. E os <a href="#formularios">Formulários</a>: o formulário de contato do seu site, entregue no seu e-mail Atos. Gratuito: ativar é aceitar os termos do Workspace.</p>
+  <p class="lead">O produto da Atos para quem constrói sistemas com a Conta Atos. Hoje ele traz o Login Atos para os seus sistemas: o “Entrar com Atos”, um login pronto para o seu site, aplicativo ou servidor, em que a pessoa entra com a Conta Atos dela, do mesmo jeito que entra com o Google. E os <a href="#formularios">Formulários</a> (o formulário de contato do seu site, entregue no seu e-mail Atos) e a <a href="#status">página de status</a> do seu sistema. Gratuito: ativar é aceitar os termos do Workspace.</p>
   <div class="chamadas">
     <a class="btn primario" href="/entrar/?volta=/workspace/">Ativar o Atos Workspace<span class="seta" aria-hidden="true">→</span></a>
     <a class="btn" href="/workspace/entrar/">Já tenho, ir ao Workspace</a>
@@ -50,6 +50,7 @@
       <div>
         <h3>O que inclui hoje</h3>
         <p>O Login Atos para os seus sistemas: até 5 aplicativos por conta, 5 acessos por aplicativo e 500 pessoas liberadas por aplicativo, em Atos Workspace › Integrações, com os <a href="#avisos">avisos ao seu sistema</a> quando o acesso das pessoas muda e o registro de entradas de cada aplicativo (90 dias, com filtro e CSV).</p>
+        <p>A página de status: até 5 endereços do seu sistema conferidos a cada 5 minutos, publicados em atos.dev.br/status/&lt;nome&gt;, com o aviso de queda por e-mail. <a href="#status">Como funciona</a>.</p>
         <p>Os Formulários: o formulário de contato de um site estático (até 5 por conta), entregue no destino do seu e-mail Atos, em Atos Workspace › Formulários. Pedem o e-mail Atos com o destino confirmado, como as Integrações. <a href="#formularios">Como usar</a>.</p>
         <p>O e-mail Atos (em preparação na Atos): um endereço @atos.dev.br que encaminha para o seu e-mail (não é caixa de entrada) e que também entra na sua Conta Atos, com a mesma senha. Cadastrar um sistema pede o e-mail Atos com o destino confirmado; enquanto ele estiver em preparação, a área do Workspace avisa e o cadastro de sistemas espera.</p>
       </div>
@@ -856,6 +857,18 @@ app.post("/atos/avisos", express.text({ type: "application/json" }), async (req,
   res.sendStatus(200);
 });</code></pre>
     <p class="nota-fim">Passe o corpo cru (o texto, antes do <code>JSON.parse</code>). Em outra linguagem: calcule o HMAC-SHA256 de <code>t + "." + corpo</code> com o segredo, compare em tempo constante com <code>v1</code> e confira a idade de <code>t</code>.</p>
+  </section>
+
+  <section id="status" aria-labelledby="status-titulo">
+    <h2 id="status-titulo">Página de status</h2>
+    <div class="corpo">
+      <p>Em Atos Workspace › Status, cadastre até 5 endereços https do seu sistema (uma página por conta; pede o e-mail Atos confirmado, como os Formulários). A Atos confere cada um a cada 5 minutos, mais ou menos, e publica, se você quiser, <code>atos.dev.br/status/&lt;nome&gt;</code>: no ar, instável ou fora, o tempo de resposta e o histórico de 30 ou 90 dias, sem as URLs. Se você ligar, ela avisa por e-mail (no destino do seu e-mail Atos) quando um endereço cai, depois de duas conferências seguidas fora, e quando volta.</p>
+    </div>
+    <dl class="tabela-ref">
+      <div><dt>A conferência</dt><dd><code>GET</code> com <code>User-Agent: AtosStatus/1</code>, sem seguir redirecionamentos, até 10 s, sem ler o corpo. 2xx e 3xx: no ar (acima de 3 s, lento); 4xx, 5xx, erro ou tempo esgotado: fora.</dd></div>
+      <div><dt>Os endereços</dt><dd>Só https público, na porta padrão: sem IP, rede interna, nomes reservados ou a Atos. Um endereço leve, como <code>/saude</code>, é o melhor.</dd></div>
+      <div><dt>Histórico</dt><dd>90 dias. A página pública não carrega script e fica 60 s em cache.</dd></div>
+    </dl>
   </section>
 
   <section id="formularios" aria-labelledby="formularios-titulo">
