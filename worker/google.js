@@ -28,6 +28,7 @@
 
 import { EMISSOR, aleatorio, b64url, deB64url, kv, normal, sha256 } from "./comum.js";
 import { abrirSessao } from "./contas.js";
+import { exigeSegunda, iniciarEtapa } from "./seguranca/etapa.js";
 
 const AUTORIZAR = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN = "https://oauth2.googleapis.com/token";
@@ -122,7 +123,20 @@ export async function atenderGoogle(request, env, url, deps = {}) {
     await env.CONTAS.put("id:conta:" + email, JSON.stringify(conta));
     if (!indice) await env.CONTAS.put("id:google:" + email, JSON.stringify({ sub: gsub }));
   }
-  const cookie = await abrirSessao(env, { sub: conta.sub, email }, agora);
+  // A conta com a segunda etapa (worker/seguranca/etapa.js): o Google confirmou o e-mail, mas a sessao so abre depois
+  // do codigo ou da chave de acesso. Volta a /entrar com ?etapa=1 (e o pedido do aplicativo, se havia).
+  let etapa = null;
+  try {
+    if (await exigeSegunda(env, conta.sub, agora)) etapa = await iniciarEtapa(env, { sub: conta.sub, email }, "google", agora);
+  } catch {
+    return ir(aEntrar(p.consulta, "não deu para conferir a sua conta agora: tente de novo em instantes"));
+  }
+  if (etapa) {
+    const q = new URLSearchParams(p.consulta || "");
+    q.set("etapa", "1");
+    return ir(EMISSOR + "/entrar/?" + q.toString(), etapa.cookie);
+  }
+  const cookie = await abrirSessao(env, { sub: conta.sub, email }, agora, { como: "google", request });
   return ir(p.consulta ? aEntrar(p.consulta) : EMISSOR + "/conta/", cookie);
 }
 

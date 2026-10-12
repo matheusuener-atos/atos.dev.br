@@ -4,6 +4,7 @@
 // reservados, login recente, outra conta, o painel da equipe (ver, desligar por abuso, ligar, apagar) e o CORS. Sem rede.
 //   node worker/teste-integracoes.mjs
 import worker from "./index.js";
+import { comSeguranca, ligarSegundaEtapa } from "./apoio-teste-seguranca.mjs";
 import { conferirIdToken } from "./oidc.js";
 import { nomeReservado } from "./integracoes.js";
 import { sha256 } from "./comum.js";
@@ -76,7 +77,8 @@ async function sessao(email, { idade = 0, alias = "" } = {}) {
   const segredo = "s-" + email + "-" + idade + "-" + alias;
   const sub = "sub-" + email.split("@")[0];
   guardados.set("id:conta:" + email, JSON.stringify({ sub, nome: "Nome " + email.split("@")[0] }));
-  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub, email, auth_time: Math.floor(Date.now() / 1000) - idade, ...(alias ? { via: "alias", alias } : {}) }));
+  await ligarSegundaEtapa(env, sub);
+  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub, email, auth_time: Math.floor(Date.now() / 1000) - idade, mfa: true, ...(alias ? { via: "alias", alias } : {}) }));
   return "__Host-atos=" + segredo;
 }
 async function chamar(caminho, { metodo = "POST", corpo, form, cookie, origem = A, headers = {}, e = env } = {}) {

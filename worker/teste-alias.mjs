@@ -7,6 +7,7 @@
 // conta) e o Worker de teste (as chaves com prefixo, a Cloudflare simulada pelas rotas). Sem rede.
 //   node worker/teste-alias.mjs
 import worker from "./index.js";
+import { comSeguranca, ligarSegundaEtapa } from "./apoio-teste-seguranca.mjs";
 import { conferirIdToken } from "./oidc.js";
 import { ClienteCobranca } from "./cobranca/cliente.js";
 import { PRODUTOS } from "./cobranca/catalogo.js";
@@ -210,6 +211,21 @@ r = await chamar("/api/entrar", { corpo: { email: "pedro@gmail.com", senha: "out
 const pe = cookieDe(r);
 checar(pa && pe, "as duas sessões de agora: pelo alias e pelo e-mail");
 
+// A segunda etapa (worker/seguranca/etapa.js) vale tambem pelo alias e pela tela do Workspace: a senha certa nao abre a
+// sessao, vem a etapa. Depois, a etapa sai (o resto do teste entra so com a senha).
+console.log("a segunda etapa pelo endereço Atos");
+await ligarSegundaEtapa(env, pedro.sub);
+for (const [nome, corpo] of [["pelo alias", { email: "pedro.silva@atos.dev.br", senha: "outra-senha-456" }],
+  ["pela tela do Workspace", { email: "pedro.silva@atos.dev.br", senha: "outra-senha-456", workspace: true }],
+  ["pelo e-mail da conta", { email: "pedro@gmail.com", senha: "outra-senha-456" }]]) {
+  r = await chamar("/api/entrar", { corpo });
+  const sc = r.r.headers.getSetCookie();
+  checar(r.status === 200 && r.d.etapa && r.d.etapa.chave === true && !r.d.ok && sc.length === 1 && sc[0].startsWith("__Host-atos-etapa="), nome + ": a senha certa pede a segunda etapa (sem sessão)", { d: r.d, sc });
+}
+await env.SEGURANCA.get(pedro.sub).o.ctx.storage.put("reg", { chaves: [] });
+r = await chamar("/api/entrar", { corpo: { email: "pedro.silva@atos.dev.br", senha: "outra-senha-456" } });
+checar(r.status === 200 && r.d.ok && cookieDe(r).startsWith("__Host-atos="), "sem a etapa, o alias entra direto de novo", r.d);
+
 // ------------------------------------------------------------------ o Workspace e as excecoes
 
 console.log("o Workspace");
@@ -332,7 +348,8 @@ guardados.set("id:conta:dono@atos.dev.br", JSON.stringify({ sub: "sub-dono", nom
 {
   const segredo = "dono-sessao";
   const h = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(segredo)))].map((x) => x.toString(16).padStart(2, "0")).join("");
-  guardados.set("atos:sessao:" + h, JSON.stringify({ sub: "sub-dono", email: "dono@atos.dev.br", auth_time: Math.floor(Date.now() / 1000) }));
+  await ligarSegundaEtapa(env, "sub-dono");
+  guardados.set("atos:sessao:" + h, JSON.stringify({ sub: "sub-dono", email: "dono@atos.dev.br", auth_time: Math.floor(Date.now() / 1000), mfa: true }));
   r = await GET("/api/admin/oauth", "__Host-atos=" + segredo);
 }
 const t = r.d && r.d.terceiros && r.d.terceiros.find((a) => a.id === app.id);

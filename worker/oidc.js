@@ -305,6 +305,8 @@ async function emitirCodigo(env, pedido, sessao) {
   await env.CONTAS.put("atos:codigo:" + (await sha256(codigo)), JSON.stringify({
     clienteId: pedido.clienteId, volta: pedido.volta, desafio: pedido.desafio, nonce: pedido.nonce, escopos: pedido.escopos,
     sub: sessao.sub, email: sessao.email, auth_time: sessao.auth_time,
+    // Como a pessoa entrou (RFC 8176; worker/seguranca/etapa.js): vai no id_token. Sessao de antes do amr: sem ele.
+    ...(Array.isArray(sessao.amr) && sessao.amr.length ? { amr: sessao.amr } : {}),
   }), { expirationTtl: CODIGO_S });
   return voltar(pedido.volta, { code: codigo, state: pedido.state, iss: emissorDe(env) });
 }
@@ -419,7 +421,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
       subject_types_supported: ["public"],
       id_token_signing_alg_values_supported: ["ES256"],
       scopes_supported: Object.keys(ESCOPOS),
-      claims_supported: ["sub", "email", "email_verified", "name", "auth_time", "nonce"],
+      claims_supported: ["sub", "email", "email_verified", "name", "auth_time", "nonce", "amr"],
       code_challenge_methods_supported: ["S256"],
       token_endpoint_auth_methods_supported: ["none", "client_secret_basic", "client_secret_post"],
       prompt_values_supported: ["none", "login", "consent", "create"],
@@ -504,7 +506,8 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     const s = Math.floor(agora / 1000);
     const idToken = await assinarJWT(env, {
       iss: EMISSOR, aud: clienteId, azp: clienteId, iat: s, exp: s + TOKEN_S, auth_time: c.auth_time,
-      ...(c.nonce ? { nonce: c.nonce } : {}), ...reivindicacoes(c.escopos, dados),
+      ...(c.nonce ? { nonce: c.nonce } : {}), ...(Array.isArray(c.amr) && c.amr.length ? { amr: c.amr.map(String).slice(0, 10) } : {}),
+      ...reivindicacoes(c.escopos, dados),
     });
     const acesso = aleatorio(32);
     await env.CONTAS.put("atos:acesso:" + (await sha256(acesso)), JSON.stringify({ sub: c.sub, email: c.email, clienteId, escopos: c.escopos }), { expirationTtl: TOKEN_S });

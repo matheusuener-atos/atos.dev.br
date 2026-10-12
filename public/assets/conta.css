@@ -416,3 +416,26 @@ main.texto { flex: 1; width: 100%; max-width: 820px; margin: 0 auto; padding: 48
 }
 .fatura .docs { flex-wrap: wrap; align-items: center; }
 .fatura .docs .sem { font-size: 11px; color: var(--faint); }
+
+/* Minha conta > Seguranca (assets/conta-seguranca.js) */
+.seg-aviso { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; font-size: 13px; color: var(--text-soft); }
+.seg-fluxo { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-bottom: 1px solid var(--line); font-size: 13px; line-height: 1.55; color: var(--text-soft); }
+.seg-fluxo:last-child { border-bottom: 0; }
+.seg-fluxo strong { color: var(--text); }
+.seg-qr { align-self: flex-start; padding: 8px; background: #fff; border: 1px solid var(--line); line-height: 0; }
+.seg-qr svg { display: block; width: 200px; height: 200px; }
+.seg-chave { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 15px; letter-spacing: .08em; color: var(--text); overflow-wrap: anywhere; user-select: all; }
+.seg-form { display: flex; flex-direction: column; gap: 12px; }
+.seg-form .campo { max-width: 280px; }
+.seg-form .campo input, .seg-nova .campo input { height: 40px; }
+.seg-codigos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, max-content)); gap: 8px 32px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 15px; color: var(--text); user-select: all; }
+.botoes.sem-borda { padding: 0; }
+.seg-nova { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line); }
+.seg-nova .campo { flex: 1 1 220px; }
+.seg-alerta { color: var(--warning) !important; }
+.item .nome small.seg-alerta { white-space: normal; }
+@media (max-width: 640px) {
+  .seg-codigos { grid-template-columns: 1fr; }
+  .seg-form .campo { max-width: none; }
+  .item { flex-wrap: wrap; }
+}

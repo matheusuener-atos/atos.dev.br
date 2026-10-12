@@ -3,6 +3,7 @@
 // segredo (basic e post), desligar, apagar, retroagir, os fixos intactos e o prefixo do Worker de teste. Sem rede.
 //   node worker/teste-oauth.mjs
 import worker from "./index.js";
+import { comSeguranca, ligarSegundaEtapa } from "./apoio-teste-seguranca.mjs";
 import { conferirIdToken } from "./oidc.js";
 import { sha256 } from "./comum.js";
 
@@ -26,13 +27,15 @@ const env = {
   ATOS_EQUIPE: JSON.stringify([{ email: "dono@atos.dev.br", nome: "Dono", papel: "dono" }, { email: "fin@atos.dev.br", nome: "Fin", papel: "financeiro" }]),
   ASSETS: { fetch: async () => new Response("<p>pagina</p>", { headers: { "content-type": "text/html" } }) },
 };
+comSeguranca(env);
 const envT = { ...env, AMBIENTE: "teste" };
 const A = "https://atos.dev.br";
 
 async function sessao(email) {
   const segredo = "s-" + email;
   guardados.set("id:conta:" + email, JSON.stringify({ sub: "sub-" + email.split("@")[0], nome: "Nome " + email.split("@")[0] }));
-  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub: "sub-" + email.split("@")[0], email, auth_time: Math.floor(Date.now() / 1000) }));
+  await ligarSegundaEtapa(env, "sub-" + email.split("@")[0]);
+  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub: "sub-" + email.split("@")[0], email, auth_time: Math.floor(Date.now() / 1000), mfa: true }));
   return "__Host-atos=" + segredo;
 }
 async function chamar(caminho, { metodo = "POST", corpo, form, cookie, origem = A, headers = {}, e = env } = {}) {

@@ -6,6 +6,14 @@
 //   RESEND_API_KEY     o envio dos codigos (e das NFS-e) por e-mail (dominio atos.dev.br verificado no Resend)
 //   NFSE_CHAVE_MESTRA  cifra o certificado A1 e o token da Cloudflare do emissor de NFS-e (openssl rand -base64 32;
 //                      trocar = instalar o certificado e colar o token de novo). Tambem no --env teste (outra).
+//   CONTA_CHAVE_MESTRA cifra o segredo da verificacao em duas etapas (o aplicativo autenticador) de cada Conta Atos
+//                      (worker/seguranca/totp.js): 32 bytes em base64. Criar:
+//                        node -e "process.stdout.write(require('crypto').randomBytes(32).toString('base64'))" | npx wrangler secret put CONTA_CHAVE_MESTRA
+//                      Sem ele, o aplicativo autenticador nao liga (as chaves de acesso funcionam). Trocar = todo
+//                      aplicativo ja ligado deixa de conferir (cada pessoa usa um codigo de recuperacao ou a chave e
+//                      liga de novo). No --env teste, sem um proprio, a chave sai do NFSE_CHAVE_MESTRA de teste (HKDF).
+// A seguranca de cada conta (o aplicativo, os codigos de recuperacao, as chaves de acesso, os desafios) mora no Durable
+// Object SegurancaConta (worker/seguranca/objeto.js, um por conta), com consistencia forte para o que e de uso unico.
 //
 // ANTES DO PRIMEIRO DEPLOY COM O EMISSOR DE NFS-e: o service binding SEFIN_MTLS, abaixo, aponta para o Worker
 // auxiliar "atos-nfse-mtls" - o deploy FALHA se ele nao existir. O dono cria o auxiliar uma vez (nfse-mtls/index.js,
@@ -47,11 +55,12 @@
   // O emissor de NFS-e da Atos (worker/nfse/emissor.js, EmissorNFSe): uma instancia so (idFromName("atos")), SQLite,
   // com o prestador, o certificado A1 cifrado (NFSE_CHAVE_MESTRA), a numeracao e as notas. O painel o usa por
   // /api/admin/nfse/* (worker/nfse/api.js); a cobranca poe cada pagamento aprovado na fila (worker/nfse/atos.js).
-  "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }] },
+  "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }, { "name": "SEGURANCA", "class_name": "SegurancaConta" }] },
   "migrations": [
     { "tag": "v1-clientes-cobranca", "new_sqlite_classes": ["ClienteCobranca"] },
     { "tag": "v2-emissor-nfse", "new_sqlite_classes": ["EmissorNFSe"] },
-    { "tag": "v3-email-atos", "new_sqlite_classes": ["EmailAtos"] }
+    { "tag": "v3-email-atos", "new_sqlite_classes": ["EmailAtos"] },
+    { "tag": "v4-seguranca-conta", "new_sqlite_classes": ["SegurancaConta"] }
   ],
   // O e-mail Atos (worker/email-atos.js, EmailAtos): uma instancia so (idFromName("registro")) com os aliases, os destinos,
   // os contadores e o registro (30 dias). A mensagem chega pelo handler email() do Worker: o dono configura, no painel da
@@ -120,7 +129,7 @@
       "routes": [],
       "kv_namespaces": [{ "binding": "CONTAS", "id": "c8011a70799b40b0b3215f4a01b2d28c" }],
       "ratelimits": [{ "name": "LIMITE", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } }],
-      "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }] },
+      "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }, { "name": "SEGURANCA", "class_name": "SegurancaConta" }] },
       "vars": {
         "AMBIENTE": "teste",
         // O e-mail Atos no teste: a Cloudflare simulada (worker/email-atos.js): os destinos ficam no objeto, "verificados"

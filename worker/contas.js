@@ -39,10 +39,24 @@
 // sub - e a mesma conta. Senao, um sub novo "pv-<hex>" (o prefixo ficou do
 // PAVLVS; trocar mudaria o sub de quem ja tem conta).
 
+// A segunda etapa (worker/seguranca/etapa.js): com a verificacao em duas etapas (o aplicativo autenticador ou uma chave de
+// acesso), a senha certa - e o codigo do "Esqueci a senha", e o codigo do cadastro numa conta que ja existia - nao abre
+// a sessao: responde {etapa: {otp, recuperacao, chave}} com o cookie da etapa, e a pagina pede "Confirme que e voce"
+// (POST /api/segunda-etapa, worker/seguranca.js). A troca de senha acontece mesmo assim (quem tem o codigo do e-mail
+// troca a senha), mas entrar ainda pede a segunda etapa.
+//
+// A sessao guarda tambem como a pessoa entrou (como: senha, alias, google, cadastro, redefinir, chave), o amr (RFC 8176:
+// vai no id_token), mfa (passou pela segunda etapa, ou entrou com a chave de acesso) e quando, e criada (ms). "Sair de
+// todas as outras" (Minha conta > Seguranca) anota na conta o instante (sessoes_desde; sessoes_desde_teste no Worker de
+// teste) e toda sessao criada antes cai aqui.
+
 import { aleatorio, deHex, emailValido, hex, iguais, json, kv, lerJson, limparNome, normal, sha256 } from "./comum.js";
 import { enviarEmail } from "./email.js";
 import { googleLigado } from "./google.js";
 import { DOMINIO, aliasDoTexto, aliasParaEntrar } from "./email-atos.js";
+import { AMR, exigeSegunda, iniciarEtapa, respostaDaEtapa } from "./seguranca/etapa.js";
+import { anotar, indexarSessao } from "./seguranca/atividade.js";
+import { avisar } from "./seguranca/avisos.js";
 
 const ITERACOES = 30000;
 const MIN_SENHA = 10;
@@ -72,7 +86,7 @@ const novoSub = () => "pv-" + hex(crypto.getRandomValues(new Uint8Array(12)));
 
 // ---------------------------------------------------------------- a sessao
 
-function lerCookie(request, nome) {
+export function lerCookie(request, nome) {
   for (const parte of (request.headers.get("cookie") || "").split(";")) {
     const i = parte.indexOf("=");
     if (i > 0 && parte.slice(0, i).trim() === nome) return parte.slice(i + 1).trim();
@@ -86,24 +100,53 @@ function lerCookie(request, nome) {
 export async function sessaoDe(request, env) {
   const segredo = lerCookie(request, COOKIE);
   if (!segredo || segredo.length > 100) return null;
-  const s = await kv(env, "atos:sessao:" + (await sha256(segredo)));
+  const h = await sha256(segredo);
+  const s = await kv(env, "atos:sessao:" + h);
   if (!s || !s.sub || !s.email) return null;
   // A conta pode ter trocado de nome; o sub e o e-mail nao mudam.
   const c = await kv(env, "id:conta:" + s.email);
   if (!c || c.sub !== s.sub) return null;
   // Senha trocada depois de a sessao abrir: a sessao cai (a troca fecha as outras).
   if (c.trocada && s.auth_time * 1000 < Date.parse(c.trocada) - 1000) return null;
+  // "Sair de todas as outras": as sessoes criadas antes do instante anotado caem.
+  const desde = Number(c[campoSessoesDesde(env)]) || 0;
+  const criada = Number(s.criada) || s.auth_time * 1000;
+  if (desde && criada < desde) return null;
   const peloAlias = s.via === "alias" && typeof s.alias === "string" && s.alias;
-  return { sub: s.sub, email: s.email, nome: c.nome || "", auth_time: s.auth_time, via: peloAlias ? "alias" : "email", alias: peloAlias ? s.alias : "" };
+  return {
+    sub: s.sub, email: s.email, nome: c.nome || "", auth_time: s.auth_time, via: peloAlias ? "alias" : "email", alias: peloAlias ? s.alias : "",
+    como: s.como || "", amr: Array.isArray(s.amr) ? s.amr : null, mfa: s.mfa === true, mfa_em: s.mfa_em || 0, criada, h,
+  };
 }
 
-/* Abre a sessao de `conta` ({sub, email: o principal, alias?: quando entrou pelo endereco Atos}). */
-export async function abrirSessao(env, conta, agora) {
+/* O campo da conta com o instante do "Sair de todas as outras": um por Worker (as sessoes do teste nao derrubam as da
+   producao, e vice-versa; o KV e o mesmo). */
+export const campoSessoesDesde = (env) => (env && env.AMBIENTE === "teste" ? "sessoes_desde_teste" : "sessoes_desde");
+
+/* Abre a sessao de `conta` ({sub, email: o principal, alias?: quando entrou pelo endereco Atos}). `info`: {como, amr,
+   mfa, segunda (o metodo da segunda etapa), request (o lugar e o navegador do registro de acessos)}. */
+export async function abrirSessao(env, conta, agora, info = {}) {
   const segredo = aleatorio(32);
   const auth_time = Math.floor(agora / 1000);
-  const s = { sub: conta.sub, email: conta.email, auth_time, ...(conta.alias ? { via: "alias", alias: conta.alias } : {}) };
-  await env.CONTAS.put("atos:sessao:" + (await sha256(segredo)), JSON.stringify(s), { expirationTtl: SESSAO_S });
+  const como = info.como || (conta.alias ? "alias" : "senha");
+  const s = {
+    sub: conta.sub, email: conta.email, auth_time, criada: agora, como, amr: info.amr || AMR[como] || [],
+    ...(info.mfa ? { mfa: true, mfa_em: agora } : {}), ...(conta.alias ? { via: "alias", alias: conta.alias } : {}),
+  };
+  const h = await sha256(segredo);
+  await env.CONTAS.put("atos:sessao:" + h, JSON.stringify(s), { expirationTtl: SESSAO_S });
+  await indexarSessao(env, conta.sub, h, { como, segunda: info.segunda || "" }, agora, info.request);
+  await anotar(env, conta.sub, { tipo: "entrada", como, ...(info.segunda ? { segunda: info.segunda } : {}) }, agora, info.request);
   return COOKIE + "=" + segredo + "; Path=/; Max-Age=" + SESSAO_S + "; HttpOnly; Secure; SameSite=Lax";
+}
+
+/* Entra (abre a sessao) ou, se a conta tem a segunda etapa, comeca a etapa. `corpo`: a resposta de quem entrou. */
+async function entrarOuEtapa(env, request, agora, conta, como, corpo) {
+  if (await exigeSegunda(env, conta.sub, agora)) {
+    const { ok, ...resto } = corpo;
+    return respostaDaEtapa(await iniciarEtapa(env, conta, como, agora), resto);
+  }
+  return comSessao(corpo, await abrirSessao(env, conta, agora, { como, request }));
 }
 
 /* "pedro@gmail.com" -> "p***@gmail.com": o e-mail cadastrado, mascarado (a tela do "Esqueci a senha" pelo alias). */
@@ -219,9 +262,13 @@ export async function atenderConta(request, env, url, deps = {}) {
       return json({ erro: "e-mail ou senha não conferem" }, 401);
     }
     await env.CONTAS.delete(chaveDeErros(env, email, q.peloAlias && q.alias));
-    // A sessao lembra que entrou pelo alias (o sub e o e-mail continuam os da conta).
-    return comSessao({ ok: true, conta: { email: q.email, nome: c.nome || "" }, via: q.peloAlias ? "alias" : "email" },
-      await abrirSessao(env, { sub: c.sub, email: q.email, alias: q.peloAlias ? q.alias : "" }, agora));
+    // A sessao lembra que entrou pelo alias (o sub e o e-mail continuam os da conta). Com a segunda etapa, ainda nao.
+    try {
+      return await entrarOuEtapa(env, request, agora, { sub: c.sub, email: q.email, alias: q.peloAlias ? q.alias : "" }, q.peloAlias ? "alias" : "senha",
+        { ok: true, conta: { email: q.email, nome: c.nome || "" }, via: q.peloAlias ? "alias" : "email" });
+    } catch {
+      return SEM_REGISTRO();
+    }
   }
 
   // Os enderecos @atos.dev.br sao do e-mail Atos (o alias de alguem, que entra na conta dele): nao viram conta nova.
@@ -266,7 +313,12 @@ export async function atenderConta(request, env, url, deps = {}) {
     if (!ja) await env.CONTAS.put("id:conta:" + email, JSON.stringify(conta));
     await env.CONTAS.delete("id:pend:" + email);
     await env.CONTAS.delete("id:erros:" + email);
-    return comSessao({ ok: true, conta: { email, nome: conta.nome || "" } }, await abrirSessao(env, { sub: conta.sub, email }, agora));
+    // A conta que ja existia pode ter a segunda etapa: o codigo do e-mail sozinho nao entra nela.
+    try {
+      return await entrarOuEtapa(env, request, agora, { sub: conta.sub, email }, "cadastro", { ok: true, conta: { email, nome: conta.nome || "" } });
+    } catch {
+      return SEM_REGISTRO();
+    }
   }
 
   if (p === "/api/esqueci") {
@@ -311,9 +363,16 @@ export async function atenderConta(request, env, url, deps = {}) {
     await env.CONTAS.put("id:conta:" + alvo, JSON.stringify(conta));
     await env.CONTAS.delete("id:rec:" + alvo);
     await env.CONTAS.delete(chaveDeErros(env, email, k));
-    // A troca fecha as outras sessoes (sessaoDe confere "trocada"); esta abre agora (pelo alias, se foi por ele).
-    return comSessao({ ok: true, conta: { email: alvo, nome: conta.nome || "" }, via: q.peloAlias ? "alias" : "email" },
-      await abrirSessao(env, { sub, email: alvo, alias: q.peloAlias ? q.alias : "" }, agora));
+    await anotar(env, sub, { tipo: "mudanca", evento: "senha-trocada" }, agora, request);
+    if (antes) await avisar(env, deps, alvo, "senha-trocada", { agora, request });
+    // A troca fecha as outras sessoes (sessaoDe confere "trocada"); esta abre agora (pelo alias, se foi por ele). Com a
+    // segunda etapa ligada, o "Esqueci a senha" nao a pula: a senha ja mudou, mas entrar ainda pede o codigo ou a chave.
+    try {
+      return await entrarOuEtapa(env, request, agora, { sub, email: alvo, alias: q.peloAlias ? q.alias : "" }, "redefinir",
+        { ok: true, conta: { email: alvo, nome: conta.nome || "" }, via: q.peloAlias ? "alias" : "email" });
+    } catch {
+      return SEM_REGISTRO();
+    }
   }
 
   return json({ erro: "rota não existe" }, 404);

@@ -14,21 +14,25 @@
   var params = new URLSearchParams(consulta);
   var OIDC = params.has("client_id");
   var tela = document.getElementById("tela");
-  var S = { modo: "carregando", email: "", nome: "", erro: params.get("erro_google") || "", pedido: null, ocupado: false, google: false, aviso: "" };
+  var S = { modo: "carregando", email: "", nome: "", erro: params.get("erro_google") || "", pedido: null, ocupado: false, google: false, aviso: "", etapa: null };
   // O cadastro esperando o codigo (so na memoria desta aba): o "Reenviar codigo" manda de novo.
   var pendente = null;
   // Aberto por um aplicativo ("Entrar com Atos"): o modo popup, so a marca no topo.
   if (OIDC) document.body.classList.add("popup");
   // O pedido do aplicativo vai junto ao Google e volta (worker/google.js); o erro dele nao.
   params.delete("erro_google");
+  // ?etapa=1: o Google confirmou, e a conta tem a verificacao em duas etapas (o cookie da etapa veio junto).
+  var VOLTOU_DA_ETAPA = params.get("etapa") === "1";
+  params.delete("etapa");
   // So caminho daqui ("/pavlvs/assinar/?preco=..."), nunca outro site: "//x" e "https:" nao passam.
   var VOLTA = C.volta(params);
   consulta = OIDC ? (function () { var q = new URLSearchParams(params); return q.toString(); })() : VOLTA ? "volta=" + encodeURIComponent(VOLTA) : "";
   var G = '<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
   /* "Continuar com Google" (worker/google.js), dentro do cartao, depois do "ou": so com o Google ligado na Atos. */
   function comGoogle() {
-    if (!S.google) return "";
-    return '<div class="ou">ou</div><a class="btn largo" href="/oauth/google?consulta=' + encodeURIComponent(consulta) + '">' + G + "<span>Continuar com Google</span></a>";
+    var chave = S.modo === "entrar" && C.temChave() ? '<button type="button" class="btn largo" data-acao="chave"' + DIS() + ">Entrar com chave de acesso</button>" : "";
+    if (!S.google && !chave) return "";
+    return '<div class="ou">ou</div>' + (S.google ? '<a class="btn largo" href="/oauth/google?consulta=' + encodeURIComponent(consulta) + '">' + G + "<span>Continuar com Google</span></a>" : "") + chave;
   }
 
   function nomeDoApp() { return S.pedido && S.pedido.app ? S.pedido.app.nome : ""; }
@@ -106,6 +110,9 @@
         campo("senha", "Nova senha", "password", 'autocomplete="new-password" maxlength="200" required') +
         campo("senha2", "Confirmar a nova senha", "password", 'autocomplete="new-password" maxlength="200" required') +
         botao("Trocar a senha") + "</form>" + pe(link("esqueci", "Voltar"));
+    } else if (S.modo === "etapa") {
+      // A segunda etapa (entrar-comum.js): o codigo do aplicativo, um codigo de recuperacao ou a chave de acesso.
+      h = C.etapaHtml(S.etapa);
     } else if (S.modo === "negado") {
       // A Conta Atos nao esta entre as que podem entrar neste aplicativo: nada de consentimento nem codigo.
       var pn = S.pedido;
@@ -131,8 +138,19 @@
         '<button type="button" class="btn primario" data-acao="permitir"' + DIS() + ">Permitir</button></div>";
     }
     tela.innerHTML = h;
-    C.focar(tela, S.ocupado);
+    C.focar(tela, S.ocupado || (S.etapa && S.etapa.ocupado));
   }
+
+  /* A resposta da segunda etapa (ou do "Entrar com chave de acesso"). */
+  function depoisDaEtapa(d) {
+    if (S.etapa) S.etapa.ocupado = false;
+    S.ocupado = false;
+    if (d.ok) { depoisDeEntrar(); return; }
+    if (d.recomecar) { S.etapa = null; ir("entrar", d.erro); return; }
+    if (S.modo === "etapa") { S.etapa.erro = d.erro || "não deu certo: tente de novo"; desenhar(); return; }
+    S.erro = d.erro || "não deu certo: tente de novo"; desenhar();
+  }
+  function comecarEtapa(metodos) { S.etapa = C.etapaNova(metodos); ir("etapa"); }
 
   function ir(modo, erro) { S.modo = modo; S.erro = erro || ""; S.aviso = ""; S.ocupado = false; desenhar(); }
 
@@ -172,6 +190,11 @@
     var f = new FormData(form);
     var v = function (k) { return String(f.get(k) || ""); };
     var modo = form.getAttribute("data-form");
+    if (modo === "etapa") {
+      S.etapa.ocupado = true; S.etapa.erro = ""; desenhar();
+      C.etapaEnviar(S.etapa, form).then(depoisDaEtapa);
+      return;
+    }
     if (v("email")) S.email = v("email").trim();
     if (modo === "criar") S.nome = v("nome").trim();
     if ((modo === "criar" || modo === "redefinir") && C.senhasIguais(f)) { S.erro = C.senhasIguais(f); desenhar(); return; }
@@ -184,17 +207,23 @@
     S.ocupado = true; S.erro = ""; desenhar();
     api(rota, corpo).then(function (d) {
       S.ocupado = false;
+      // A conta tem a verificacao em duas etapas: a senha (ou o codigo do e-mail) certa, mas a sessao ainda nao abriu.
+      if (d.etapa) { comecarEtapa(d.etapa); return; }
       if (d.ok) { depois(d); return; }
       S.erro = d.erro || "não deu certo: tente de novo"; desenhar();
     });
   }
 
-  tela.addEventListener("submit", function (e) { e.preventDefault(); if (!S.ocupado) enviar(e.target); });
+  tela.addEventListener("submit", function (e) { e.preventDefault(); if (!S.ocupado && !(S.etapa && S.etapa.ocupado)) enviar(e.target); });
   tela.addEventListener("click", function (e) {
     var b = e.target.closest("[data-acao]");
-    if (!b || S.ocupado) return;
+    if (!b || S.ocupado || (S.etapa && S.etapa.ocupado)) return;
     var a = b.getAttribute("data-acao");
-    if (a === "permitir") autorizar(true);
+    if (a === "chave") { S.ocupado = true; S.erro = ""; desenhar(); C.entrarComChave().then(depoisDaEtapa); }
+    else if (a === "etapa-chave") { S.etapa.ocupado = true; S.etapa.erro = ""; desenhar(); C.etapaChave().then(depoisDaEtapa); }
+    else if (a === "etapa-recuperacao" || a === "etapa-codigo") { S.etapa.modo = a === "etapa-recuperacao" ? "recuperacao" : "codigo"; S.etapa.erro = ""; desenhar(); }
+    else if (a === "etapa-sair") { S.etapa = null; ir("entrar"); }
+    else if (a === "permitir") autorizar(true);
     else if (a === "negar") autorizar(false);
     else if (a === "trocar") api("/api/sair", {}).then(function () { S.email = ""; ir("entrar"); });
     else if (a === "voltar-app") { if (S.pedido && S.pedido.voltar) location.replace(S.pedido.voltar); }
@@ -210,8 +239,20 @@
     else ir(a);
   });
 
-  if (OIDC) pedir();
-  else api("/api/eu").then(function (d) {
+  function comecar() {
+    if (OIDC) { pedir(); return; }
+    carregarConta();
+  }
+  // A volta do Google com a etapa: primeiro "Confirme que e voce"; depois, o pedido do aplicativo (ou a conta).
+  if (VOLTOU_DA_ETAPA) {
+    C.etapaCarregar().then(function (d) {
+      if (d.metodos) { S.google = false; comecarEtapa(d.metodos); return; }
+      S.erro = d.erro || "a confirmação venceu: entre de novo";
+      comecar();
+    });
+  } else comecar();
+
+  function carregarConta() { api("/api/eu").then(function (d) {
     var modo = params.get("modo");
     S.google = Boolean(d.google);
     if (d.conta && !modo && !S.erro) { location.replace(VOLTA || "/conta/"); return; }
@@ -220,5 +261,5 @@
     var dica = (params.get("login_hint") || "").trim().slice(0, 200);
     if (dica) S.email = dica;
     ir(modo === "criar" || modo === "esqueci" ? modo : "entrar", S.erro);
-  });
+  }); }
 })();

@@ -4,6 +4,7 @@
 // (o Workspace do dono), as paginas e o endereco antigo /conta/integracoes. Sem rede.
 //   node worker/teste-workspace.mjs
 import worker from "./index.js";
+import { comSeguranca, ligarSegundaEtapa } from "./apoio-teste-seguranca.mjs";
 import { sha256 } from "./comum.js";
 import { ClienteCobranca } from "./cobranca/cliente.js";
 import { PRODUTOS, catalogoPublico, produtoGratuito, resolveOffer } from "./cobranca/catalogo.js";
@@ -61,7 +62,8 @@ async function sessao(email, { idade = 0, alias = "" } = {}) {
   const segredo = "s-" + email + "-" + idade + "-" + alias;
   const sub = "sub-" + email.split("@")[0];
   guardados.set("id:conta:" + email, JSON.stringify({ sub, nome: "Nome " + email.split("@")[0] }));
-  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub, email, auth_time: Math.floor(Date.now() / 1000) - idade, ...(alias ? { via: "alias", alias } : {}) }));
+  await ligarSegundaEtapa(env, sub);
+  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub, email, auth_time: Math.floor(Date.now() / 1000) - idade, mfa: true, ...(alias ? { via: "alias", alias } : {}) }));
   return "__Host-atos=" + segredo;
 }
 async function chamar(caminho, { metodo = "POST", corpo, form, cookie, origem = A, e = env } = {}) {

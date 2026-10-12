@@ -1,5 +1,6 @@
 /* O painel da Atos (/admin/): a equipe cuida do que e da Atos e dos produtos dela. O servidor e o worker/admin.js:
-   a Conta Atos com o e-mail na equipe e o login de ate 12 horas.
+   a Conta Atos com o e-mail na equipe, a verificacao em duas etapas (403 configurar_2fa: a tela leva a Minha conta >
+   Seguranca) e o login de ate 12 horas que passou por ela.
 
    Esta pagina e a casca: o acesso (entrar, entrar de novo, fora da equipe), quem esta, a navegacao em grupos e o
    que as secoes dividem (a API, os formatos, o aviso que some sozinho e a camada do pop-up). Cada secao se registra
@@ -285,6 +286,11 @@
       }
       if (r.dados.entrar) { location.replace("/entrar/?volta=" + encodeURIComponent("/admin/")); return; }
       if (r.dados.reentrar) { acesso(esc(r.dados.erro), '<div class="botoes"><button type="button" class="btn p primario" data-admin="reentrar">Entrar de novo</button></div>'); return; }
+      // Da equipe, mas sem a verificacao em duas etapas: o painel exige; o caminho e a Minha conta > Seguranca.
+      if (r.status === 403 && r.dados.configurar_2fa) {
+        acesso(esc(r.dados.erro), '<div class="botoes"><a class="btn p primario" href="/conta/seguranca">Ligar em Minha conta › Segurança</a></div>');
+        return;
+      }
       // Conta Atos fora da equipe (chegou aqui por engano): vai para a Minha conta, sem ver nada do painel.
       if (r.status === 403) { location.replace("/conta/"); return; }
       acesso(esc(r.dados.erro || "não deu para abrir o painel agora"));

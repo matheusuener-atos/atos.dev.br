@@ -2,9 +2,11 @@
 // fiscais (o emissor de NFS-e, worker/nfse/), a equipe do painel inteiro e o painel do PAVLVS, que mora no
 // Worker do PAVLVS e chega aqui por service binding. A pagina e public/admin/ (assets/admin.js).
 //
-// Quem entra: a Conta Atos (a sessao do atos.dev.br, worker/contas.js), com o e-mail na equipe e o login de ate
-// 12 horas (RECENTE_S): o painel mexe com o certificado, notas fiscais e contas de clientes, entao uma sessao
-// antiga (elas duram 30 dias) pede para entrar de novo.
+// Quem entra: a Conta Atos (a sessao do atos.dev.br, worker/contas.js), com o e-mail na equipe, a verificacao em duas
+// etapas ligada na conta (o aplicativo autenticador ou uma chave de acesso; sem ela, 403 {configurar_2fa}: a tela manda
+// a Minha conta > Seguranca), a sessao que passou por ela (mfa; senao 401 {reentrar}) e o login de ate 12 horas
+// (RECENTE_S): o painel mexe com o certificado, notas fiscais e contas de clientes, entao uma sessao antiga (elas duram
+// 30 dias) pede para entrar de novo.
 //
 // A equipe: no KV, "atos:admin:equipe" ("atos-teste:admin:equipe" no Worker de teste) ([{email, nome, papel,
 // areas?, convidado?}]). Enquanto essa chave nao existe, vale
@@ -42,6 +44,7 @@ import { COOKIE, sessaoDe } from "./contas.js";
 import { enviarEmail as enviarEmailPadrao } from "./email.js";
 import { TIPOS_OAUTH, aplicarOAuth, atenderOAuthPainel, chaveDoRegistro, conferirOAuth } from "./oidc-painel.js";
 import { atenderEmailPainel, ehRotaDoEmailNoPainel } from "./email-atos.js";
+import { resumoDaSeguranca } from "./seguranca/objeto.js";
 
 export const RECENTE_S = 12 * 3600;
 export const PAPEIS = ["dono", "financeiro", "suporte"];
@@ -192,6 +195,20 @@ export async function quemNoPainel(request, env, agora = Date.now()) {
   if (!lista.length) console.warn('painel: a equipe esta vazia (atos:admin:equipe) ou a semente ATOS_EQUIPE fora do formato [{"email","nome","papel"}]');
   const membro = lista.find((x) => x.email === normal(s.email));
   if (!membro) return { recusa: json({ erro: "esta Conta Atos não é da equipe do painel" }, 403) };
+  // A equipe precisa da verificacao em duas etapas (o aplicativo autenticador ou uma chave de acesso), e a sessao do
+  // painel precisa ter passado por ela (mfa, worker/contas.js). Sem conseguir conferir: recusa (nunca deixa passar).
+  let seg;
+  try {
+    seg = await resumoDaSeguranca(env, s.sub, agora);
+  } catch {
+    return { recusa: json({ erro: "não deu para conferir a verificação em duas etapas agora: tente de novo em instantes" }, 503) };
+  }
+  if (!seg.ativa) {
+    return { recusa: json({ erro: "o painel exige a verificação em duas etapas. Ligue a sua em Minha conta › Segurança (o aplicativo autenticador ou uma chave de acesso) e volte.", configurar_2fa: true, ir: "/conta/seguranca" }, 403) };
+  }
+  if (!s.mfa) {
+    return { recusa: json({ erro: "esta sessão não passou pela verificação em duas etapas: entre de novo para abrir o painel", reentrar: true }, 401) };
+  }
   if (!(agora / 1000 - Number(s.auth_time || 0) < RECENTE_S)) {
     return { recusa: json({ erro: "o painel pede um login de até 12 horas: entre de novo", reentrar: true }, 401) };
   }

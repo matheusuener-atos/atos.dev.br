@@ -17,6 +17,7 @@ import { atenderAdmin, ehRotaDoAdmin } from "./admin.js";
 import { atenderIntegracoes, ehRotaDasIntegracoes } from "./integracoes.js";
 import { VOLTA_DO_WORKSPACE, atenderWorkspace, ehRotaDoWorkspace } from "./workspace.js";
 import { atenderEmailAtos, ehRotaDoEmailAtos, receberEmail } from "./email-atos.js";
+import { atenderSeguranca, ehRotaDaSeguranca } from "./seguranca.js";
 
 // O registro de cada cliente da Atos Cobranca (docs/COBRANCA.md): o Durable Object precisa sair do modulo principal.
 export { ClienteCobranca } from "./cobranca/cliente.js";
@@ -24,6 +25,9 @@ export { ClienteCobranca } from "./cobranca/cliente.js";
 export { EmissorNFSe } from "./nfse/emissor.js";
 // O registro do e-mail Atos (worker/email-atos.js): uma instancia so, idFromName("registro").
 export { EmailAtos } from "./email-atos.js";
+// A seguranca de cada Conta Atos (worker/seguranca/objeto.js): idFromName(<sub>), e "entrar" para os desafios do
+// "Entrar com chave de acesso".
+export { SegurancaConta } from "./seguranca/objeto.js";
 
 const CSP_CONTA = [
   "default-src 'self'",
@@ -147,6 +151,11 @@ export default {
         if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
         return comCabecalhos(await atenderIntegracoes(request, env, url, { dentroDoLimite }));
       }
+      // A seguranca da conta (worker/seguranca.js): a guia Seguranca, a segunda etapa do login e a chave de acesso.
+      if (ehRotaDaSeguranca(url)) {
+        if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
+        return comCabecalhos(await atenderSeguranca(request, env, url, { dentroDoLimite }));
+      }
       if (ehRotaDaConta(url)) {
         if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
         return comCabecalhos(await atenderConta(request, env, url, { dentroDoLimite }));
@@ -169,7 +178,7 @@ export default {
     // As Integracoes sairam da Minha conta para o Atos Workspace: o endereco antigo leva ao novo.
     if (/^\/conta\/integracoes\/?$/.test(url.pathname)) return Response.redirect(new URL("/workspace/integracoes" + url.search, url).toString(), 301);
     // Cada secao da Minha conta tem o proprio endereco; a pagina e uma so. O mesmo no Workspace.
-    if (/^\/conta\/(dados|assinaturas|faturamento|carteira)\/?$/.test(url.pathname)) {
+    if (/^\/conta\/(dados|seguranca|assinaturas|faturamento|carteira)\/?$/.test(url.pathname)) {
       return comCabecalhos(await env.ASSETS.fetch(new Request(new URL("/conta/", url), request)), true);
     }
     // A tela de entrar do Workspace (/workspace/entrar; public/assets/workspace-entrar.js): so o endereco Atos. Quem ja

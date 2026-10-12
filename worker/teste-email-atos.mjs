@@ -7,6 +7,7 @@
 // (ver, suspender, reativar, remover; papeis e area) e a Cloudflare simulada do Worker de teste. Sem rede.
 //   node worker/teste-email-atos.mjs
 import worker from "./index.js";
+import { comSeguranca, ligarSegundaEtapa } from "./apoio-teste-seguranca.mjs";
 import { sha256 } from "./comum.js";
 import { ClienteCobranca } from "./cobranca/cliente.js";
 import { PRODUTOS } from "./cobranca/catalogo.js";
@@ -96,6 +97,7 @@ function novoEnv(extra = {}) {
   } });
   env.CLIENTES = ns(ClienteCobranca);
   env.EMAIL_ATOS = ns(EmailAtos);
+  comSeguranca(env);
   return env;
 }
 // O Resend falso: o envio do codigo passa por fetch a api.resend.com; aqui ele e capturado.
@@ -111,7 +113,8 @@ async function sessao(email, { idade = 0 } = {}) {
   const segredo = "s-" + email + "-" + idade;
   const sub = "sub-" + email.split("@")[0];
   guardados.set("id:conta:" + email, JSON.stringify({ sub, nome: "Nome " + email.split("@")[0] }));
-  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub, email, auth_time: Math.floor(Date.now() / 1000) - idade }));
+  await ligarSegundaEtapa(env, sub);
+  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub, email, auth_time: Math.floor(Date.now() / 1000) - idade, mfa: true }));
   return "__Host-atos=" + segredo;
 }
 async function chamar(caminho, { metodo = "POST", corpo, cookie, origem = A, e = env } = {}) {

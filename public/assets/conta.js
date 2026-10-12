@@ -12,7 +12,7 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var SECOES = ["resumo", "dados", "assinaturas", "faturamento", "carteira"];
+  var SECOES = ["resumo", "dados", "seguranca", "assinaturas", "faturamento", "carteira"];
   var S = {
     conta: null, apps: null, appsErro: "", editando: false, nomeErro: "",
     atos: null, atosErro: "",
@@ -51,7 +51,7 @@
     var m = /^\/conta\/([a-z]+)/.exec(location.pathname);
     return m && SECOES.indexOf(m[1]) > 0 ? m[1] : "resumo";
   }
-  var GUIAS = [["resumo", "Resumo", "/conta/"], ["dados", "Dados", "/conta/dados"], null, ["assinaturas", "Assinaturas", "/conta/assinaturas"],
+  var GUIAS = [["resumo", "Resumo", "/conta/"], ["dados", "Dados", "/conta/dados"], ["seguranca", "Segurança", "/conta/seguranca"], null, ["assinaturas", "Assinaturas", "/conta/assinaturas"],
     ["faturamento", "Faturamento", "/conta/faturamento"], ["carteira", "Carteira", "/conta/carteira"]];
   function guias() {
     var sec = secaoAtual();
@@ -178,6 +178,7 @@
       '<div class="dado"><span class="rotulo">Nome</span>' + nome + (S.editando ? "<span></span>" : '<button type="button" class="btn p" data-acao="editar-nome">Editar</button>') + "</div>" +
       '<div class="dado"><span class="rotulo">E-mail</span><span>' + esc(c.email) + "</span><span></span></div>" +
       '<div class="dado"><span class="rotulo">Senha</span><span class="apagado">••••••••••</span><a class="btn p" href="/entrar/?modo=esqueci">Trocar a senha</a></div>' +
+      '<div class="dado"><span class="rotulo">Segurança</span><span>A verificação em duas etapas, as chaves de acesso e as sessões abertas</span><a class="btn p" href="/conta/seguranca" data-ir="seguranca">Ver</a></div>' +
       "</div>" + (S.nomeErro ? '<p class="erro" role="alert">' + esc(S.nomeErro) + "</p>" : "");
 
     h += h2("Assinaturas e produtos");
@@ -372,7 +373,13 @@
       'escreva para <a href="mailto:contato@atos.dev.br">contato@atos.dev.br</a>.</p>';
   }
 
-  var DESENHO = { resumo: resumo, dados: dados, assinaturas: assinaturas, faturamento: faturamento, carteira: carteira };
+  // A guia Seguranca mora em conta-seguranca.js (o aplicativo autenticador, as chaves de acesso, as sessoes e a atividade).
+  var SEG = window.AtosSeguranca({ api: api, esc: esc, h2: h2, vazio: vazio, redesenhar: function () { if (secaoAtual() === "seguranca") desenhar(); } });
+  function seguranca() {
+    if (!SEG.carregado()) SEG.carregar();
+    return titulo("Segurança", "Como você entra na Conta Atos, a verificação em duas etapas e onde a conta está aberta.") + SEG.html();
+  }
+  var DESENHO = { resumo: resumo, dados: dados, seguranca: seguranca, assinaturas: assinaturas, faturamento: faturamento, carteira: carteira };
 
   function desenhar() {
     var sec = secaoAtual();
@@ -407,7 +414,8 @@
      Para os outros, nada aparece - a mesma recusa calada do /admin. */
   function carregarPainel() {
     api("/api/admin/eu").then(function (d) {
-      S.painel = d._status === 200 || (d._status === 401 && Boolean(d.reentrar));
+      // Da equipe: 200, ou 401 pedindo um login recente, ou 403 pedindo a verificacao em duas etapas.
+      S.painel = d._status === 200 || (d._status === 401 && Boolean(d.reentrar)) || (d._status === 403 && Boolean(d.configurar_2fa));
       if (S.painel) desenhar();
     });
   }
@@ -454,6 +462,8 @@
       ir(link.getAttribute("data-secao") || link.getAttribute("data-ir"));
       return;
     }
+    var sg = e.target.closest("[data-seg]");
+    if (sg) { if (!sg.disabled) SEG.clique(sg); return; }
     var fs = e.target.closest("[data-filtro-status]");
     if (fs) { S.filtro.status = fs.getAttribute("data-filtro-status"); aplicarFiltro(); return; }
     var t = e.target.closest("[data-acao], [data-app], [data-fechar]");
@@ -498,6 +508,7 @@
     var f = e.target.closest("form[data-form]");
     if (!f) return;
     e.preventDefault();
+    if (f.getAttribute("data-form").indexOf("seg-") === 0) { SEG.enviar(f); return; }
     var v = new FormData(f);
     if (f.getAttribute("data-form") === "nome") {
       api("/api/nome", { nome: String(v.get("nome") || "").trim() }).then(function (d) {

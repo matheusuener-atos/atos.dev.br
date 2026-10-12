@@ -63,6 +63,67 @@
     return at < 1 ? "" : e.charAt(0) + "***" + e.slice(at);
   }
 
+  /* ------------------------------------------------------------ a segunda etapa ("Confirme que e voce")
+     Depois da senha certa (ou do Google, ou do "Esqueci a senha"), a conta com a verificacao em duas etapas recebe
+     {etapa: {otp, recuperacao, chave}} e um cookie da etapa (HttpOnly; 5 minutos). A tela pede o codigo do aplicativo,
+     um codigo de recuperacao ou a chave de acesso (worker/seguranca.js, /api/segunda-etapa). E: {metodos, modo
+     ("codigo" | "recuperacao"), erro, ocupado}. As acoes da tela: data-acao etapa-chave, etapa-recuperacao,
+     etapa-codigo, etapa-sair; o formulario: data-form="etapa". */
+  var temChave = function () { return Boolean(window.AtosChave && window.AtosChave.disponivel()); };
+  function etapaHtml(E) {
+    var m = E.metodos || {};
+    var porCodigo = E.modo !== "recuperacao" && m.otp;
+    var h = cabeca("Confirme que é você", "A sua conta tem a verificação em duas etapas. " +
+      (porCodigo ? "Digite o código de 6 dígitos do aplicativo autenticador." : E.modo === "recuperacao" ? "Digite um dos códigos de recuperação que você guardou." : "Use a sua chave de acesso."), true);
+    if (porCodigo || E.modo === "recuperacao") {
+      h += '<form class="form" data-form="etapa">' + erro(E.erro) +
+        (E.modo === "recuperacao"
+          ? campo("recuperacao", "Código de recuperação", "text", 'autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="20" placeholder="xxxx-xxxx-xxxx" required', { dica: "Cada código vale uma vez." })
+          : campo("codigo", "Código do aplicativo", "text", COD, { classe: "codigo" })) +
+        botao("Confirmar", E.ocupado) + "</form>";
+    } else if (E.erro) h += erro(E.erro);
+    if (m.chave) {
+      h += (porCodigo || E.modo === "recuperacao" ? '<div class="ou">ou</div>' : "") +
+        (temChave() ? '<button type="button" class="btn largo' + (porCodigo || E.modo === "recuperacao" ? "" : " primario") + '" data-acao="etapa-chave"' + (E.ocupado ? " disabled" : "") + ">Usar a chave de acesso</button>"
+          : '<p class="nota">Este navegador não oferece chaves de acesso.</p>');
+    }
+    var outros = [];
+    if (E.modo === "recuperacao" && m.otp) outros.push(link("etapa-codigo", "Usar o código do aplicativo"));
+    if (E.modo !== "recuperacao" && m.recuperacao) outros.push(link("etapa-recuperacao", "Usar um código de recuperação"));
+    if (outros.length) h += pe(outros.join(" · "));
+    h += '<p class="nota">Perdeu o aplicativo, os códigos de recuperação e a chave de acesso? Por segurança, a verificação não se desliga por aqui: ' +
+      "escreva do e-mail da conta para contato@atos.dev.br, que a Atos confere quem é você antes de desligar.</p>" + pe(link("etapa-sair", "Voltar"));
+    return h;
+  }
+  /* O modo inicial: o codigo do aplicativo, se houver; senao, a chave. */
+  function etapaNova(metodos) { return { metodos: metodos || {}, modo: "codigo", erro: "", ocupado: false }; }
+  /* Os metodos da etapa em andamento (a volta do Google: ?etapa=1). Resolve com {metodos} ou {erro}. */
+  function etapaCarregar() { return api("/api/segunda-etapa/opcoes", {}); }
+  /* Manda o codigo (ou o de recuperacao) do formulario. */
+  function etapaEnviar(E, form) {
+    var f = new FormData(form);
+    var corpo = E.modo === "recuperacao" ? { recuperacao: String(f.get("recuperacao") || "").trim() } : { codigo: String(f.get("codigo") || "").replace(/\s/g, "") };
+    return api("/api/segunda-etapa", corpo);
+  }
+  /* A chave de acesso: as opcoes (um desafio novo), o navegador e a resposta. */
+  function etapaChave() {
+    return api("/api/segunda-etapa/opcoes", {}).then(function (o) {
+      if (!o.publicKey) return o.erro ? o : { erro: "a chave de acesso não está disponível agora" };
+      return window.AtosChave.obter(o.publicKey).then(function (cred) { return api("/api/segunda-etapa", { credencial: cred }); },
+        function (e) { return { erro: window.AtosChave.motivo(e) }; });
+    });
+  }
+  /* "Entrar com chave de acesso" (sem senha): as opcoes, o navegador e a resposta. */
+  function entrarComChave() {
+    return api("/api/chave/opcoes", {}).then(function (o) {
+      if (!o.publicKey) return o.erro ? o : { erro: "a chave de acesso não está disponível agora" };
+      return window.AtosChave.obter(o.publicKey).then(function (cred) { return api("/api/chave/entrar", { credencial: cred }); },
+        function (e) { return { erro: window.AtosChave.motivo(e) }; });
+    });
+  }
+
   window.AtosEntrar = { esc: esc, api: api, COD: COD, link: link, botao: botao, erro: erro, cabeca: cabeca, pe: pe, campo: campo,
-    senhasIguais: senhasIguais, volta: volta, focar: focar, mascarar: mascarar };
+    senhasIguais: senhasIguais, volta: volta, focar: focar, mascarar: mascarar,
+    temChave: temChave, etapaHtml: etapaHtml, etapaNova: etapaNova, etapaCarregar: etapaCarregar, etapaEnviar: etapaEnviar, etapaChave: etapaChave,
+    entrarComChave: entrarComChave };
 })();

@@ -3,6 +3,7 @@
 //   node worker/teste-admin.mjs
 import { atenderAdmin, equipeDaSemente, K, RECENTE_S, JANELA_PAVLVS_S, PRODUTOS, RESERVADOS } from "./admin.js";
 import { sha256 } from "./comum.js";
+import { comSeguranca, ligarSegundaEtapa } from "./apoio-teste-seguranca.mjs";
 
 let falhas = 0;
 const checar = (ok, descricao, detalhe) => {
@@ -42,11 +43,14 @@ const emails = [];
 let emailFalha = false;
 const enviarEmail = async (e, msg) => { if (emailFalha) return { ok: false, status: 503, erro: "o envio de e-mail ainda não está ligado" }; emails.push(msg); return { ok: true }; };
 
-/* Uma sessao aberta para o e-mail, com o login de `horas` atras: o cookie. */
-async function sessao(email, horas) {
-  const segredo = "s-" + email + "-" + horas;
+/* Uma sessao aberta para o e-mail, com o login de `horas` atras: o cookie. A conta tem a segunda etapa ligada e a
+   sessao passou por ela (o painel exige; os testes disso estao mais abaixo). */
+comSeguranca(env);
+async function sessao(email, horas, { mfa = true, segunda = true } = {}) {
+  const segredo = "s-" + email + "-" + horas + (mfa ? "" : "-sem-mfa");
   guardados.set("id:conta:" + email, JSON.stringify({ sub: "sub-" + email, nome: "Nome" }));
-  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub: "sub-" + email, email, auth_time: Math.floor(agora / 1000 - horas * 3600) }));
+  if (segunda) await ligarSegundaEtapa(env, "sub-" + email);
+  guardados.set("atos:sessao:" + (await sha256(segredo)), JSON.stringify({ sub: "sub-" + email, email, auth_time: Math.floor(agora / 1000 - horas * 3600), ...(mfa ? { mfa: true } : {}) }));
   return "__Host-atos=" + segredo;
 }
 async function pedir(metodo, caminho, cookie, { deps = {}, envUsado = env, corpo, headers = {} } = {}) {
@@ -71,6 +75,19 @@ r = await pedir("GET", "/api/admin/eu", await sessao("fora@x.br", 1));
 checar(r.status === 403 && !JSON.stringify(r.d).includes("ATOS_EQUIPE"), "Conta Atos fora da equipe: 403, sem detalhe de configuração", r.d);
 r = await pedir("GET", "/api/admin/eu", await sessao("dono@atos.dev.br", RECENTE_S / 3600 + 1));
 checar(r.status === 401 && r.d.reentrar, "login de mais de 12 horas: 401, entrar de novo", r);
+
+console.log("o painel exige a verificação em duas etapas");
+r = await pedir("GET", "/api/admin/eu", await sessao("fora2@x.br", 1, { segunda: false }));
+checar(r.status === 403 && !r.d.configurar_2fa, "fora da equipe e sem a etapa: a mesma recusa calada de antes", r.d);
+r = await pedir("GET", "/api/admin/eu", await sessao("sup@atos.dev.br", 1, { segunda: false, mfa: false }));
+checar(r.status === 403 && r.d.configurar_2fa === true && r.d.ir === "/conta/seguranca" && /Segurança/.test(r.d.erro), "da equipe sem a etapa ligada: 403 mandando configurar em /conta/seguranca", r.d);
+r = await pedir("GET", "/api/admin/eu", await sessao("dono@atos.dev.br", 1, { mfa: false }));
+checar(r.status === 401 && r.d.reentrar && /verificação em duas etapas/.test(r.d.erro), "etapa ligada, mas a sessão não passou por ela: 401, entrar de novo", r.d);
+{
+  const semObjeto = { ...env, SEGURANCA: { idFromName: (n) => n, get: () => ({ fetch: async () => { throw new Error("fora do ar"); } }) } };
+  r = await pedir("GET", "/api/admin/eu", await sessao("dono@atos.dev.br", 1), { envUsado: semObjeto });
+  checar(r.status === 503, "sem conseguir conferir a etapa: recusa (503), nunca deixa passar", r.d);
+}
 const dono = await sessao("dono@atos.dev.br", 1);
 r = await pedir("GET", "/api/admin/eu", dono);
 checar(r.status === 200 && r.d.email === "dono@atos.dev.br" && r.d.papel === "dono" && r.d.nome === "Matheus" && r.d.github === null, "o dono entra pela semente (sem GitHub ainda)", r.d);
@@ -165,7 +182,7 @@ const chaveGh = [...guardados.keys()].find((k) => k.startsWith("atos:admin:githu
 checar(chaveGh && !guardados.get(chaveGh).includes("gho_segredo123") && JSON.parse(guardados.get(chaveGh)).login === "matheus", "o token fica cifrado no KV (o texto dele não aparece)");
 r = await pedir("GET", "/api/admin/eu", dono);
 checar(r.d.github === "matheus", "o /eu diz o GitHub ligado", r.d);
-guardados.set("atos:sessao:" + (await sha256("outro-navegador")), JSON.stringify({ sub: "sub-dono@atos.dev.br", email: "dono@atos.dev.br", auth_time: Math.floor(agora / 1000) }));
+guardados.set("atos:sessao:" + (await sha256("outro-navegador")), JSON.stringify({ sub: "sub-dono@atos.dev.br", email: "dono@atos.dev.br", auth_time: Math.floor(agora / 1000), mfa: true }));
 checar((await pedir("GET", "/api/admin/eu", "__Host-atos=outro-navegador")).d.github === null, "em outra sessão (outro navegador), o GitHub não está ligado");
 await pedir("POST", "/api/admin/pavlvs/publicar", dono, { corpo: { confirmacao: "comitar e pushar" } });
 conf = await conferir(pavlvs.pedidos.at(-1));
