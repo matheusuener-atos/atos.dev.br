@@ -359,15 +359,19 @@ async function conectar(env, c) {
 async function instalado(env, c, url) {
   const voltar = (frase) => new Response(null, { status: 302, headers: { location: "/admin/" + (frase ? "?erro=" + encodeURIComponent(frase) : "") + "#portfolio", "cache-control": "no-store" } });
   const state = String(url.searchParams.get("state") || "");
-  const guardado = /^[A-Za-z0-9_-]{10,40}$/.test(state) ? await kv(env, KP(env).estado(state)) : null;
-  if (!guardado || guardado.email !== c.quem.email) return voltar("a conexão com o GitHub venceu ou não começou aqui; tente de novo");
-  await env.CONTAS.delete(KP(env).estado(state));
   const id = String(url.searchParams.get("installation_id") || "");
+  const guardado = /^[A-Za-z0-9_-]{10,40}$/.test(state) ? await kv(env, KP(env).estado(state)) : null;
+  // A volta de uma mudanca feita no GitHub ("Redirect on update", sem o state): so a instalacao ja conectada, e so
+  // para ler de novo o que ela libera (conferido como o app). Outra instalacao sem o state: recusa.
+  const atual = await kv(env, KP(env).github);
+  const atualizacao = !guardado && url.searchParams.get("setup_action") === "update" && Boolean(atual) && atual.instalacao === id;
+  if (!atualizacao && (!guardado || guardado.email !== c.quem.email)) return voltar("a conexão com o GitHub venceu ou não começou aqui; tente de novo");
+  if (guardado) await env.CONTAS.delete(KP(env).estado(state));
   if (!githubAppConfigurado(env)) return voltar("falta o GitHub App do Portfolio no Worker");
   const inst = await lerInstalacao(env, id, { buscar: c.deps.fetch || fetch, agora: c.agora });
   if (!inst) return voltar("o GitHub não confirmou a instalação do app");
   await env.CONTAS.put(KP(env).github, JSON.stringify({ instalacao: inst.id, conta: inst.conta, tipo: inst.tipo, selecao: inst.selecao, quando: iso(c.agora), por: c.quem.email }));
-  await anotar(env, c.quem.email, "", "conectou o GitHub (" + inst.conta + ")", c.agora);
+  await anotar(env, c.quem.email, "", (atualizacao ? "atualizou o acesso do GitHub (" : "conectou o GitHub (") + inst.conta + ")", c.agora);
   return voltar("");
 }
 

@@ -142,6 +142,12 @@ r = await chamar("/api/admin/portfolio/github/repos", { metodo: "GET", cookie: d
 checar(r.status === 200 && r.d.repos.length === 2 && r.d.repos[0].nome === "matheusuener-atos/coryphaeus" && r.d.repos[1].privado === true && r.d.repos[1].site === "https://mapas.example",
   "os repositórios, públicos e privados, do mais mexido para o menos", r.d);
 checar(jwts === 2, "o token da instalação vem de um JWT conferido (um para a instalação, um para o token)", jwts);
+r = await chamar("/api/admin/portfolio/github/instalado?installation_id=123&setup_action=update", { metodo: "GET", cookie: dono });
+checar(r.r.headers.get("location") === "/admin/#portfolio", "a volta de uma mudança no GitHub (sem o state) atualiza a instalação já conectada", r.r.headers.get("location"));
+r = await chamar("/api/admin/portfolio/github/instalado?installation_id=999&setup_action=update", { metodo: "GET", cookie: dono });
+checar((r.r.headers.get("location") || "").includes("erro="), "outra instalação sem o state: recusa", r.r.headers.get("location"));
+r = await chamar("/api/admin/portfolio/github/instalado?installation_id=123&setup_action=update", { metodo: "GET", cookie: fin });
+checar((r.r.headers.get("location") || "").includes("erro="), "o financeiro também não atualiza", r.r.headers.get("location"));
 esquecerGitHubApp();
 const jwt8 = await jwtDoApp({ ...env, GITHUB_APP_CHAVE: PEM_PKCS8 });
 checar(jwtValido("Bearer " + jwt8), "a chave PKCS#8 também assina");
