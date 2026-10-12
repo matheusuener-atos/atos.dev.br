@@ -11,8 +11,9 @@
 //   cobranca:<ref>      uma cobranca mensal da assinatura (o authorized_payment), para o Faturamento
 //   direito:<produto>   ate quando o produto esta pago, o plano, o periodo que pagou, os creditos e a `versao`;
 //                       num produto gratuito (o Atos Workspace; catalogo.js, gratuito), a ativacao: {ativo, ativado,
-//                       desativado, termos: {versao, aceito}, historico: [{quando, oque, termos?}]} (ops ativar e
-//                       desativar; o mesmo direito que um plano pago, depois, estende)
+//                       desativado, termos: {versao, aceito}, suspenso: null|{quando, motivo, por, apps, alias},
+//                       historico: [{quando, oque, termos?, por?}]} (ops ativar e desativar; suspender,
+//                       suspensao_anotar e tirar_suspensao, da equipe; o mesmo direito que um plano pago, depois, estende)
 //   evento:<seq>       a fila de saida para o produto (eventos.js), entregue pelo alarme deste objeto
 //
 // Pedidos: POST com {op, ...}; a resposta e JSON. Quem chama e so o Worker (api.js e o aviso).
@@ -184,6 +185,38 @@ export class ClienteCobranca {
         const antes = await s.get(chave);
         if (!antes || !antes.ativo) return { ok: true, direito: antes || null, repetido: true };
         const r = { ...antes, ativo: false, desativado: agora, historico: [...(antes.historico || []), { quando: agora, oque: "desativou" }].slice(-50), atualizado: agora };
+        await s.put(chave, r);
+        return { ok: true, direito: r };
+      }
+      case "suspender": {
+        // A equipe da Atos suspende o produto gratuito (o Atos Workspace) por abuso: a pessoa continua com ele ativo,
+        // mas a gestao para (worker/workspace.js, o 403 workspace_suspenso) e ela ve o motivo. Ativar de novo ou
+        // aceitar termos novos nao tira a suspensao (o "ativar" acima preserva o campo); so "tirar_suspensao".
+        const chave = "direito:" + d.produto;
+        const antes = await s.get(chave);
+        if (!antes) return { ok: false, erro: "esta conta nunca ativou o produto", status: 404 };
+        if (antes.suspenso) return { ok: false, erro: "já está suspenso", status: 409, direito: antes };
+        const motivo = String(d.motivo || "").slice(0, 200);
+        const r = { ...antes, suspenso: { quando: agora, motivo, por: String(d.por || ""), apps: [], alias: "" },
+          historico: [...(antes.historico || []), { quando: agora, oque: "a Atos suspendeu" + (motivo ? " (" + motivo + ")" : ""), por: String(d.por || "") }].slice(-50), atualizado: agora };
+        await s.put(chave, r);
+        return { ok: true, direito: r };
+      }
+      case "suspensao_anotar": {
+        // O que a suspensao levou junto (os aplicativos desligados, o endereco suspenso): o reativar oferece desfazer.
+        const chave = "direito:" + d.produto;
+        const antes = await s.get(chave);
+        if (!antes || !antes.suspenso) return { ok: false, erro: "não está suspenso", status: 409 };
+        const r = { ...antes, suspenso: { ...antes.suspenso, apps: Array.isArray(d.apps) ? d.apps.map(String).slice(0, 50) : antes.suspenso.apps || [],
+          alias: typeof d.alias === "string" ? d.alias.slice(0, 40) : antes.suspenso.alias || "" } };
+        await s.put(chave, r);
+        return { ok: true, direito: r };
+      }
+      case "tirar_suspensao": {
+        const chave = "direito:" + d.produto;
+        const antes = await s.get(chave);
+        if (!antes || !antes.suspenso) return { ok: false, erro: "não está suspenso", status: 409, direito: antes || null };
+        const r = { ...antes, suspenso: null, historico: [...(antes.historico || []), { quando: agora, oque: "a Atos tirou a suspensão", por: String(d.por || "") }].slice(-50), atualizado: agora };
         await s.put(chave, r);
         return { ok: true, direito: r };
       }

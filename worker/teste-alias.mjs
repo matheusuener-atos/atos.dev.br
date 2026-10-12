@@ -352,9 +352,9 @@ guardados.set("id:conta:dono@atos.dev.br", JSON.stringify({ sub: "sub-dono", nom
   const h = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(segredo)))].map((x) => x.toString(16).padStart(2, "0")).join("");
   await ligarSegundaEtapa(env, "sub-dono");
   guardados.set("atos:sessao:" + h, JSON.stringify({ sub: "sub-dono", email: "dono@atos.dev.br", auth_time: Math.floor(Date.now() / 1000), mfa: true }));
-  r = await GET("/api/admin/oauth", "__Host-atos=" + segredo);
+  r = await GET("/api/admin/workspace/apps", "__Host-atos=" + segredo);
 }
-const t = r.d && r.d.terceiros && r.d.terceiros.find((a) => a.id === app.id);
+const t = r.d && r.d.apps && r.d.apps.find((a) => a.id === app.id);
 checar(t && t.dono === "pedro@gmail.com" && t.dono_sub === pedro.sub && t.dono_alias.endereco === "pedro.agenda@atos.dev.br", "o painel vê o dono real (e-mail e sub) e o alias", t);
 
 // ------------------------------------------------------------------ o Worker de teste, pelas rotas

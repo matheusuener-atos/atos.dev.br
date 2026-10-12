@@ -14,6 +14,12 @@ const TEXTOS = {
   "codigo-usado": ["Um código de recuperação foi usado", "Um código de recuperação foi usado para entrar na sua Conta Atos. Cada código vale uma vez só."],
   "senha-trocada": ["A senha da sua Conta Atos foi trocada", "A senha da sua Conta Atos foi trocada. As sessões abertas antes da troca foram encerradas."],
   "segunda-desligada": ["A verificação em duas etapas está desligada", "A sua Conta Atos não tem mais nenhuma segunda etapa (nem aplicativo autenticador, nem chave de acesso): agora basta a senha para entrar. Os códigos de recuperação foram apagados."],
+  // As acoes da equipe (painel, Contas Atos; worker/admin-contas.js). O terceiro texto troca o fecho: nao foi a pessoa
+  // que fez, entao "se foi voce" nao cabe.
+  "equipe-2fa-desligada": ["A equipe da Atos desligou a verificação em duas etapas", "Atendendo a um pedido feito a contato@atos.dev.br, a equipe da Atos desligou a verificação em duas etapas da sua Conta Atos: o aplicativo autenticador, os códigos de recuperação e as chaves de acesso foram removidos. Agora basta a senha para entrar. Ligue de novo em Minha conta › Segurança assim que puder.",
+    "Se você não pediu isso, escreva agora para contato@atos.dev.br. Este e-mail não tem link de propósito: a Atos nunca pede a sua senha por e-mail."],
+  "equipe-sessoes-encerradas": ["A equipe da Atos encerrou as sessões da sua conta", "A equipe da Atos encerrou todas as sessões abertas da sua Conta Atos. Para usar a conta, entre de novo.",
+    "Se você não esperava por isso, escreva para contato@atos.dev.br. Este e-mail não tem link de propósito: a Atos nunca pede a sua senha por e-mail."],
 };
 
 export const quandoBr = (ms) => new Date(ms).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" }) + " (horário de Brasília)";
@@ -27,7 +33,7 @@ export async function avisar(env, deps, email, evento, { agora = Date.now(), req
   const de = [o.navegador, o.onde].filter(Boolean).join(", ");
   const texto = t[1] + (detalhe ? "\n\n" + detalhe : "") +
     "\n\nQuando: " + quandoBr(agora) + "." + (de ? "\nDe: " + de + " (aproximado)." : "") +
-    "\n\nSe foi você, não precisa fazer nada. Se não foi, escreva agora para contato@atos.dev.br. Este e-mail não tem link de propósito: a Atos nunca pede a sua senha por e-mail.";
+    "\n\n" + (t[2] || "Se foi você, não precisa fazer nada. Se não foi, escreva agora para contato@atos.dev.br. Este e-mail não tem link de propósito: a Atos nunca pede a sua senha por e-mail.");
   try {
     await (deps && deps.enviarEmail ? deps.enviarEmail : enviarEmail)(env, { para: email, assunto: t[0] + " · Conta Atos", titulo: t[0], texto });
   } catch {

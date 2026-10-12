@@ -289,14 +289,16 @@ r = await worker.fetch(new Request(A + "/api/integracoes/apps", { method: "POST"
 checar(r.status === 429 && limitado, "criar passa pelo limite por endereço de internet");
 
 console.log("o painel da equipe");
+r = await chamar("/api/admin/workspace/apps", { metodo: "GET", cookie: dono });
+const naTela = r.d.apps.find((x) => x.id === app.id);
+checar(r.status === 200 && r.d.apps.length === 5 && naTela && naTela.dono === "ana@dev.example" && naTela.acessos.length === 5, "a equipe vê todos os de terceiros, com o dono (Atos Workspace > Aplicativos de terceiros)", r.d.apps && r.d.apps.length);
 r = await chamar("/api/admin/oauth", { metodo: "GET", cookie: dono });
-const naTela = r.d.terceiros.find((x) => x.id === app.id);
-checar(r.status === 200 && r.d.terceiros.length === 5 && naTela && naTela.dono === "ana@dev.example" && naTela.acessos.length === 5, "a equipe vê todos os de terceiros, com o dono", r.d.terceiros && r.d.terceiros.length);
-r = await chamar("/api/admin/oauth/terceiros/" + app.id + "/desligar", { cookie: ana, corpo: { motivo: "teste" } });
+checar(r.status === 200 && r.d.terceiros === undefined, "o Login Atos não mostra mais os de terceiros (só os da Atos)");
+r = await chamar("/api/admin/workspace/apps/" + app.id + "/desligar", { cookie: ana, corpo: { motivo: "teste" } });
 checar(r.status === 401 || r.status === 403, "quem não é da equipe não desliga", r.status);
-r = await chamar("/api/admin/oauth/terceiros/" + app.id + "/desligar", { cookie: dono, corpo: {} });
+r = await chamar("/api/admin/workspace/apps/" + app.id + "/desligar", { cookie: dono, corpo: {} });
 checar(r.status === 400 && r.d.erro.includes("motivo"), "desligar pede o motivo");
-r = await chamar("/api/admin/oauth/terceiros/" + app.id + "/desligar", { cookie: dono, corpo: { motivo: "imita outro serviço" } });
+r = await chamar("/api/admin/workspace/apps/" + app.id + "/desligar", { cookie: dono, corpo: { motivo: "imita outro serviço" } });
 checar(r.status === 200, "a equipe desliga por abuso, na hora");
 r = await chamar("/api/pedido", { cookie: ana, corpo: { consulta: consulta(web, WEB, p.desafio) } });
 checar(r.status === 400 && r.d.erro.includes("desligado"), "desligado pela Atos: nenhum acesso começa login", r.d);
@@ -307,12 +309,12 @@ const visto = r.d.apps.find((x) => x.id === app.id);
 checar(visto.bloqueado && visto.bloqueado.motivo === "imita outro serviço" && visto.registro[0].quem === "equipe", "a tela da dona mostra o desligamento no registro", visto.registro[0]);
 r = await chamar("/api/admin/oauth/log", { metodo: "GET", cookie: dono });
 checar(r.d.log[0].app === app.id && r.d.log[0].por === "dono@atos.dev.br", "e fica no registro do Login Atos", r.d.log[0]);
-r = await chamar("/api/admin/oauth/terceiros/" + app.id + "/ligar", { cookie: dono, corpo: {} });
+r = await chamar("/api/admin/workspace/apps/" + app.id + "/ligar", { cookie: dono, corpo: {} });
 r = await chamar("/api/pedido", { cookie: ana, corpo: { consulta: consulta(web, WEB, p.desafio) } });
 checar(r.status === 200, "ligado de novo pela equipe: volta a entrar", r.d);
-r = await chamar("/api/admin/oauth/terceiros/" + app.id + "/apagar", { cookie: dono, corpo: { motivo: "pedido" } });
+r = await chamar("/api/admin/workspace/apps/" + app.id + "/apagar", { cookie: dono, corpo: { motivo: "pedido" } });
 checar(r.status === 400, "apagar pede confirmação");
-r = await chamar("/api/admin/oauth/terceiros/" + app.id + "/apagar", { cookie: dono, corpo: { confirmar: true, motivo: "pedido da dona" } });
+r = await chamar("/api/admin/workspace/apps/" + app.id + "/apagar", { cookie: dono, corpo: { confirmar: true, motivo: "pedido da dona" } });
 checar(r.status === 200 && !guardados.has("atos:oidc:app:" + app.id) && !guardados.has("atos:oidc:segredo:" + srv) && !JSON.parse(guardados.get("atos:oidc:terceiros"))[app.id] &&
   !JSON.parse(guardados.get("atos:oidc:dono:sub-ana")).includes(app.id), "a equipe apaga: o aplicativo, os segredos, a conta da dona e o índice");
 checar(JSON.parse(guardados.get("atos:oidc:applog:" + app.id))[0].oque.includes("apagou"), "o registro do aplicativo fica");

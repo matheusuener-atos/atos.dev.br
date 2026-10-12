@@ -193,9 +193,9 @@ r = await chamar("/api/cobranca/v1/conta", { metodo: "GET", cookie: maria });
 checar(r.d.gratuitos[0].ativo === false && r.d.gratuitos[0].desativado, "a Minha conta mostra desativado", r.d.gratuitos);
 
 console.log("o painel da equipe");
-r = await chamar("/api/admin/oauth", { metodo: "GET", cookie: dono });
-let t = r.d && r.d.terceiros && r.d.terceiros.find((x) => x.id === app.id);
-checar(r.status === 200 && t && t.dono_workspace && t.dono_workspace.ativo === false && t.dono_workspace.desativado, "Login Atos mostra que a dona está sem o Workspace", t && t.dono_workspace);
+r = await chamar("/api/admin/workspace/apps", { metodo: "GET", cookie: dono });
+let t = r.d && r.d.apps && r.d.apps.find((x) => x.id === app.id);
+checar(r.status === 200 && t && t.dono_workspace && t.dono_workspace.ativo === false && t.dono_workspace.desativado, "Aplicativos de terceiros mostra que a dona está sem o Workspace", t && t.dono_workspace);
 checar(t && t.dono === "maria@exemplo.test" && t.dono_sub === "sub-maria" && t.dono_alias_lido && t.dono_alias.endereco === "maria.loja@atos.dev.br" && t.dono_alias.confirmado,
   "e a equipe vê o dono real (e-mail e sub) e o e-mail Atos dele", t);
 
@@ -204,8 +204,8 @@ r = await chamar("/api/workspace/ativar", { cookie: maria, corpo: { aceito: true
 checar(r.status === 200 && r.d.ativo && r.d.ativado !== ativado && r.d.desativado === null, "ativa de novo");
 r = await chamar("/api/integracoes", { metodo: "GET", cookie: maria });
 checar(r.status === 200 && r.d.apps.length === 1 && r.d.apps[0].liberados.includes("joao@exemplo.test"), "o aplicativo volta inteiro à gestão", r.d);
-r = await chamar("/api/admin/oauth", { metodo: "GET", cookie: dono });
-t = r.d.terceiros.find((x) => x.id === app.id);
+r = await chamar("/api/admin/workspace/apps", { metodo: "GET", cookie: dono });
+t = r.d.apps.find((x) => x.id === app.id);
 checar(t.dono_workspace.ativo === true && t.dono_workspace.ativado, "e o painel mostra ativo");
 r = await chamar("/api/cobranca/v1/minhas", { metodo: "GET", cookie: maria });
 checar(r.d.direitos.find((x) => x.produto === "workspace").historico.map((x) => x.oque).join(",") === "ativou,desativou,ativou", "o histórico guarda as três mudanças");

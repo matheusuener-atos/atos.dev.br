@@ -16,13 +16,20 @@
 //
 // Rotas (so a propria pagina; a sessao da Conta Atos):
 //   GET  /api/workspace              {conta, recente, limites, produto, termos (os atuais), ativo, ativado, desativado,
-//                                     aceito: {versao, quando}|null, apps (quantos a conta cadastrou), email: {disponivel},
+//                                     aceito: {versao, quando}|null, suspenso: null|{quando, motivo}, apps (quantos a conta cadastrou), email: {disponivel},
 //                                     alias: null|{endereco, suspenso, confirmado}, via_alias, pendencia (estadoDoAlias)}
 // A ativacao, os termos e o desativar abrem com qualquer login (o e-mail pessoal ou o alias); o resto da area (as
 // Integracoes) pede o que estadoDoAlias diz.
 //   POST /api/workspace/ativar       {aceito: true, versao} a versao dos termos que a pessoa leu (tem de ser a atual)
 //   POST /api/workspace/desativar    {confirmar: true}
 // Mudar pede login das ultimas 12 horas (o mesmo das Integracoes e do painel).
+//
+// O indice da equipe (worker/workspace-indice.js): ativar, desativar e abrir a area anotam a conta no indice que o
+// painel lista (Atos Workspace > Contas do Workspace).
+//
+// A suspensao (da equipe, por abuso; worker/admin-workspace.js): fica no mesmo direito (suspenso: {quando, motivo,
+// por}); com ela, as Integracoes e as mudancas no e-mail Atos respondem 403 {codigo: "workspace_suspenso"} e a area
+// mostra o motivo. Ativar, desativar e aceitar termos novos continuam abrindo, e nao tiram a suspensao.
 
 import { json, kv, lerJson } from "./comum.js";
 import { sessaoDe } from "./contas.js";
@@ -30,6 +37,7 @@ import { PRODUTOS } from "./cobranca/catalogo.js";
 import { cliente, idDoCliente } from "./cobranca/cliente.js";
 import { ID_APP_TERCEIRO, KO } from "./oidc.js";
 import { aliasDaConta, emailAtosLigado } from "./email-atos.js";
+import { anotarNoIndice } from "./workspace-indice.js";
 
 export const WORKSPACE = "workspace";
 /* Para onde a tela /workspace/entrar volta: so um caminho de /workspace/ (sem consulta), nunca a propria tela de entrar.
@@ -61,8 +69,16 @@ export function vistaDoWorkspace(d) {
   return {
     ativo: Boolean(d && d.ativo), ativado: (d && d.ativo && d.ativado) || null, desativado: (d && !d.ativo && d.desativado) || null,
     aceito: d && d.termos ? { versao: d.termos.versao, quando: d.termos.aceito } : null,
+    // Suspenso pela equipe da Atos (worker/admin-workspace.js): a gestao para; a pessoa ve quando e o motivo.
+    suspenso: d && d.suspenso ? { quando: d.suspenso.quando, motivo: d.suspenso.motivo || "" } : null,
   };
 }
+
+/* O 403 de quem esta com o Workspace suspenso pela equipe. */
+export const WORKSPACE_SUSPENSO = (s) => json({
+  erro: "a Atos suspendeu o seu Atos Workspace" + (s && s.motivo ? " (" + s.motivo + ")" : "") + ": enquanto durar, você não cadastra nem muda sistemas nem o e-mail Atos. Escreva para contato@atos.dev.br",
+  codigo: "workspace_suspenso", suspenso: s ? { quando: s.quando, motivo: s.motivo || "" } : null,
+}, 403);
 
 export const SEM_WORKSPACE = () => json({ erro: "ative o Atos Workspace para cadastrar e mudar os seus sistemas (atos.dev.br/workspace)", workspace: false, codigo: "workspace" }, 403);
 
@@ -123,7 +139,10 @@ export async function atenderWorkspace(request, env, url, deps = {}) {
 
   if (p === "/api/workspace" && request.method === "GET") {
     let d;
-    try { d = await workspaceDe(env, sessao.sub); return await tela(d); } catch { return WORKSPACE_FORA(); }
+    try { d = await workspaceDe(env, sessao.sub); } catch { return WORKSPACE_FORA(); }
+    // A auto-indexacao (worker/workspace-indice.js): quem ativou antes do indice entra nele ao abrir a area.
+    await anotarNoIndice(env, sessao.sub, sessao.email, d, "visita");
+    try { return await tela(d); } catch { return WORKSPACE_FORA(); }
   }
   if (p !== "/api/workspace/ativar" && p !== "/api/workspace/desativar") return json({ erro: "rota não existe" }, 404);
   if (request.method !== "POST") return json({ erro: "use POST" }, 405);
@@ -136,10 +155,12 @@ export async function atenderWorkspace(request, env, url, deps = {}) {
     if (corpo.versao !== termos.versao) return json({ erro: "os termos do Atos Workspace mudaram: leia a versão atual e aceite de novo", termos }, 409);
     const r = await (await meu()).pedir("ativar", { produto: WORKSPACE, termos: { versao: termos.versao } });
     if (!r || !r.ok) return WORKSPACE_FORA();
+    await anotarNoIndice(env, sessao.sub, sessao.email, r.direito, "ativacao");
     try { return await tela(r.direito); } catch { return WORKSPACE_FORA(); }
   }
   if (corpo.confirmar !== true) return json({ erro: "confirme na página: os aplicativos continuam funcionando, mas você só volta a mudá-los ativando de novo" }, 400);
   const r = await (await meu()).pedir("desativar", { produto: WORKSPACE });
   if (!r || !r.ok) return WORKSPACE_FORA();
+  await anotarNoIndice(env, sessao.sub, sessao.email, r.direito, "ativacao");
   try { return await tela(r.direito); } catch { return WORKSPACE_FORA(); }
 }

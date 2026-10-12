@@ -1,4 +1,4 @@
-/* O painel da Atos, secao E-mail Atos: os enderecos @atos.dev.br do Atos Workspace (worker/email-atos.js). Area "atos";
+/* O painel da Atos, grupo Atos Workspace, secao E-mail Atos: os enderecos @atos.dev.br (worker/email-atos.js). Area "atos";
    ver: todos os papeis; suspender, reativar e remover por abuso: dono e suporte (o servidor confere de novo).
 
      GET  /api/admin/email                          os enderecos (dono, estado, destino), as vagas e as recusas a
@@ -25,6 +25,16 @@
     A.pedir("GET", "/api/admin/email").then(function (d) { S.dados = d; S.erro = ""; }, function (e) { if (e.status !== 401) S.erro = e.message; })
       .then(function () { S.carregando = false; pintar(); });
   }
+  /* Abre (ou fecha) os detalhes de um endereco e le o registro dele. */
+  function abrir(id) {
+    S.aberto = id;
+    if (!id) return;
+    delete S.registro[id];
+    A.pedir("GET", "/api/admin/email/registro?alias=" + encodeURIComponent(id)).then(function (r) { S.registro[id] = r; }, function (er) { S.registro[id] = { erro: er.message }; }).then(pintar);
+  }
+  /* Os atalhos das outras secoes (a conta do Workspace, a busca): abrir este endereco aqui. */
+  A.atalhos = A.atalhos || {};
+  A.atalhos.alias = function (id) { abrir(id); A.navegar("email-atos"); };
   function podeMudar() { return A.quem && (A.quem.papel === "dono" || A.quem.papel === "suporte"); }
   function alias(a) { return ((S.dados || {}).aliases || []).filter(function (x) { return x.alias === a; })[0] || null; }
 
@@ -64,7 +74,7 @@
     return h + '<div class="card">' + l.map(function (x) {
       var aberto = S.aberto === x.alias;
       var det = aberto ? '<div class="nf-det"><dl class="nf-info">' +
-        "<dt>Conta</dt><dd>" + esc(x.conta) + "</dd>" +
+        "<dt>Conta</dt><dd>" + esc(x.conta) + (x.sub ? ' <button type="button" class="link" data-em-adm="conta" data-sub="' + esc(x.sub) + '">Ver a conta no Workspace</button>' : "") + "</dd>" +
         "<dt>Destino</dt><dd>" + (x.destino ? esc(x.destino.email) + " · código " + (x.destino.codigo_ok ? "confirmado" : "pendente") + " · Cloudflare " + (x.destino.cf_ok ? "verificado" : "pendente") : "—") + "</dd>" +
         (x.suspenso ? "<dt>Suspenso</dt><dd>" + esc(U.quando(x.suspenso.quando)) + " por " + esc(x.suspenso.por || "") + (x.suspenso.motivo ? ": " + esc(x.suspenso.motivo) : "") + "</dd>" : "") +
         "<dt>Criado</dt><dd>" + esc(U.quando(x.criado)) + "</dd>" + registroDe(x.alias) + "</dl></div>" : "";
@@ -98,14 +108,8 @@
     if (!b || b.disabled) return;
     var a = b.getAttribute("data-em-adm"), id = b.getAttribute("data-id");
     if (a === "recarregar") { carregar(); pintar(); return; }
-    if (a === "ver") {
-      S.aberto = S.aberto === id ? "" : id;
-      if (S.aberto) {
-        delete S.registro[id];
-        A.pedir("GET", "/api/admin/email/registro?alias=" + encodeURIComponent(id)).then(function (r) { S.registro[id] = r; }, function (er) { S.registro[id] = { erro: er.message }; }).then(pintar);
-      }
-      pintar(); return;
-    }
+    if (a === "ver") { abrir(S.aberto === id ? "" : id); pintar(); return; }
+    if (a === "conta") { if (A.atalhos.contaWs) A.atalhos.contaWs(b.getAttribute("data-sub")); return; }
     if (a === "suspender" || a === "remover") {
       S.acao = { id: id, acao: a, motivo: "", erro: "", enviando: false };
       A.modal.abrir({ html: modal, aoFechar: function () { S.acao = null; } }); return;
@@ -135,9 +139,9 @@
   A.secoes.push({
     id: "email-atos",
     nome: "E-mail Atos",
-    grupo: "Atos",
+    grupo: "Atos Workspace",
     area: "atos",
-    ordem: 30,
+    ordem: 3,
     desenhar: function (raiz) {
       S.raiz = raiz;
       pintar();

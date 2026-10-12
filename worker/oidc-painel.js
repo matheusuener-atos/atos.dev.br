@@ -7,12 +7,10 @@
 // valor aparece uma vez so, e nao poderia esperar na fila): fica so o hash, com quem e quando.
 //
 // Rotas (atras de /api/admin, so o dono):
-//   GET  /api/admin/oauth                          {emissor, descoberta, endpoints, escopos, token_s, apps, clientes,
-//                                                   terceiros}
+//   GET  /api/admin/oauth                          {emissor, descoberta, endpoints, escopos, token_s, apps, clientes}
 //   POST /api/admin/oauth/clientes/:id/segredo     {confirmar: true} -> {segredo, quando} (uma vez so)
-//   POST /api/admin/oauth/terceiros/:id/desligar   {motivo} um aplicativo de terceiro (Atos Workspace > Integracoes), por
-//   POST /api/admin/oauth/terceiros/:id/ligar      abuso: na hora, sem a fila, com registro (worker/integracoes.js)
-//   POST /api/admin/oauth/terceiros/:id/apagar     {confirmar: true, motivo?}
+// Os aplicativos que as pessoas cadastram (Atos Workspace > Integracoes) nao sao daqui: o painel os mostra em Atos
+// Workspace > Aplicativos de terceiros (worker/admin-workspace.js, /api/admin/workspace/apps).
 //
 // O registro no KV ("atos:oidc:registro"; "atos-teste:oidc:registro" no Worker de teste):
 //   {apps: {<id>: {nome, descricao, site, privacidade, termos, icone, acesso: "liberados"|"todos", liberados: [e-mails],
@@ -22,7 +20,6 @@
 import { aleatorio, json, kv, lerJson, sha256 } from "./comum.js";
 import { APPS, CLIENTES, KO, dadosParaIntegrar, registroDoKV } from "./oidc.js";
 import { camposDoApp as camposBasicos, camposDoCliente, emailsLimpos, modoDeAcesso } from "./oidc-campos.js";
-import { acaoDaEquipe, terceirosParaPainel } from "./integracoes.js";
 
 export { origemValida, voltaValida } from "./oidc-campos.js";
 export const TIPOS_OAUTH = ["oauth.app", "oauth.cliente"];
@@ -159,8 +156,7 @@ async function tela(env) {
       criado: c.criado || null, por: c.por || "", mudado: c.mudado || null, codigo: false, segredo: s ? { quando: s.quando, por: s.por } : null,
     });
   }
-  // Os de terceiros (Atos Workspace > Integracoes), com o dono de cada um e o Workspace dele: a equipe desliga ou apaga por abuso.
-  return { ...dadosParaIntegrar(env), apps, clientes, terceiros: await terceirosParaPainel(env) };
+  return { ...dadosParaIntegrar(env), apps, clientes };
 }
 
 /* Gera (ou troca) o segredo de um cliente confidencial do KV: o valor volta uma vez so; fica o hash. */
@@ -189,7 +185,5 @@ export async function atenderOAuthPainel(request, env, url, c) {
   if (p === "/api/admin/oauth/log" && m === "GET") return json({ log: (await kv(env, KO(env).log)) || [] });
   const r = p.match(/^\/api\/admin\/oauth\/clientes\/([a-z0-9-]{3,63})\/segredo$/);
   if (r && m === "POST") return gerarSegredo(env, r[1], (await lerJson(request)) || {}, c);
-  const t = p.match(/^\/api\/admin\/oauth\/terceiros\/(u-[a-z0-9]{10})\/(desligar|ligar|apagar)$/);
-  if (t && m === "POST") return acaoDaEquipe(env, t[1], t[2], (await lerJson(request)) || {}, c.quem, c.agora);
   return json({ erro: "rota não existe" }, 404);
 }

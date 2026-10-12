@@ -8,10 +8,8 @@
      POST /api/admin/oauth/clientes/:id/segredo     gerar ou trocar o segredo de um cliente confidencial: na hora,
                                                     com confirmacao aqui; o valor aparece uma vez so
 
-     POST /api/admin/oauth/terceiros/:id/(desligar|ligar|apagar)
-                                                    os aplicativos que as pessoas cadastram no Atos Workspace
-                                                    (Integracoes): desligar por abuso (com o motivo, que o dono ve),
-                                                    ligar de novo e apagar, na hora, com registro
+   Os aplicativos que as pessoas cadastram no Atos Workspace (Integracoes) ficam em Atos Workspace > Aplicativos de
+   terceiros (admin-apps.js).
 
    Para cada cliente, "Como integrar" (o cartao do integrar.js, o mesmo do Atos Workspace): os dados do provedor, o fluxo,
    um pedido pronto para um assistente de codigo e os comandos. O segredo nunca entra no pedido nem nos comandos. */
@@ -20,7 +18,7 @@
   var A = window.AdminAtos;
   if (!A) return;
   var esc = A.esc, U = A.util;
-  var S = { raiz: null, dados: null, erro: "", carregando: false, aberto: "", form: null, seg: null, terc: null, tercAberto: "" };
+  var S = { raiz: null, dados: null, erro: "", carregando: false, aberto: "", form: null, seg: null };
   var ICONE_MAX = 30 * 1024;
   var textos = {}; // o que o "Copiar" do segredo copia
 
@@ -68,79 +66,10 @@
     return "só liberados (" + n + (n === 1 ? " pessoa" : " pessoas") + (a.dono ? " e o dono" : a.por ? " e quem criou" : "") + ")";
   }
 
-  /* O Atos Workspace do dono (worker/workspace.js): ativo, desativado ou nao conferido. Sem ele, o aplicativo continua
-     funcionando para quem entra, mas o dono nao o muda ate ativar de novo. */
-  function workspaceDoDono(a) {
-    var w = a.dono_workspace;
-    if (!w) return "não deu para conferir";
-    if (w.ativo) return "ativo" + (w.ativado ? " desde " + U.quando(w.ativado) : "");
-    return w.desativado ? "desativado em " + U.quando(w.desativado) + " (o dono não muda o aplicativo até ativar de novo)" : "nunca ativado (o dono não muda o aplicativo até ativar)";
-  }
-  /* O e-mail Atos do dono: e o que quem entra no aplicativo ve como "Cadastrado por" (sem ele, "uma Conta Atos"). */
-  function aliasDoDono(a) {
-    if (!a.dono_alias_lido) return "não deu para conferir";
-    var x = a.dono_alias;
-    if (!x) return "nenhum (quem entra vê “Cadastrado por uma Conta Atos”)";
-    return x.endereco + (x.suspenso ? " · suspenso (quem entra vê “uma Conta Atos”)" : x.confirmado ? "" : " · destino não confirmado");
-  }
-  /* Os aplicativos que as pessoas cadastram no Atos Workspace > Integracoes: ver, desligar por abuso, ligar e apagar. */
-  function terceiros(D) {
-    var l = D.terceiros || [];
-    var h = '<h2 class="titulo-secao pv-h2"><span>Cadastrados pelas pessoas (Atos Workspace)</span></h2>';
-    if (!l.length) return h + '<div class="card"><p class="vazio">Ninguém cadastrou um aplicativo ainda.</p></div>';
-    var donos = {}, ativos = 0;
-    l.forEach(function (a) { if (!(a.dono in donos)) { donos[a.dono] = 1; if (a.dono_workspace && a.dono_workspace.ativo) ativos++; } });
-    var nDonos = Object.keys(donos).length;
-    h += '<p class="nota">' + nDonos + (nDonos === 1 ? " dono" : " donos") + " de aplicativo, " + ativos + " com o Atos Workspace ativo.</p>";
-    return h + '<div class="card">' + l.map(function (a) {
-      var aberto = S.tercAberto === a.id;
-      var sit = a.bloqueado ? '<span class="pv-sit perigo">desligado pela Atos</span>' : '<span class="pv-sit ok">no ar</span>';
-      var ws = a.dono_workspace && a.dono_workspace.ativo ? "" : ' <span class="pv-sit">dono sem Workspace</span>';
-      var det = "";
-      if (aberto) {
-        det = '<div class="nf-det"><dl class="nf-info">' +
-          "<dt>Dono</dt><dd>" + esc(a.dono) + (a.dono_sub ? " <small>(" + esc(a.dono_sub) + ")</small>" : "") + "</dd>" +
-          "<dt>E-mail Atos do dono</dt><dd>" + esc(aliasDoDono(a)) + "</dd>" +
-          "<dt>Workspace do dono</dt><dd>" + esc(workspaceDoDono(a)) + "</dd>" +
-          "<dt>Site</dt><dd>" + esc(a.site) + "</dd>" +
-          "<dt>Privacidade</dt><dd>" + esc(a.privacidade) + "</dd>" +
-          "<dt>Termos</dt><dd>" + esc(a.termos) + "</dd>" +
-          "<dt>Quem entra</dt><dd>" + esc(quemEntra(a)) + "</dd>" +
-          (a.bloqueado ? "<dt>Desligado</dt><dd>" + esc(U.quando(a.bloqueado.quando)) + (a.bloqueado.motivo ? ": " + esc(a.bloqueado.motivo) : "") + "</dd>" : "") +
-          "<dt>Acessos</dt><dd>" + (a.acessos.length ? a.acessos.map(function (c) {
-            return "<code>" + esc(c.id) + "</code> · " + (c.tipo === "confidencial" ? "confidencial" : "público") + (c.ativo ? "" : " · desligado pelo dono") + "<br><small>" + voltasDe(c).map(esc).join(" · ") + "</small>";
-          }).join("<br>") : "nenhum") + "</dd>" +
-          "<dt>Registro</dt><dd>" + (a.registro || []).map(function (x) { return esc(U.quando(x.quando)) + " · " + esc(x.por) + ": " + esc(x.oque); }).join("<br>") + "</dd>" +
-          "</dl></div>";
-      }
-      return '<div class="oa-cliente"><div class="item oa-item">' + icone(a) + '<span class="nome"><strong>' + esc(a.nome) + ' <span class="nf-tag">' + esc(a.id) + "</span> " + sit + ws + "</strong>" +
-        "<small>" + esc(a.descricao) + " · de " + esc(a.dono) + " · " + a.acessos.length + (a.acessos.length === 1 ? " acesso" : " acessos") + " · " + esc(quemEntra(a)) + "</small></span>" +
-        '<span class="pv-par"><button type="button" class="btn mini" data-oa="terc-ver" data-id="' + esc(a.id) + '" aria-expanded="' + aberto + '">Detalhes</button>' +
-        (a.bloqueado ? '<button type="button" class="btn mini" data-oa="terc-ligar" data-id="' + esc(a.id) + '">Ligar de novo</button>'
-          : '<button type="button" class="btn mini" data-oa="terc-desligar" data-id="' + esc(a.id) + '">Desligar</button>') +
-        '<button type="button" class="btn mini perigo" data-oa="terc-apagar" data-id="' + esc(a.id) + '">Apagar</button></span></div>' + det + "</div>";
-    }).join("") + "</div>" +
-      '<p class="nota">Desligar e apagar valem na hora, sem a fila, e ficam no registro do aplicativo (o dono vê) e no registro do Login Atos. Desligado pela Atos, o dono vê o motivo e não consegue religar.</p>';
-  }
-  function terc(id) { return ((S.dados || {}).terceiros || []).filter(function (a) { return a.id === id; })[0] || null; }
-  function modalTerceiro() {
-    var T = S.terc, a = terc(T.id) || { nome: T.id, dono: "" };
-    var apagar = T.acao === "apagar";
-    return '<h2 id="modal-titulo">' + (apagar ? "Apagar " : "Desligar ") + esc(a.nome) + "</h2>" +
-      "<p>" + (apagar
-        ? "O aplicativo de " + esc(a.dono) + " sai do Entrar com Atos na hora, com os acessos e os segredos. Não tem volta (o dono teria de cadastrar outro)."
-        : "Nenhum acesso de " + esc(a.nome) + " começa login, troca código ou responde no userinfo, até a Atos ligar de novo. O dono vê o motivo no registro do aplicativo.") +
-      " O id_token já emitido vale até vencer.</p>" +
-      '<label class="campo"><span class="rotulo">Motivo' + (apagar ? " (opcional)" : " (o dono vê)") + '</span><input data-oa-terc="motivo" maxlength="200" autocomplete="off" value="' + esc(T.motivo || "") + '"></label>' +
-      (T.erro ? '<p class="erro" role="alert">' + esc(T.erro) + "</p>" : "") +
-      '<div class="botoes"><button type="button" class="btn p" data-admin="fechar-modal">Voltar</button><button type="button" class="btn p perigo" data-oa="terc-ok"' + (T.enviando ? " disabled" : "") + ">" +
-      (T.enviando ? "Um momento…" : apagar ? "Apagar" : "Desligar") + "</button></div>";
-  }
-
   /* ------------------------------------------------------------ a tela */
   function tela() {
     var h = "<h1>Login Atos</h1>" +
-      '<p class="descricao">Os sistemas que usam o Entrar com Atos. Os do código (o PAVLVS) só aparecem aqui. Nos da equipe, criar, editar, desligar e apagar entram na fila da Atos e valem quando você confirmar as alterações; gerar ou trocar o segredo de um cliente vale na hora. Os cadastrados pelas pessoas no Atos Workspace aparecem no fim, com o dono de cada um e se ele tem o Workspace ativo.</p>';
+      '<p class="descricao">Os sistemas que usam o Entrar com Atos. Os do código (o PAVLVS) só aparecem aqui. Nos da equipe, criar, editar, desligar e apagar entram na fila da Atos e valem quando você confirmar as alterações; gerar ou trocar o segredo de um cliente vale na hora. Os cadastrados pelas pessoas ficam em <a href="#ws-apps" data-secao="ws-apps">Atos Workspace › Aplicativos de terceiros</a>.</p>';
     if (!S.dados) return h + '<div class="card pv-topo"><p class="vazio">' + (S.erro ? "Não consegui ler o Login Atos agora: " + esc(S.erro) + ' <button type="button" class="link" data-oa="recarregar">Tentar de novo</button>' : "Carregando…") + "</p></div>";
     if (S.erro) h += '<p class="nf-aviso"><span>Não consegui atualizar agora: ' + esc(S.erro) + ". Mostrando a última leitura.</span></p>";
     var D = S.dados, pend = pendentesOAuth();
@@ -174,8 +103,6 @@
         "<small>" + voltasDe(c).map(esc).join(" · ") + "</small></span>" +
         '<span class="pv-par">' + acoes + "</span></div>" + (aberto ? integrar(c) : "") + "</div>";
     }).join("") + "</div>";
-
-    h += terceiros(D);
 
     h += '<h2 class="titulo-secao pv-h2"><span>O que vale para quem já entrou</span></h2>' +
       '<div class="card oa-regras"><ul>' +
@@ -329,29 +256,6 @@
       A.modal.abrir({ html: modalForm, classe: "largo", aoFechar: fechar }); return;
     }
     if (a === "modo") { if (S.form) { S.form.v.acesso = b.getAttribute("data-v"); A.modal.repintar(); } return; }
-    if (a === "terc-ver") { S.tercAberto = S.tercAberto === id ? "" : id; pintar(); return; }
-    if (a === "terc-desligar" || a === "terc-apagar") {
-      S.terc = { id: id, acao: a === "terc-apagar" ? "apagar" : "desligar", motivo: "", erro: "", enviando: false };
-      A.modal.abrir({ html: modalTerceiro, aoFechar: function () { S.terc = null; } }); return;
-    }
-    if (a === "terc-ligar") {
-      b.disabled = true;
-      A.pedir("POST", "/api/admin/oauth/terceiros/" + encodeURIComponent(id) + "/ligar", {}).then(function () { A.toast("Ligado de novo"); carregar(); },
-        function (er) { b.disabled = false; if (er.status !== 401) A.toast(er.message, true); });
-      return;
-    }
-    if (a === "terc-ok") {
-      var T = S.terc; if (!T || T.enviando) return;
-      T.enviando = true; T.erro = ""; A.modal.repintar();
-      A.pedir("POST", "/api/admin/oauth/terceiros/" + encodeURIComponent(T.id) + "/" + T.acao, { motivo: T.motivo, confirmar: T.acao === "apagar" }).then(function () {
-        if (S.terc !== T) return;
-        A.modal.fechar(); A.toast(T.acao === "apagar" ? "Apagado" : "Desligado"); carregar();
-      }, function (er) {
-        if (S.terc !== T) return;
-        T.enviando = false; T.erro = er.status === 401 ? "" : er.message; A.modal.repintar();
-      });
-      return;
-    }
     if (a === "novo-cliente") {
       var primeiro = S.dados.apps.filter(function (x) { return !x.codigo; })[0] || S.dados.apps[0];
       S.form = { tipo: "cliente", acao: "criar", v: { id: "", app: primeiro ? primeiro.id : "", tipo: "publico", voltas: "", loopback: false, origens: "" }, erro: "" };
@@ -396,7 +300,6 @@
     }
   });
   document.addEventListener("input", function (e) {
-    if (e.target && e.target.getAttribute && e.target.getAttribute("data-oa-terc") === "motivo" && S.terc) { S.terc.motivo = e.target.value; return; }
     var el = e.target.closest && e.target.closest("[data-oa-in]");
     if (!el || !S.form) return;
     var k = el.getAttribute("data-oa-in");

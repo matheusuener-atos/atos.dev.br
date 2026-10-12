@@ -30,13 +30,13 @@
 //   POST /api/integracoes/apps/:id/acessos         {tipo, voltas, loopback, origens} cria um acesso (cliente)
 //   POST /api/integracoes/acessos/:cid             {acao: editar|ligar|desligar|apagar|segredo, ...}
 //
-// A equipe (painel, Login Atos; worker/oidc-painel.js) ve todos e pode desligar (por abuso, com motivo), ligar de
+// A equipe (painel, Atos Workspace > Aplicativos de terceiros; worker/admin-workspace.js) ve todos e pode desligar (por abuso, com motivo), ligar de
 // novo ou apagar qualquer um, na hora, com registro: terceirosParaPainel e acaoDaEquipe, abaixo. Desligado pela
 // equipe, o dono ve o motivo e nao consegue religar.
 
 import { aleatorio, json, kv, lerJson, sha256 } from "./comum.js";
 import { sessaoDe } from "./contas.js";
-import { SEM_WORKSPACE, WORKSPACE_FORA, estadoDoAlias, recusaDoAlias, vistaDoWorkspace, workspaceAtivo, workspaceDe } from "./workspace.js";
+import { SEM_WORKSPACE, WORKSPACE_FORA, WORKSPACE_SUSPENSO, estadoDoAlias, recusaDoAlias, vistaDoWorkspace, workspaceDe } from "./workspace.js";
 import { aliasDaConta, emailAtosLigado } from "./email-atos.js";
 import { ID_APP_TERCEIRO, KO, appDoCliente, appTerceiro, dadosParaIntegrar, indiceDeTerceiros } from "./oidc.js";
 import { LIBERADOS_MAX, camposDoApp, camposDoCliente, emailsLimpos, modoDeAcesso } from "./oidc-campos.js";
@@ -164,9 +164,12 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
   const sessao = await sessaoDe(request, env);
   if (!sessao) return json({ erro: "entre na sua conta", entrar: true }, 401);
   // O Atos Workspace ativo, antes de tudo (ver e mudar): o registro forte do cliente, nao o KV.
-  let ativo;
-  try { ativo = await workspaceAtivo(env, sessao.sub); } catch { return WORKSPACE_FORA(); }
-  if (!ativo) return SEM_WORKSPACE();
+  let w;
+  try { w = await workspaceDe(env, sessao.sub); } catch { return WORKSPACE_FORA(); }
+  if (!w || !w.ativo) return SEM_WORKSPACE();
+  // Suspenso pela equipe (worker/admin-workspace.js): ver e mudar param; os aplicativos seguem como estao (a equipe
+  // escolhe, na hora de suspender, se tambem os desliga).
+  if (w.suspenso) return WORKSPACE_SUSPENSO(w.suspenso);
   // O e-mail Atos (worker/workspace.js, estadoDoAlias): o alias ativo, com o destino confirmado, e a sessao aberta por
   // ele. Faltando um, 403 com o codigo (sem_alias, alias_nao_confirmado, entrar_pelo_alias); os aplicativos ja
   // cadastrados continuam funcionando para quem entra neles, so a gestao para.
@@ -332,7 +335,7 @@ export async function atenderIntegracoes(request, env, url, deps = {}) {
   return json({ erro: "o que fazer com o acesso? (editar, ligar, desligar, apagar ou segredo)" }, 400);
 }
 
-// ------------------------------------------------------------ a equipe (painel, Login Atos)
+// ------------------------------------------------------------ a equipe (painel, Atos Workspace > Aplicativos de terceiros)
 
 /* Todos os aplicativos de terceiros, com o dono de cada um (o painel: o e-mail e o sub reais), se ele tem o Atos
    Workspace ativo (dono_workspace: {ativo, ativado, desativado} ou null quando nao deu para conferir) e o e-mail Atos

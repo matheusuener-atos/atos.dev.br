@@ -277,6 +277,25 @@ export class SegurancaConta {
         return { ok: true, nome: c.nome, resumo: this.resumo(r) };
       }
 
+      // ---------------------------------------------------- a equipe da Atos (painel, Contas Atos; worker/admin-contas.js)
+      case "equipe-zerar": {
+        // O atendimento de quem perdeu o aplicativo, os codigos e as chaves: a equipe (so o dono, com o motivo, depois de
+        // conferir a identidade fora do painel) desliga a verificacao em duas etapas. Sai tudo: o aplicativo, os codigos
+        // de recuperacao, as chaves de acesso, o aplicativo pela metade, os erros e as etapas e desafios em andamento.
+        const r = await this.reg();
+        const tinha = { totp: Boolean(r.totp), codigos: r.rec ? r.rec.hashes.length : 0, chaves: (r.chaves || []).map((c) => ({ id: c.id, nome: c.nome })) };
+        if (!this.ativa(r) && !r.rec) return { ok: false, erro: "inativa" };
+        delete r.totp;
+        delete r.rec;
+        r.chaves = [];
+        await this.gravar(r);
+        await s.delete("pend-totp");
+        await this.acertou();
+        const efemeros = [...(await s.list({ prefix: "ef:" })).keys()];
+        for (let i = 0; i < efemeros.length; i += 128) await s.delete(efemeros.slice(i, i + 128));
+        return { ok: true, tinha, resumo: this.resumo(r) };
+      }
+
       // ---------------------------------------------------- a segunda etapa do login
       case "etapa-criar": {
         await this.limpar(agora);

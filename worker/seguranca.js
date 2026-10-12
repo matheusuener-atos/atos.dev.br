@@ -22,7 +22,8 @@
 // mfa (a pessoa acabou de provar que tem o segundo fator): e assim que quem esta na equipe liga a etapa e volta ao painel.
 //
 // Perdeu tudo (o aplicativo, os codigos e as chaves)? Nao ha desligamento automatico: a pessoa escreve para
-// contato@atos.dev.br (as telas e os termos dizem isso).
+// contato@atos.dev.br (as telas e os termos dizem isso); a equipe confere a identidade fora do painel e o dono desliga
+// pelo painel (Contas Atos; worker/admin-contas.js, op "equipe-zerar" do objeto), com motivo, registro e o aviso por e-mail.
 
 import { b64urlTexto, deB64url, json, kv, lerJson } from "./comum.js";
 import { COOKIE, SESSAO_S, abrirSessao, campoSessoesDesde, sessaoDe } from "./contas.js";

@@ -50,7 +50,7 @@
     planos: { aba: null, lado: "resumo", ed: null, json: null, versao: null },
     emails: { aba: "campanhas", passo: 1, camp: novaCamp(), escolhidas: [], outroLink: false, erros: {} },
   };
-  var MP = null; // o pop-up desta secao (google, endereco, campCancelar, escContas, tunelHist, busca)
+  var MP = null; // o pop-up desta secao (google, endereco, campCancelar, escContas, tunelHist)
 
   function fila() { return A.fila; }
   /* Os tipos que estas telas poem na fila do PAVLVS (a fila e escolhida pelo prefixo; admin-fila.js nao conhece o
@@ -902,7 +902,7 @@
 
   /* ================================================================ os pop-ups */
 
-  function abrirModal(m, classe) { MP = m; A.modal.abrir({ html: modalHtml, classe: classe || "", busca: m.tipo === "busca", aoFechar: function () { MP = null; } }); }
+  function abrirModal(m, classe) { MP = m; A.modal.abrir({ html: modalHtml, classe: classe || "", aoFechar: function () { MP = null; } }); }
   function modalHtml() {
     if (!MP) return "";
     var M = MP, t = function (x) { return '<h2 id="modal-titulo">' + esc(x) + "</h2>"; };
@@ -930,13 +930,11 @@
         '<div><span class="titulo-secao">Recebem · ' + dentro.length + '</span><div class="card pv-esc-lista">' + (dentro.length ? dentro.map(function (c) { return op(c, true); }).join("") : vazio("Clique numa conta para ela entrar aqui.")) + "</div></div></div>" +
         '<div class="botoes"><button type="button" class="btn p" data-admin="fechar-modal">Cancelar</button><button type="button" class="btn p primario" data-pv="escConfirmar">' + (dentro.length ? "Usar " + plural(dentro.length, "conta", "contas") : "Sem contas") + "</button></div>";
     }
-    if (M.tipo === "busca") return buscaHtml();
     return "";
   }
 
   /* ---------- a busca (Ctrl K) ---------- */
   var NOME_GRUPO = { contas: "Contas", escritorios: "Escritórios", tuneis: "Túneis", planos: "Planos" };
-  var itensBusca = [];
   function rapidas() {
     var l = [];
     l.push({ t: "E-mails › Nova campanha", d: "público, conteúdo e disparo em 3 passos", ir: function () { Q.emails.aba = "nova"; Q.emails.passo = 1; irPara("emails"); } });
@@ -945,21 +943,6 @@
     l.push({ t: "Não renovações › Abertas", d: "ciclos sem renovação", ir: function () { irPara("renovacoes"); } });
     return l;
   }
-  function gruposBusca() {
-    var B = MP, q = norm(B.q.trim());
-    if (!q) return [["Ações rápidas", rapidas()]];
-    var bate = function (t) { return norm(t).indexOf(q) >= 0; }, g = [];
-    var telas = A.secoes.filter(function (s) { return bate(s.nome); }).map(function (s) { return { t: s.nome, d: "seção · " + (s.grupo || "Atos"), ir: function () { A.navegar(s.id); } }; });
-    if (telas.length) g.push(["Seções", telas]);
-    var ac = rapidas().filter(function (r) { return bate(r.t + " " + r.d); });
-    if (ac.length) g.push(["Ações", ac]);
-    var res = B.res || {};
-    ["contas", "escritorios", "tuneis", "planos"].forEach(function (k) {
-      var it = (res[k] || []).slice(0, 6).map(function (x) { return { t: NOME_GRUPO[k] + " › " + x.titulo, d: x.desc, ir: function () { abrirResultado(k, x); } }; });
-      if (it.length) g.push([NOME_GRUPO[k] + " do PAVLVS", it]);
-    });
-    return g;
-  }
   function abrirResultado(k, x) {
     if (k === "contas") { abrirConta(x.alvo); return; }
     if (k === "escritorios") { Q.contas.agrupar = "escritorio"; Q.contas.q = x.titulo || ""; Q.contas.filtro = "todas"; irPara("contas"); return; }
@@ -967,42 +950,20 @@
     if (k === "planos") { Q.planos.aba = x.alvo; Q.planos.lado = "resumo"; irPara("planos"); return; }
     if (TELA[x.tela]) irPara(x.tela);
   }
-  function buscaHtml() {
-    var B = MP, gr = gruposBusca(), n = 0, total = gr.reduce(function (s, g) { return s + g[1].length; }, 0);
-    itensBusca = [];
-    if (B.idx >= total) B.idx = Math.max(0, total - 1);
-    var corpo = gr.map(function (g) {
-      return '<p class="titulo-secao pv-busca-grupo">' + esc(g[0]) + "</p>" + g[1].map(function (r) {
-        var i = n++; itensBusca.push(r);
-        return '<button type="button" class="item pv-item-btn pv-busca-item" role="option" id="pv-bi-' + i + '" aria-selected="' + (i === B.idx) + '" data-pv="buscaIr" data-i="' + i + '" tabindex="-1"><span class="nome"><strong>' + esc(r.t) + "</strong><small>" + esc(r.d || "") + '</small></span><span class="seta">›</span></button>';
-      }).join("");
-    }).join("");
-    var q = B.q.trim();
-    if (q && !total) corpo += vazio(B.carregando ? "Buscando…" : "Nada com “" + esc(q) + "”. Tente o nome de uma conta, um escritório ou uma seção.");
-    if (q && B.erro) corpo += '<p class="erro">Não consegui buscar no PAVLVS agora: ' + esc(B.erro) + "</p>";
-    return '<h2 id="modal-titulo" class="pv-so-leitor">Buscar em tudo</h2><input class="seletor pv-busca-q" id="pv-busca-q" data-pv-in="buscaQ" value="' + esc(B.q) + '" placeholder="Seções, ações, contas, escritórios, túneis, planos…" spellcheck="false" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="pv-busca-lista" aria-activedescendant="pv-bi-' + B.idx + '" data-foco>' +
-      '<div class="card pv-busca-res" id="pv-busca-lista" role="listbox" aria-label="Resultados">' + corpo + "</div>" +
-      '<p class="dica">↑ ↓ para navegar · Enter para abrir · Esc para fechar</p>';
-  }
-  var tempoBusca = null;
-  function buscar() {
-    var B = MP, q = B.q.trim();
-    clearTimeout(tempoBusca);
-    if (q.length < 2) { B.res = null; B.erro = ""; B.carregando = false; return; }
-    B.carregando = true;
-    tempoBusca = setTimeout(function () {
-      var seq = ++B.seq;
-      A.pedir("GET", P + "busca?q=" + encodeURIComponent(q)).then(function (r) { if (seq === B.seq) { B.res = r; B.erro = ""; } }, function (e) { if (seq === B.seq) { B.res = null; B.erro = e.status === 401 ? "" : e.message; } })
-        .then(function () { if (seq === B.seq && MP === B) { B.carregando = false; A.modal.repintar(); } });
-    }, 200);
-  }
-  function marcarBusca(i) {
-    MP.idx = i;
-    document.querySelectorAll(".pv-busca-item").forEach(function (b) { b.setAttribute("aria-selected", String(Number(b.getAttribute("data-i")) === i)); });
-    var inp = document.getElementById("pv-busca-q"); if (inp) inp.setAttribute("aria-activedescendant", "pv-bi-" + i);
-    var at = document.getElementById("pv-bi-" + i); if (at && at.scrollIntoView) at.scrollIntoView({ block: "nearest" });
-  }
-  A.buscador = { area: "pavlvs", abrir: function () { abrirModal({ tipo: "busca", q: "", idx: 0, res: null, erro: "", carregando: false, seq: 0 }, "largo pv-busca"); } };
+  /* A busca e da casca (admin.js); o PAVLVS e uma fonte dela: as acoes rapidas e o que o Worker do PAVLVS acha. */
+  A.fontesDeBusca.push({
+    area: "pavlvs", nome: "PAVLVS", rapidas: rapidas,
+    buscar: function (q) {
+      return A.pedir("GET", P + "busca?q=" + encodeURIComponent(q)).then(function (res) {
+        var g = [];
+        ["contas", "escritorios", "tuneis", "planos"].forEach(function (k) {
+          var it = (res[k] || []).slice(0, 6).map(function (x) { return { t: NOME_GRUPO[k] + " › " + x.titulo, d: x.desc, ir: function () { abrirResultado(k, x); } }; });
+          if (it.length) g.push([NOME_GRUPO[k] + " do PAVLVS", it]);
+        });
+        return g;
+      });
+    },
+  });
 
   /* ================================================================ acoes */
 
@@ -1333,8 +1294,6 @@
     b.disabled = true;
     naHora("POST", P + "campanhas/teste", { campanha: dadosCampanha() }, "Teste enviado para " + ((A.quem && A.quem.email) || "você")).then(function () { b.disabled = false; });
   };
-  // busca
-  X.buscaIr = function (b) { var r = itensBusca[Number(b.getAttribute("data-i"))]; if (r) { A.modal.fechar(); r.ir(); } };
 
   /* ---------- as entradas de texto ---------- */
   var IN = {
@@ -1367,7 +1326,6 @@
     campLink: function (el) { var E = Q.emails; if (el.value) { E.camp.link = el.value; E.outroLink = false; } else { E.outroLink = true; E.camp.link = ""; } render(); },
     slugNovo: function (el) { if (!MP) return; MP.novo = el.value; MP.tocado = true; conferirSlug(); A.modal.repintar(); },
     escmQ: function (el) { if (MP) { MP.q = el.value; A.modal.repintar(); } },
-    buscaQ: function (el) { if (MP) { MP.q = el.value; MP.idx = 0; buscar(); A.modal.repintar(); } },
   };
   // A previa acompanha o que se digita sem redesenhar o formulario.
   function pintarPrevia() { if (R.raiz && A.secaoAtual() === "emails") pintar(R.raiz, TELAS_RENDER.emails()); }
@@ -1415,17 +1373,7 @@
     } else if (el.tagName === "SELECT" && el.getAttribute("data-pv-in") === "cad") IN.cad(el);
   });
   document.addEventListener("keydown", function (e) {
-    if (MP && MP.tipo === "busca" && e.target.id === "pv-busca-q") {
-      var total = itensBusca.length;
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (total) marcarBusca(((MP.idx + (e.key === "ArrowDown" ? 1 : -1)) % total + total) % total); }
-      else if (e.key === "Enter") { e.preventDefault(); var r = itensBusca[MP.idx]; if (r) { A.modal.fechar(); r.ir(); } }
-      return;
-    }
     if (e.key === "Enter" && MP && MP.tipo === "endereco" && e.target.id === "pv-slug") { e.preventDefault(); X.enderecoOk(); }
-  });
-  document.addEventListener("mouseover", function (e) {
-    var b = e.target.closest(".pv-busca-item");
-    if (b && MP && MP.tipo === "busca" && Number(b.getAttribute("data-i")) !== MP.idx) marcarBusca(Number(b.getAttribute("data-i")));
   });
 
   /* ================================================================ as secoes */

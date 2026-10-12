@@ -6,14 +6,18 @@
    que as secoes dividem (a API, os formatos, o aviso que some sozinho e a camada do pop-up). Cada secao se registra
    em AdminAtos.secoes a partir do seu proprio script (assets/admin-*.js), carregado depois deste:
 
-     { id, nome, grupo: "Atos" | <nome do produto>, ordem, area, papeis, desenhar(raiz, ctx), contagem() }
+     { id, nome, grupo: "Atos" | "Atos Workspace" | <nome do produto>, ordem, area, papeis, desenhar(raiz, ctx), contagem() }
 
-   `grupo` sem valor e "Atos"; os outros grupos sao os produtos do registro (GET /api/admin/eu, produtos), na ordem
-   dele. `ordem` arruma dentro do grupo (sem ela, a ordem de registro); `contagem` (opcional) e o numero ao lado do
+   `grupo` sem valor e "Atos"; depois vem "Atos Workspace" (admin-workspace.js, admin-email.js, admin-apps.js) e os
+   produtos do registro (GET /api/admin/eu, produtos), na ordem dele. `ordem` arruma dentro do grupo (sem ela, a ordem de registro); `contagem` (opcional) e o numero ao lado do
    nome no menu (0 ou nada: sem numero). `area` ("atos" ou o id de um produto) mostra a secao so a quem atua nela
    (A.temArea); `papeis` (ex.: ["dono"]), so a esses papeis. O servidor confere as duas coisas de novo. Hoje: Notas
    fiscais (admin-nfse.js), Equipe (admin-equipe.js), Confirmar alteracoes (admin-fila.js), Login Atos
-   (admin-oauth.js) e as do PAVLVS (admin-pavlvs.js).
+   (admin-oauth.js), Contas Atos (admin-contas.js), o grupo Atos Workspace e as do PAVLVS (admin-pavlvs.js).
+
+   A busca (Ctrl K) e daqui; cada area poe nela o que tem com A.fontesDeBusca.push({area, nome, rapidas(), buscar(q)}):
+   rapidas() (opcional) devolve as acoes da caixa vazia, [{t, d, ir}]; buscar(q) (opcional) devolve uma promessa de
+   grupos, [[nome do grupo, [{t, d, ir}]]]. So aparecem as fontes da area de quem esta.
 
    A CSP do /admin e script-src 'self'; style-src 'self': nada de estilo nem evento no HTML; tudo por classe
    (admin.css) e por delegacao de eventos. */
@@ -100,7 +104,7 @@
   };
   var S = { secao: "", dentro: false, aoEntrar: [] };
   /* Os grupos do menu: a Atos e os produtos do registro (do /eu). */
-  function grupos() { return ["Atos"].concat(((A.quem && A.quem.produtos) || []).map(function (p) { return p.nome; })); }
+  function grupos() { return ["Atos", "Atos Workspace"].concat(((A.quem && A.quem.produtos) || []).map(function (p) { return p.nome; })); }
   /* Onde a pessoa atua (o /eu): "atos" e os ids dos produtos. */
   A.temArea = function (id) { return Boolean(A.quem && (A.quem.areas || []).indexOf(id) >= 0); };
   /* A secao aparece para quem esta? (a area e o papel que ela pede) */
@@ -150,8 +154,10 @@
     });
     return h + (grupo ? "</nav>" : "");
   }
-  /* A busca e de uma area (a do PAVLVS busca no PAVLVS): so para quem atua nela. */
-  function temBuscador() { return Boolean(A.buscador && (!A.buscador.area || A.temArea(A.buscador.area))); }
+  /* A busca: as fontes das areas de quem esta (a do PAVLVS busca no PAVLVS; a da Atos, as contas e o Workspace). */
+  A.fontesDeBusca = [];
+  function fontes() { return A.fontesDeBusca.filter(function (f) { return !f.area || A.temArea(f.area); }); }
+  function temBuscador() { return fontes().length > 0; }
   /* So o menu (as contagens mudaram), sem redesenhar a secao. */
   A.atualizarNav = function () { var m = $("admin-menu"); if (m && S.dentro) m.innerHTML = menuHtml(); };
 
@@ -245,7 +251,8 @@
     if (!b || b.disabled) return;
     var acao = b.getAttribute("data-admin");
     if (acao === "fechar-modal") { fecharModal(false); return; }
-    if (acao === "buscar") { if (temBuscador()) A.buscador.abrir(); return; }
+    if (acao === "buscar") { if (temBuscador()) abrirBusca(); return; }
+    if (acao === "busca-ir") { var r = itensBusca[Number(b.getAttribute("data-i"))]; if (r) { fecharModal(true); r.ir(); } return; }
     if (acao === "sair" || acao === "reentrar") {
       // Entrar de novo: sai desta sessao e volta ao painel pelo /entrar (o login novo vale 12 horas aqui).
       api("POST", "/api/sair", {}).then(function () { location.assign("/entrar/?volta=" + encodeURIComponent("/admin/")); });
@@ -254,10 +261,15 @@
   document.addEventListener("keydown", function (e) {
     if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === "k" && S.dentro && temBuscador()) {
       e.preventDefault();
-      if (M && M.busca) fecharModal(false); else A.buscador.abrir();
+      if (M && M.busca) fecharModal(false); else abrirBusca();
       return;
     }
     if (!M) return;
+    if (M.busca && B && e.target.id === "admin-busca-q") {
+      var total = itensBusca.length;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (total) marcarBusca(((B.idx + (e.key === "ArrowDown" ? 1 : -1)) % total + total) % total); return; }
+      if (e.key === "Enter") { e.preventDefault(); var r = itensBusca[B.idx]; if (r) { fecharModal(true); r.ir(); } return; }
+    }
     if (e.key === "Escape") { e.preventDefault(); fecharModal(false); return; }
     if (e.key === "Tab") {
       // O foco fica dentro do pop-up.
@@ -271,6 +283,74 @@
       else if (e.shiftKey && document.activeElement === pri) { e.preventDefault(); ult.focus(); }
       else if (!e.shiftKey && document.activeElement === ult) { e.preventDefault(); pri.focus(); }
     }
+  });
+
+  /* ------------------------------------------------------------ a busca (Ctrl K) */
+  var B = null, itensBusca = [], tempoBusca = null;
+  function abrirBusca() {
+    B = { q: "", idx: 0, res: {}, erros: {}, carregando: 0, seq: 0 };
+    A.modal.abrir({ html: buscaHtml, classe: "largo pv-busca", busca: true, aoFechar: function () { B = null; } });
+  }
+  function gruposBusca() {
+    var q = norm(B.q.trim()), fs = fontes(), g = [];
+    var rapidas = [];
+    fs.forEach(function (f) { if (f.rapidas) try { rapidas = rapidas.concat(f.rapidas()); } catch (e) { /* uma fonte nao derruba as outras */ } });
+    if (!q) return rapidas.length ? [["Ações rápidas", rapidas]] : [];
+    var bate = function (t) { return norm(t).indexOf(q) >= 0; };
+    var telas = ordenadas().filter(function (s) { return bate(s.nome + " " + (s.grupo || "Atos")); })
+      .map(function (s) { return { t: s.nome, d: "seção · " + (s.grupo || "Atos"), ir: function () { A.navegar(s.id); } }; });
+    if (telas.length) g.push(["Seções", telas]);
+    var ac = rapidas.filter(function (r) { return bate(r.t + " " + (r.d || "")); });
+    if (ac.length) g.push(["Ações", ac]);
+    fs.forEach(function (f, i) { (B.res[i] || []).forEach(function (x) { if (x[1] && x[1].length) g.push(x); }); });
+    return g;
+  }
+  function buscaHtml() {
+    if (!B) return "";
+    var gr = gruposBusca(), n = 0, total = gr.reduce(function (s, g) { return s + g[1].length; }, 0);
+    itensBusca = [];
+    if (B.idx >= total) B.idx = Math.max(0, total - 1);
+    var corpo = gr.map(function (g) {
+      return '<p class="titulo-secao pv-busca-grupo">' + esc(g[0]) + "</p>" + g[1].map(function (r) {
+        var i = n++; itensBusca.push(r);
+        return '<button type="button" class="item pv-item-btn pv-busca-item" role="option" id="admin-bi-' + i + '" aria-selected="' + (i === B.idx) + '" data-admin="busca-ir" data-i="' + i + '" tabindex="-1"><span class="nome"><strong>' + esc(r.t) + "</strong><small>" + esc(r.d || "") + '</small></span><span class="seta">›</span></button>';
+      }).join("");
+    }).join("");
+    var q = B.q.trim();
+    if (q && !total) corpo += '<p class="vazio">' + (B.carregando > 0 ? "Buscando…" : "Nada com “" + esc(q) + "”. Tente um e-mail, um endereço @atos.dev.br, o nome de um aplicativo ou de uma seção.") + "</p>";
+    fontes().forEach(function (f, i) { if (q && B.erros[i]) corpo += '<p class="erro pv-busca-grupo">Não consegui buscar em ' + esc(f.nome) + " agora: " + esc(B.erros[i]) + "</p>"; });
+    return '<h2 id="modal-titulo" class="pv-so-leitor">Buscar em tudo</h2><input class="seletor pv-busca-q" id="admin-busca-q" value="' + esc(B.q) + '" placeholder="Seções, contas, endereços @atos.dev.br, aplicativos…" spellcheck="false" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="admin-busca-lista" aria-activedescendant="admin-bi-' + B.idx + '" data-foco>' +
+      '<div class="card pv-busca-res" id="admin-busca-lista" role="listbox" aria-label="Resultados">' + corpo + "</div>" +
+      '<p class="dica">↑ ↓ para navegar · Enter para abrir · Esc para fechar</p>';
+  }
+  function buscar() {
+    var q = B.q.trim(), fs = fontes();
+    clearTimeout(tempoBusca);
+    if (q.length < 2) { B.res = {}; B.erros = {}; B.carregando = 0; return; }
+    var esta = B, seq = ++esta.seq;
+    esta.carregando = fs.filter(function (f) { return f.buscar; }).length;
+    tempoBusca = setTimeout(function () {
+      fs.forEach(function (f, i) {
+        if (!f.buscar) return;
+        Promise.resolve().then(function () { return f.buscar(q); }).then(function (gs) { if (seq === esta.seq) { esta.res[i] = gs || []; esta.erros[i] = ""; } },
+          function (e) { if (seq === esta.seq) { esta.res[i] = []; esta.erros[i] = e && e.status === 401 ? "" : (e && e.message) || "erro"; } })
+          .then(function () { if (seq === esta.seq && B === esta) { esta.carregando--; A.modal.repintar(); } });
+      });
+    }, 200);
+  }
+  function marcarBusca(i) {
+    B.idx = i;
+    document.querySelectorAll(".pv-busca-item").forEach(function (b) { b.setAttribute("aria-selected", String(Number(b.getAttribute("data-i")) === i)); });
+    var inp = $("admin-busca-q"); if (inp) inp.setAttribute("aria-activedescendant", "admin-bi-" + i);
+    var at = $("admin-bi-" + i); if (at && at.scrollIntoView) at.scrollIntoView({ block: "nearest" });
+  }
+  document.addEventListener("input", function (e) {
+    if (!B || !e.target || e.target.id !== "admin-busca-q") return;
+    B.q = e.target.value; B.idx = 0; buscar(); A.modal.repintar();
+  });
+  document.addEventListener("mouseover", function (e) {
+    var b = e.target.closest && e.target.closest(".pv-busca-item");
+    if (b && B && Number(b.getAttribute("data-i")) !== B.idx) marcarBusca(Number(b.getAttribute("data-i")));
   });
 
   // Depois de todos os scripts das secoes (defer): so entao pergunta quem esta.

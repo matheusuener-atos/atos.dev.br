@@ -13,6 +13,7 @@
     "totp-ligada": "Verificação em duas etapas ligada (aplicativo autenticador)", "totp-desligada": "Aplicativo autenticador desligado",
     "chave-cadastrada": "Chave de acesso cadastrada", "chave-removida": "Chave de acesso removida", "codigos-gerados": "Novos códigos de recuperação gerados",
     "senha-trocada": "Senha trocada", "sair-outras": "Saiu de todas as outras sessões", "chave-contador": "Uma chave de acesso mostrou um contador fora de ordem (pode ser uma cópia dela)",
+    "equipe-2fa-desligada": "A equipe da Atos desligou a verificação em duas etapas (atendimento por contato@atos.dev.br)", "equipe-sessoes-encerradas": "A equipe da Atos encerrou todas as sessões",
   };
 
   window.AtosSeguranca = function (ctx) {

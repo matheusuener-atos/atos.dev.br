@@ -361,3 +361,7 @@ button.pv-tr.pv-clicavel:hover, .pv-tr.pv-aberto { background: var(--surface-hov
 #admin input[type="checkbox"]:checked::before, #admin-camada input[type="checkbox"]:checked::before { transform: scale(1); }
 #admin input[type="checkbox"]:focus-visible, #admin-camada input[type="checkbox"]:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 #admin input[type="checkbox"]:disabled, #admin-camada input[type="checkbox"]:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Atos Workspace e Contas Atos (admin-workspace.js, admin-contas.js): a barra da busca, antes do cartao */
+.ws-barra { margin: 8px 0 12px; }
+.ws-barra .pv-busca-campo { flex: 1 1 220px; }

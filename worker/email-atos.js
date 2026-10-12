@@ -32,6 +32,7 @@
 //   log:<iso>:<r>     {quando, alias, resultado, motivo, tamanho, de (so o dominio do remetente)} 30 dias
 //   mud:<iso>:<r>     {quando, alias, oque, por} as mudancas (da pessoa e da equipe), 1 ano
 //   sim:<email>       {id, verified} a Cloudflare simulada (so no teste)
+//   ws:<sub>, ws-varredura, eq:<iso>:<r>   o indice do Atos Workspace e o registro da equipe (worker/workspace-indice.js)
 //
 // Rotas da tela (sessao da Conta Atos; mudar pede o Workspace ativo e login das ultimas 12 horas):
 //   GET  /api/workspace/email                      o estado (alias, destino, passos, limites, vagas, disponivel)
@@ -52,6 +53,7 @@ import { emailValido, json, lerJson, normal, sha256 } from "./comum.js";
 import { sessaoDe } from "./contas.js";
 import { enviarEmail as enviarPadrao, enderecoDeTeste } from "./email.js";
 import { cliente, idDoCliente } from "./cobranca/cliente.js";
+import { RETENCAO_EQUIPE_DIAS, ehOpDoIndice, fazerNoIndice } from "./workspace-indice.js";
 
 export const DOMINIO = "atos.dev.br";
 const RECENTE_H = 12;
@@ -73,8 +75,8 @@ const QUARENTENA_DIAS = 30;
 const HISTORICO = 50;
 // O teto de destinos da conta Cloudflare e 200 (contando os do dono). EMAIL_LIMITE_DESTINOS diz ate quantos a Atos
 // enche (o padrao deixa 10 para o dono); acima disso o pedido de destino novo responde que as vagas acabaram.
-const TETO_CF = 200;
-const limiteDeDestinos = (env) => Math.max(0, Math.min(TETO_CF, Number(env.EMAIL_LIMITE_DESTINOS) || 190));
+export const TETO_CF = 200;
+export const limiteDeDestinos = (env) => Math.max(0, Math.min(TETO_CF, Number(env.EMAIL_LIMITE_DESTINOS) || 190));
 
 // A recusa e sempre a mesma (sem dizer se o alias existe, de quem e, nem para onde vai). So o tamanho, conferido antes
 // de olhar o alias, tem texto proprio.
@@ -266,7 +268,8 @@ export class EmailAtos {
     const s = this.ctx.storage;
     const agora = Date.now();
     await this.limpar(agora);
-    const resta = (await s.list({ prefix: "log:", limit: 1 })).size + (await s.list({ prefix: "mud:", limit: 1 })).size + (await s.list({ prefix: "cnt:", limit: 1 })).size;
+    const resta = (await s.list({ prefix: "log:", limit: 1 })).size + (await s.list({ prefix: "mud:", limit: 1 })).size + (await s.list({ prefix: "cnt:", limit: 1 })).size +
+      (await s.list({ prefix: "eq:", limit: 1 })).size;
     if (resta) await s.setAlarm(agora + 6 * 3600 * 1000);
   }
   async limpar(agora) {
@@ -275,6 +278,7 @@ export class EmailAtos {
     const apagar = [];
     for (const [k] of await s.list({ prefix: "log:" })) if (k.slice(4, 28) < corte(RETENCAO_LOG_DIAS)) apagar.push(k);
     for (const [k] of await s.list({ prefix: "mud:" })) if (k.slice(4, 28) < corte(RETENCAO_MUD_DIAS)) apagar.push(k);
+    for (const [k] of await s.list({ prefix: "eq:" })) if (k.slice(3, 27) < corte(RETENCAO_EQUIPE_DIAS)) apagar.push(k);
     for (const [k, v] of await s.list({ prefix: "cnt:" })) if (!v || Date.parse(v.ate) <= agora) apagar.push(k);
     for (const [k, v] of await s.list({ prefix: "quarentena:" })) if (!v || Date.parse(v.ate) <= agora) apagar.push(k);
     for (const [k, v] of await s.list({ prefix: "codigo:" })) if (!v || Date.parse(v.expira) <= agora) apagar.push(k);
@@ -506,6 +510,8 @@ export class EmailAtos {
       case "sim_total":
         return { ok: true, total: (await s.list({ prefix: "sim:" })).size };
       default:
+        // O indice do Atos Workspace e o registro da equipe (worker/workspace-indice.js) moram neste mesmo objeto.
+        if (ehOpDoIndice(d.op)) return fazerNoIndice(this, d, agora);
         return { ok: false, erro: "op desconhecida" };
     }
   }
@@ -624,10 +630,12 @@ const FORA = () => json({ erro: "não deu para falar com o registro do e-mail At
 const codigoAleatorio = () => String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, "0");
 const hashDoCodigo = (alias, codigo) => sha256("email-atos:" + alias + ":" + codigo);
 
-async function workspaceAtivoDe(env, sub) {
+/* O Workspace da conta: {ativo, suspenso: null|{quando, motivo}} (a suspensao e da equipe: worker/admin-workspace.js). */
+async function workspaceDaConta(env, sub) {
   const r = await cliente(env, await idDoCliente(sub)).pedir("direito", { produto: "workspace" });
   if (!r || !r.ok) throw new Error("registro do cliente fora");
-  return Boolean(r.direito && r.direito.ativo);
+  const d = r.direito;
+  return { ativo: Boolean(d && d.ativo), suspenso: d && d.suspenso ? { quando: d.suspenso.quando, motivo: d.suspenso.motivo || "" } : null };
 }
 
 /* O que a tela ve do alias: sem o cf_id e sem o historico inteiro. */
@@ -654,8 +662,8 @@ export async function atenderEmailAtos(request, env, url, deps = {}) {
   const cf = cloudflare(env, deps);
   const enviar = deps.enviarEmail || enviarPadrao;
   const p = url.pathname;
-  let ativo;
-  try { ativo = await workspaceAtivoDe(env, sessao.sub); } catch { return FORA(); }
+  let ativo, suspenso;
+  try { ({ ativo, suspenso } = await workspaceDaConta(env, sessao.sub)); } catch { return FORA(); }
 
   const tela = async (r, extra = {}) => {
     if (r === undefined) {
@@ -667,7 +675,7 @@ export async function atenderEmailAtos(request, env, url, deps = {}) {
     return json({
       // entrou_pelo_alias: a sessao foi aberta por este alias (o Workspace pede isso para as Integracoes).
       entrou_pelo_alias: Boolean(r && sessao.via === "alias" && sessao.alias === r.alias),
-      disponivel: ligado, simulada: simulada(env), workspace: ativo, recente, limites: { recente_h: RECENTE_H, tamanho_mb: LIMITES.tamanho / 1048576, por_hora: LIMITES.por_hora,
+      disponivel: ligado, simulada: simulada(env), workspace: ativo, workspace_suspenso: suspenso, recente, limites: { recente_h: RECENTE_H, tamanho_mb: LIMITES.tamanho / 1048576, por_hora: LIMITES.por_hora,
         por_dia: LIMITES.por_dia, por_remetente_hora: LIMITES.por_remetente_hora, codigo_min: LIMITES.codigo_min }, dominio: DOMINIO, ...extra, alias: vistaDoAlias(r),
     });
   };
@@ -684,6 +692,12 @@ export async function atenderEmailAtos(request, env, url, deps = {}) {
   if (request.method !== "POST") return json({ erro: "use POST" }, 405);
   if (!ligado) return DESLIGADO();
   if (!ativo) return json({ erro: "ative o Atos Workspace para usar o e-mail Atos (atos.dev.br/workspace)", workspace: false }, 403);
+  // O Workspace suspenso pela equipe: a gestao do e-mail Atos para (o encaminhamento segue, salvo se o endereco tambem
+  // foi suspenso). A pessoa ve o motivo.
+  if (suspenso) {
+    return json({ erro: "a Atos suspendeu o seu Atos Workspace" + (suspenso.motivo ? " (" + suspenso.motivo + ")" : "") + ": enquanto durar, você não muda o e-mail Atos. Escreva para contato@atos.dev.br",
+      codigo: "workspace_suspenso", suspenso }, 403);
+  }
   if (!recente) return json({ erro: "para mudar o e-mail Atos, entre de novo (o login precisa ser das últimas " + RECENTE_H + " horas)", reentrar: true }, 401);
   const corpo = await lerJson(request);
   if (!corpo || typeof corpo !== "object" || Array.isArray(corpo)) return json({ erro: "pedido inválido" }, 400);
@@ -821,6 +835,13 @@ async function mandarCodigo(env, enviar, destino, alias, codigo) {
 
 // ------------------------------------------------------------------ o painel da equipe
 
+/* Quantos destinos a conta Cloudflare tem (null sem o recurso ligado ou sem resposta). */
+export async function destinosNaCloudflare(env, deps = {}) {
+  if (!emailAtosLigado(env)) return null;
+  const t = await cloudflare(env, deps).total();
+  return t.ok ? t.total : null;
+}
+
 export function ehRotaDoEmailNoPainel(p) {
   return p === "/api/admin/email" || p.startsWith("/api/admin/email/");
 }
@@ -839,7 +860,7 @@ export async function atenderEmailPainel(request, env, url, c) {
       disponivel: emailAtosLigado(env), simulada: simulada(env), limites: LIMITES, retencao_dias: RETENCAO_LOG_DIAS,
       vagas: { usadas: r.vagas.usadas, limite: limiteDeDestinos(env), teto_cf: TETO_CF, na_cf: total },
       inexistentes: r.inexistentes,
-      aliases: r.aliases.map((a) => ({ alias: a.alias, endereco: a.alias + "@" + DOMINIO, conta: a.conta, criado: a.criado, estado: a.estado, suspenso: a.suspenso,
+      aliases: r.aliases.map((a) => ({ alias: a.alias, endereco: a.alias + "@" + DOMINIO, conta: a.conta, sub: a.sub, criado: a.criado, estado: a.estado, suspenso: a.suspenso,
         destino: a.destino ? { email: a.destino.email, codigo_ok: a.destino.codigo_ok, cf_ok: a.destino.cf_ok } : null, ultimas: a.ultimas, atualizado: a.atualizado || null }))
         .sort((x, y) => String(y.atualizado || "").localeCompare(String(x.atualizado || ""))),
     });

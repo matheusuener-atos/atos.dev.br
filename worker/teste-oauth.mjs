@@ -106,8 +106,8 @@ const plantare = JSON.parse(guardados.get("atos:oidc:registro")).apps.plantare;
 checar(r.d.ok && plantare.nome === "Plantare Maps" && plantare.acesso === "liberados" && plantare.liberados.join() === "joao@escritorio.adv.br",
   "publicado: o aplicativo vai para o KV, só para os liberados (o e-mail normalizado)", plantare);
 r = await chamar("/api/admin/oauth", { metodo: "GET", cookie: dono });
-checar(r.d.apps.find((a) => a.id === "plantare").acesso === "liberados" && r.d.apps.find((a) => a.id === "pavlvs").acesso === "todos" && Array.isArray(r.d.terceiros),
-  "a tela mostra quem pode entrar (o PAVLVS: qualquer Conta Atos) e a lista de terceiros", r.d.apps);
+checar(r.d.apps.find((a) => a.id === "plantare").acesso === "liberados" && r.d.apps.find((a) => a.id === "pavlvs").acesso === "todos" && r.d.terceiros === undefined,
+  "a tela mostra quem pode entrar (o PAVLVS: qualquer Conta Atos), sem os de terceiros (agora no Atos Workspace)", r.d.apps);
 
 console.log("validações do cliente");
 const CW = { acao: "criar", id: "plantare-web", app: "plantare", tipo: "publico", voltas: [WEB], origens: ["https://plantare.example"] };

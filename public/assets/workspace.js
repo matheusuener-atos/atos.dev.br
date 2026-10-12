@@ -110,14 +110,22 @@
       '<div class="ws-botoes"><button type="button" class="btn primario" data-ws="entrar-alias" data-alias="' + esc(a) + '">Entrar com ' + esc(a) + "</button></div></div>";
   }
   function temAliasAtivo(W) { return Boolean(W.alias && !W.alias.suspenso); }
+  /* Suspenso pela equipe da Atos (worker/admin-workspace.js): a gestao para; a pessoa ve quando e o motivo. */
+  function avisoSuspenso(W) {
+    if (!W || !W.suspenso) return "";
+    return '<div class="card ws-ativar"><p class="ws-aviso"><strong>A Atos suspendeu o seu Atos Workspace</strong> em ' + esc(data(W.suspenso.quando)) +
+      (W.suspenso.motivo ? " (" + esc(W.suspenso.motivo) + ")" : "") + ". Enquanto durar, você não cadastra, não vê nem muda sistemas em Integrações, e não muda o e-mail Atos. " +
+      "Os aplicativos e o endereço que a Atos não desligou continuam como estavam. Para entender ou contestar, escreva para contato@atos.dev.br.</p></div>";
+  }
 
   function blocoAtivo(W) {
     var termosNovos = W.aceito && W.aceito.versao !== W.termos.versao;
     var h = "";
     if (S.msg) h += '<p class="ok ws-ok">' + esc(S.msg) + "</p>";
-    if (temAliasAtivo(W) && !W.via_alias) h += entrarPeloAlias(W);
+    h += avisoSuspenso(W);
+    if (temAliasAtivo(W) && !W.via_alias && !W.suspenso) h += entrarPeloAlias(W);
     h += h2("Ativação") + '<div class="card">' +
-      '<div class="dado"><span class="rotulo">Situação</span><span>Ativo desde ' + esc(data(W.ativado)) + "</span><span></span></div>" +
+      '<div class="dado"><span class="rotulo">Situação</span><span>' + (W.suspenso ? "Suspenso pela Atos (ativo desde " + esc(data(W.ativado)) + ")" : "Ativo desde " + esc(data(W.ativado))) + "</span><span></span></div>" +
       '<div class="dado"><span class="rotulo">Plano</span><span>Gratuito</span><span></span></div>' +
       '<div class="dado"><span class="rotulo">Termos aceitos</span><span>' + (W.aceito ? "Versão de " + esc(versao(W.aceito.versao)) + ", em " + esc(data(W.aceito.quando)) : "—") +
       '</span><a class="btn p" href="' + esc(W.termos.endereco) + '">Ler os termos</a></div>' +
@@ -172,6 +180,7 @@
         '<div class="ws-botoes"><a class="btn primario" href="/workspace/" data-ws-secao="geral">Ativar o Atos Workspace</a></div></div>';
     }
     var W = S.ws;
+    if (W.suspenso) return h + avisoSuspenso(W);
     var antigos = W.apps ? " Os seus " + esc(apps(W.apps)) + " continuam funcionando para quem entra neles; você volta a vê-los e mudá-los quando cumprir este passo." : "";
     if (W.pendencia === "sem_alias") {
       if (W.alias && W.alias.suspenso) {
@@ -213,7 +222,7 @@
   function email() {
     var h = titulo("E-mail Atos", "Um endereço @atos.dev.br que encaminha para o seu e-mail.");
     if (!S.ws) return h + (S.erro ? vazio(esc(S.erro) + ' <button type="button" class="link" data-ws="recarregar">Tentar de novo</button>') : vazio("Carregando…"));
-    return h + '<div id="em-raiz"><div class="card"><p class="vazio">Carregando…</p></div></div>';
+    return h + avisoSuspenso(S.ws) + '<div id="em-raiz"><div class="card"><p class="vazio">Carregando…</p></div></div>';
   }
   function montarEmail() {
     script("/assets/workspace-email.js", function () { var r = $("em-raiz"); if (r && window.WorkspaceEmail) window.WorkspaceEmail.montar(r); });
@@ -227,7 +236,7 @@
   function desenhar() {
     var sec = secaoAtual();
     $("secao").innerHTML = DESENHO[sec]();
-    if (sec === "integracoes" && S.ws && S.ws.ativo && !S.ws.pendencia) montarIntegracoes();
+    if (sec === "integracoes" && S.ws && S.ws.ativo && !S.ws.pendencia && !S.ws.suspenso) montarIntegracoes();
     if (sec === "email" && S.ws) montarEmail();
   }
   function ir(sec) {
