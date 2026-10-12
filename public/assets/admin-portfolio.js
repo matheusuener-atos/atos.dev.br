@@ -84,6 +84,7 @@
     return '<div class="oa-cliente"><div class="item oa-item">' + icone(p) + '<span class="nome"><strong>' + esc(p.nome) + ' <span class="nf-tag">' + esc(p.id) + "</span> " + tags + "</strong><small>" + sub + "</small></span>" +
       '<span class="pv-par"><button type="button" class="btn mini" data-pf="mover" data-para="cima" data-id="' + esc(p.id) + '"' + (i === 0 ? " disabled" : "") + ' aria-label="Subir">↑</button>' +
       '<button type="button" class="btn mini" data-pf="mover" data-para="baixo" data-id="' + esc(p.id) + '"' + (i === total - 1 ? " disabled" : "") + ' aria-label="Descer">↓</button>' +
+      '<button type="button" class="btn mini" data-pf="home" data-id="' + esc(p.id) + '" data-v="' + (p.publicado ? "0" : "1") + '">' + (p.publicado ? "Ocultar" : "Exibir") + "</button>" +
       '<button type="button" class="btn mini" data-pf="editar" data-id="' + esc(p.id) + '">Editar</button>' +
       (p.produto || p.codigo ? "" : '<button type="button" class="btn mini perigo" data-pf="apagar" data-id="' + esc(p.id) + '">Apagar</button>') + "</span></div>" + det + "</div>";
   }
@@ -297,6 +298,14 @@
       b.disabled = true;
       A.pedir("POST", "/api/admin/portfolio/github/desconectar", {}).then(function (d) { S.dados = d; S.repos = null; pintar(); A.toast("GitHub desconectado. Para tirar o acesso de vez, desinstale o app no GitHub."); },
         function (er) { b.disabled = false; if (er.status !== 401) A.toast(er.message, true); });
+      return;
+    }
+    if (a === "home") {
+      b.disabled = true;
+      var exibir = b.getAttribute("data-v") === "1";
+      A.pedir("POST", "/api/admin/portfolio/projetos/" + encodeURIComponent(id) + "/home", { publicado: exibir }).then(function (d) {
+        S.dados = d; pintar(); A.toast(exibir ? "Na home" : "Fora da home");
+      }, function (er) { b.disabled = false; if (er.status !== 401) A.toast(er.message, true); });
       return;
     }
     if (a === "mover") {

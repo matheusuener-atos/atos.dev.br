@@ -36,6 +36,7 @@
 //   POST /api/admin/portfolio/projetos                 cria {id, ...campos, login?, produto?} -> {segredo?}
 //   POST /api/admin/portfolio/projetos/:id             muda os campos (login e produto podem ser ligados depois)
 //   POST /api/admin/portfolio/projetos/:id/mover       {para: "cima" | "baixo"}
+//   POST /api/admin/portfolio/projetos/:id/home        {publicado: true | false} (exibir ou ocultar na home)
 //   POST /api/admin/portfolio/projetos/:id/segredo     {confirmar: true} -> {segredo} (o anterior para na hora)
 //   POST /api/admin/portfolio/projetos/:id/apagar      {confirmar: true}
 
@@ -374,6 +375,21 @@ async function mover(env, c, id, para) {
   return json(await tela(env));
 }
 
+/* Exibir ou ocultar na home, sem mexer no resto. */
+async function naHome(env, c, id, publicado) {
+  if (typeof publicado !== "boolean") return json({ erro: "diga se exibe (true) ou oculta (false)" }, 400);
+  const lista = await lerProjetos(env);
+  const p = lista.find((x) => x.id === id);
+  if (!p) return json({ erro: "o projeto " + id + " não existe" }, 404);
+  if (p.publicado !== publicado) {
+    p.publicado = publicado;
+    p.mudado = iso(c.agora);
+    await guardarProjetos(env, lista);
+    await anotar(env, c.quem.email, id, publicado ? "pôs na home" : "tirou da home", c.agora);
+  }
+  return json(await tela(env));
+}
+
 async function apagar(env, c, id, d) {
   if (d.confirmar !== true) return json({ erro: "confirme na página" }, 400);
   const lista = await lerProjetos(env);
@@ -461,10 +477,11 @@ export async function atenderPortfolio(request, env, url, c) {
     if (m !== "POST") return json({ erro: "rota não existe" }, 404);
     const d = (await lerJson(request)) || {};
     if (p === "/api/admin/portfolio/projetos") return depoisDeSalvar(env, await salvar(env, c, String(d.id || ""), d, true));
-    const r = p.match(/^\/api\/admin\/portfolio\/projetos\/([a-z0-9-]{2,31})(?:\/(mover|segredo|apagar))?$/);
+    const r = p.match(/^\/api\/admin\/portfolio\/projetos\/([a-z0-9-]{2,31})(?:\/(mover|home|segredo|apagar))?$/);
     if (!r) return json({ erro: "rota não existe" }, 404);
     if (!r[2]) return depoisDeSalvar(env, await salvar(env, c, r[1], d, false));
     if (r[2] === "mover") return mover(env, c, r[1], d.para);
+    if (r[2] === "home") return naHome(env, c, r[1], d.publicado);
     if (r[2] === "apagar") return apagar(env, c, r[1], d);
     // o segredo: de novo, so de um projeto que vende
     if (d.confirmar !== true) return json({ erro: "confirme na página: o segredo anterior para de valer na hora" }, 400);

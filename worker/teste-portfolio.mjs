@@ -245,6 +245,21 @@ checar(/^atos_ev_/.test(segredo2) && segredo2 !== segredo1 && (await segredoDoPr
 r = await chamar("/api/cobranca/v1/direitos?produto=loja&sub=sub-x", { metodo: "GET" });
 checar(r.status === 401, "os direitos sem o segredo: 401", r.status);
 
+console.log("exibir e ocultar");
+r = await chamar("/api/admin/portfolio/projetos/coryphaeus/home", { cookie: dono, corpo: { publicado: false } });
+checar(r.status === 200 && r.d.projetos.find((p) => p.id === "coryphaeus").publicado === false && !(await home()).includes("<strong>Coryphaeus</strong>"), "ocultar tira da home na hora", r.d && r.d.erro);
+r = await chamar("/api/admin/portfolio/projetos/pavlvs/home", { cookie: dono, corpo: { publicado: false } });
+checar(r.status === 200 && !(await home()).includes("<strong>PAVLVS</strong>"), "o PAVLVS também se oculta", r.d && r.d.erro);
+r = await chamar("/api/admin/portfolio/projetos/pavlvs/home", { cookie: dono, corpo: { publicado: true } });
+r = await chamar("/api/admin/portfolio/projetos/coryphaeus/home", { cookie: dono, corpo: { publicado: true } });
+const lojaAntes = r.d.projetos.find((p) => p.id === "loja");
+checar(r.status === 200 && (await home()).includes("<strong>Coryphaeus</strong>") && (await home()).includes("<strong>PAVLVS</strong>"), "exibir põe de volta", r.d && r.d.erro);
+r = await chamar("/api/admin/portfolio/projetos/coryphaeus/home", { cookie: dono, corpo: { publicado: "sim" } });
+checar(r.status === 400, "só true ou false", r.d);
+r = await chamar("/api/admin/portfolio/projetos/coryphaeus/home", { cookie: fin, corpo: { publicado: false } });
+checar(r.status === 403, "o financeiro não mexe", r.status);
+checar(lojaAntes && lojaAntes.produto && lojaAntes.produto.aberto === true, "exibir e ocultar não mexe no resto dos projetos");
+
 console.log("ordem, apagar e o resto");
 r = await chamar("/api/admin/portfolio/projetos/loja/mover", { cookie: dono, corpo: { para: "cima" } });
 checar(r.status === 200 && r.d.projetos.map((p) => p.id).join() === "pavlvs,workspace,coryphaeus,loja,plantare-maps", "subir um projeto", r.d.projetos.map((p) => p.id));
