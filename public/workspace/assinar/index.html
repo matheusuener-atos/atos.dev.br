@@ -597,7 +597,7 @@
     estado.catalogo = cat;
     estado.aberto = Boolean(cat.aberto);
     $("ck-fechado").hidden = estado.aberto;
-    if (cat.volta) $("ck-voltar").href = cat.volta;
+    // A volta e a area do Workspace no proprio endereco (relativa: no Worker de teste, fica no teste).
     var pedido = String(q.get("preco") || "").split(".");
     var planos = [];
     cat.precos.forEach(function (p) { var pl = p.id.split(".")[1]; if (planos.indexOf(pl) < 0 && p.periodo === "mes") planos.push(pl); });
