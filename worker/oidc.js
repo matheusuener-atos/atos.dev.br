@@ -218,7 +218,7 @@ export async function registro(env) {
 const FIXOS = { apps: APPS, clientes: CLIENTES };
 
 /* O cliente que pode ser usado agora (existe e esta ligado), ou null. */
-function clienteAtivo(reg, id) {
+export function clienteAtivo(reg, id) {
   const c = temChave(reg.clientes, id) ? reg.clientes[id] : null;
   return c && c.ativo !== false ? c : null;
 }
@@ -286,18 +286,18 @@ function precisaEntrar(pedido, sessao, agora) {
   return false;
 }
 
-async function appsDe(env, sub) {
+export async function appsDe(env, sub) {
   return (await kv(env, "atos:apps:" + sub)) || {};
 }
 
 /* A permissao guardada vale para o aplicativo de agora: um aplicativo do KV apagado e criado de novo com o mesmo id
    nao herda as permissoes de antes (a de antes e mais velha que ele). */
-function permissaoVale(a, app) {
+export function permissaoVale(a, app) {
   if (!a || !app) return false;
   return !app.criado || Boolean(a.quando && String(a.quando) >= app.criado);
 }
 
-function jaPermitiu(apps, pedido, reg = FIXOS) {
+export function jaPermitiu(apps, pedido, reg = FIXOS) {
   const a = temChave(apps, pedido.app) ? apps[pedido.app] : null;
   return permissaoVale(a, reg.apps[pedido.app]) && pedido.escopos.every((s) => (a.escopos || []).includes(s));
 }
@@ -314,7 +314,7 @@ async function emitirCodigo(env, pedido, sessao) {
 }
 
 /* O que a pagina /entrar e a /conta mostram do aplicativo. Sem icone (""), elas mostram a inicial do nome. */
-function publicoDoApp(id, reg = FIXOS) {
+export function publicoDoApp(id, reg = FIXOS) {
   const a = reg.apps[id];
   // O de terceiro diz quem o cadastrou (comCadastrador; e a pagina diz que nao e da Atos); os da Atos (fixos e da
   // equipe), nao. Aqui nunca vai o e-mail do dono.
@@ -326,7 +326,7 @@ function publicoDoApp(id, reg = FIXOS) {
 
 /* "Cadastrado por": o e-mail Atos do dono (<alias>@atos.dev.br), nunca o e-mail pessoal dele. Sem alias (aplicativo
    antigo, alias removido), suspenso ou sem conseguir ver o registro: "" (a pagina diz "uma Conta Atos"). */
-async function comCadastrador(env, pub, reg) {
+export async function comCadastrador(env, pub, reg) {
   const a = reg.apps[pub.id];
   if (!pub.terceiro || !a || !a.dono) return pub;
   let x = null;

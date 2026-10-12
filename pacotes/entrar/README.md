@@ -122,6 +122,46 @@ lugar.innerHTML = botaoEntrarComAtos({ tema: "claro", tamanho: "medio", texto: "
 
 `tema`: `"claro"`, `"escuro"` ou `"neutro"`; `tamanho`: `"grande"` (56 px), `"medio"` (48 px) ou `"pequeno"` (44 px); `texto`: `"entrar"`, `"continuar"` ou `"criar-conta"`; `icone: true` (só o quadrado), `largo: true` (a largura toda), `id`. Fora da lista, ou um `href` `javascript:`, lança `ErroAtos` (`codigo: "configuracao"`).
 
+## "Continuar como" pelo FedCM (0.4.0)
+
+No Chrome e no Edge (o FedCM, Federated Credential Management), a pessoa entra sem sair do seu site: o navegador mostra a Conta Atos que está aberta nele ("Continuar como <nome>"), ela escolhe, e na primeira vez a Atos abre uma janela com a mesma tela de permissão do login de sempre. O site não recebe nada antes da escolha. Firefox e Safari não têm FedCM: lá, `continuarComFedCM()` vai pelo redirecionamento de sempre.
+
+A Atos não entrega o `id_token` pelo FedCM: entrega um **código**, que se troca no `/oauth/token` como o da volta, com o PKCE e, no acesso confidencial, com o segredo. O modo de acesso e a lista do aplicativo valem igual: fora da lista, `ErroAtos` com `codigo: "access_denied"`.
+
+Navegador, acesso público (a origem da página cadastrada no acesso):
+
+```js
+botao.addEventListener("click", async () => {
+  const pessoa = await atos.continuarComFedCM(); // null: foi pelo redirecionamento (sem FedCM ou a janela fechada)
+  if (pessoa) console.log(pessoa.id, pessoa.nome, pessoa.email);
+});
+```
+
+Servidor, acesso confidencial (a origem do site é a do endereço de volta cadastrado, ou uma origem cadastrada):
+
+```js
+// servidor
+app.post("/fedcm/comecar", async (req, res) => {
+  const { params, guardar } = await atos.comecarFedCM();
+  req.session.atosFedcm = guardar;
+  res.json({ params });
+});
+app.post("/fedcm/concluir", express.json(), async (req, res) => {
+  const guardado = req.session.atosFedcm;
+  delete req.session.atosFedcm;
+  const pessoa = await atos.concluirFedCM(req.body.codigo, guardado); // troca com ATOS_CLIENT_SECRET
+  req.session.pessoa = { id: pessoa.id, nome: pessoa.nome, email: pessoa.email };
+  res.json({ ok: true });
+});
+
+// navegador (no clique)
+const { params } = await (await fetch("/fedcm/comecar", { method: "POST" })).json();
+const r = await atos.continuarComFedCM({ params, semFedCM: "/entrar" }); // { codigo } ou null
+if (r) await fetch("/fedcm/concluir", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ codigo: r.codigo }) });
+```
+
+Opções: `modo` (`"ativo"`, o padrão, no clique de um botão; `"passivo"`, o aviso do navegador ao abrir a página, que não redireciona se a pessoa fechar), `contexto` (`"signin"`, `"signup"`, `"use"`, `"continue"`), `dica` (o e-mail esperado), `semFedCM` (o endereço do login de sempre; o padrão é `entrar()`; `false` não redireciona). `temFedCM()` diz se o navegador tem FedCM; `desconectarFedCM(conta)` tira a permissão do aplicativo (`IdentityCredential.disconnect`). O `params` do FedCM é do Chrome 132 em diante; num Chrome mais antigo, a Atos recusa o pedido sem o PKCE e o site recebe o erro.
+
 ## A API
 
 `entrarComAtos({ clientId, voltaPara, escopos?, emissor?, fetch? })`
@@ -129,7 +169,7 @@ lugar.innerHTML = botaoEntrarComAtos({ tema: "claro", tamanho: "medio", texto: "
 - `escopos`: padrão `["openid", "email", "profile"]`; `openid` sempre vai.
 - `emissor`: só para testes (padrão `https://atos.dev.br`). A descoberta precisa dizer exatamente esse emissor.
 
-Devolve `{ entrar, retorno, comecar, concluir, sair }`. E, à parte, `verificarAviso(corpo, cabecalho, segredo, { agora? })` (acima).
+Devolve `{ entrar, retorno, comecar, concluir, sair, continuarComFedCM, comecarFedCM, concluirFedCM, desconectarFedCM, temFedCM }`. E, à parte, `verificarAviso(corpo, cabecalho, segredo, { agora? })` (acima).
 
 
 
@@ -152,7 +192,7 @@ Contra a Atos de verdade: o Worker deste repositório em `wrangler dev`, com con
     cd pacotes/entrar
     npm test
 
-O `verificarAviso` tem os próprios testes (`teste/aviso.test.mjs`, sem a Atos: assinatura certa, errada, de outro segredo, corpo mexido, velha e fora do formato).
+O botão (`teste/botao.test.mjs`) e o FedCM (`teste/fedcm.test.mjs`, com o Worker da Atos no mesmo processo e o `navigator.credentials.get` simulado: o público, o confidencial com o segredo, `access_denied`, a janela fechada e o navegador sem FedCM) têm os próprios testes, sem rede. O `verificarAviso` tem os próprios testes (`teste/aviso.test.mjs`, sem a Atos: assinatura certa, errada, de outro segredo, corpo mexido, velha e fora do formato).
 
 Testado no Node 24; o Node 18 usa o WebCrypto de `node:crypto` (o código cuida disso), mas não rodou aqui.
 

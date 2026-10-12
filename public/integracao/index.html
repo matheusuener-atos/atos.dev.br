@@ -175,7 +175,7 @@
       <li>
         <div>
           <h3>Integre</h3>
-          <p>O bloco “Como integrar”, em Integrações, traz o seu <code>client_id</code> e os endereços, um comando (PowerShell ou Linux/macOS) que grava no <code>.env</code> do seu projeto o emissor, o <code>client_id</code> e a volta (o segredo, você cola; ele nunca vai no comando), o código <a href="#linguagens">na sua linguagem</a> e um pedido pronto para colar no Claude Code. Ou siga a <a href="#referencia">referência técnica</a> abaixo com a biblioteca OpenID Connect da sua linguagem. Para o botão, use o oficial: <a href="/marca/">o botão “Entrar com Atos”</a> (SVG, HTML e CSS sem script, e as regras de uso).</p>
+          <p>O bloco “Como integrar”, em Integrações, traz o seu <code>client_id</code> e os endereços, um comando (PowerShell ou Linux/macOS) que grava no <code>.env</code> do seu projeto o emissor, o <code>client_id</code> e a volta (o segredo, você cola; ele nunca vai no comando), o código <a href="#linguagens">na sua linguagem</a> e um pedido pronto para colar no Claude Code. Ou siga a <a href="#referencia">referência técnica</a> abaixo com a biblioteca OpenID Connect da sua linguagem. Para o botão, use o oficial: <a href="/marca/">o botão “Entrar com Atos”</a> (SVG, HTML e CSS sem script, e as regras de uso). No Chrome e no Edge, a pessoa pode <a href="#continuar-como">continuar sem sair do seu site</a>.</p>
         </div>
       </li>
       <li>
@@ -663,6 +663,97 @@ end
 #   &lt;%= button_to &quot;Entrar com Atos&quot;, &quot;/auth/atos&quot;, data: { turbo: false } %&gt;
 </pre></div></div></div>
 <!-- linguagens:fim -->
+  </section>
+
+  <section id="continuar-como" aria-labelledby="continuar-como-titulo">
+    <h2 id="continuar-como-titulo">“Continuar como”: entrar sem sair do site</h2>
+    <div class="corpo">
+      <p>No Chrome e no Edge, a pessoa pode entrar sem ir à Atos: o próprio navegador mostra a Conta Atos que está aberta nele, “Continuar como &lt;nome&gt;”, e ela escolhe. Por baixo é o FedCM (Federated Credential Management), o padrão do W3C para isso. Na primeira vez em cada aplicativo, a Atos abre uma janela pequena com a mesma tela de permissão do login de sempre (com quem cadastrou o aplicativo); das outras vezes, a escolha basta.</p>
+    </div>
+    <div class="pontos">
+      <div>
+        <h3>Onde funciona</h3>
+        <p>Chrome e Edge (o FedCM, com o modo do botão e o <code>params</code>, do Chrome 132 em diante). Testado no Chrome 154 no Windows. Firefox e Safari não têm FedCM: neles, o mesmo botão leva ao login de sempre, pelo redirecionamento. Se a pessoa fecha a janela do navegador, também.</p>
+      </div>
+      <div>
+        <h3>O que o site recebe</h3>
+        <p>Um código, como na volta do login de sempre, e só depois que a pessoa escolhe a conta. O site o troca no <code>/oauth/token</code> com o PKCE e, no acesso confidencial, com o segredo. Nunca o <code>id_token</code> direto do navegador.</p>
+      </div>
+      <div>
+        <h3>Quem pode entrar</h3>
+        <p>O mesmo do aplicativo: no modo “Só as pessoas liberadas”, quem está fora da lista recebe a recusa no navegador e o site recebe o erro <code>access_denied</code>, sem nada da pessoa. A conta só aparece para quem já entrou na Atos neste navegador, depois da verificação em duas etapas, quando ligada.</p>
+      </div>
+      <div>
+        <h3>Privacidade</h3>
+        <p>Para mostrar a conta, o navegador pergunta à Atos sem dizer qual site está aberto, e a resposta fica com o navegador. A Atos diz ao navegador se há alguém dentro dela (o “Login Status”), sem dizer quem. Veja a <a href="/privacidade/">política de privacidade</a>.</p>
+      </div>
+    </div>
+    <h3>Passo a passo</h3>
+    <ol class="passos">
+      <li>
+        <div>
+          <h3>Confira a origem do seu site</h3>
+          <p>O pedido vem da página do seu site, e a Atos confere a origem dela contra o acesso: vale uma origem cadastrada no acesso ou a de um endereço de volta (<code>https://loja.com.br/auth/volta</code> autoriza <code>https://loja.com.br</code>). Nada mais para cadastrar.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Use o pacote 0.4.0</h3>
+          <p>O <code>continuarComFedCM()</code> é do <code>@atos.dev.br/entrar</code> 0.4.0. Enquanto ele não está no npm, use o arquivo servido pela Atos: <code>https://atos.dev.br/pacotes/entrar/0.4.0/entrar.js</code>.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Ponha o botão</h3>
+          <p>O <a href="/marca/">botão oficial</a> com o texto “Continuar com Atos”, como link para o login de sempre. No clique, chame o FedCM (ele precisa do clique: o modo do botão).</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <h3>Troque o código</h3>
+          <p>Numa página sem servidor (acesso público), o pacote troca e devolve a pessoa. Com servidor (acesso confidencial), o servidor começa (<code>comecarFedCM()</code>, que guarda o <code>code_verifier</code> na sessão), a página entrega o código e o servidor troca com o segredo (<code>concluirFedCM()</code>).</p>
+        </div>
+      </li>
+    </ol>
+<pre class="codigo" tabindex="0" aria-label="Continuar como, numa página com acesso público"><code>// Acesso público: a página troca o código e confere o id_token.
+import { entrarComAtos } from "./entrar.js"; // https://atos.dev.br/pacotes/entrar/0.4.0/entrar.js
+
+const atos = entrarComAtos({ clientId: "SEU_CLIENT_ID", voltaPara: "https://seusistema.com.br/retorno" });
+botao.addEventListener("click", async (e) =&gt; {
+  e.preventDefault();
+  // null: foi pelo login de sempre (sem FedCM no navegador, ou a janela fechada)
+  const pessoa = await atos.continuarComFedCM();
+  if (pessoa) console.log(pessoa.id, pessoa.nome, pessoa.email);
+});</code></pre>
+<pre class="codigo" tabindex="0" aria-label="Continuar como, com acesso confidencial"><code>// Acesso confidencial: o servidor começa e troca (com ATOS_CLIENT_SECRET).
+app.post("/fedcm/comecar", async (req, res) =&gt; {
+  const { params, guardar } = await atos.comecarFedCM();
+  req.session.atosFedcm = guardar;
+  res.json({ params });
+});
+app.post("/fedcm/concluir", express.json(), async (req, res) =&gt; {
+  const guardado = req.session.atosFedcm;
+  delete req.session.atosFedcm;
+  const pessoa = await atos.concluirFedCM(req.body.codigo, guardado);
+  req.session.pessoa = { id: pessoa.id, nome: pessoa.nome, email: pessoa.email };
+  res.json({ ok: true });
+});
+
+// Na página, no clique:
+const { params } = await (await fetch("/fedcm/comecar", { method: "POST" })).json();
+const r = await atos.continuarComFedCM({ params, semFedCM: "/entrar" }); // { codigo } ou null
+if (r) await fetch("/fedcm/concluir", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ codigo: r.codigo }) });</code></pre>
+    <p class="nota-fim">Num <code>iframe</code> de outra origem, o FedCM precisa de <code>allow="identity-credentials-get"</code>. Com uma CSP que limita <code>connect-src</code>, inclua <code>https://atos.dev.br</code>. A Loja da Maria (<code>exemplos/loja-de-exemplo</code>) tem os dois botões funcionando.</p>
+    <h3>Os endereços</h3>
+    <dl class="tabela-ref">
+      <div><dt>Well-known</dt><dd><code>https://atos.dev.br/.well-known/web-identity</code></dd></div>
+      <div><dt>Configuração (configURL)</dt><dd><code>https://atos.dev.br/fedcm/config.json</code></dd></div>
+      <div><dt>Contas</dt><dd><code>/fedcm/contas</code> (só o navegador, com <code>Sec-Fetch-Dest: webidentity</code>)</dd></div>
+      <div><dt>Aplicativo</dt><dd><code>/fedcm/cliente</code> (a política e os termos que o navegador mostra)</dd></div>
+      <div><dt>Afirmação</dt><dd><code>/fedcm/afirmar</code>: o código, ou a janela de permissão da Atos (<code>continue_on</code>), ou o erro</dd></div>
+      <div><dt>Desconectar</dt><dd><code>/fedcm/desconectar</code> (<code>IdentityCredential.disconnect</code>: tira a permissão do aplicativo)</dd></div>
+      <div><dt>params</dt><dd><code>{ nonce, code_challenge, code_challenge_method: "S256", scope }</code>; o código se troca no <code>/oauth/token</code> sem <code>redirect_uri</code></dd></div>
+    </dl>
   </section>
 
   <section id="na-pratica" aria-labelledby="na-pratica-titulo">

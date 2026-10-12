@@ -59,9 +59,40 @@ export interface ClienteAtos {
   concluir(urlDaVolta: string, guardado: IdaAtos): Promise<PessoaAtos>;
   /** Invalida o access_token na Atos. */
   sair(accessToken: string): Promise<void>;
+  /**
+   * Navegador: "Continuar como <nome>" pelo FedCM (Chrome e Edge). Sem params: devolve a pessoa (cliente público).
+   * Com params (de comecarFedCM() no servidor): devolve { codigo } para o servidor chamar concluirFedCM().
+   * Sem FedCM no navegador, ou fechando a janela no modo "ativo": vai pelo redirecionamento e devolve null.
+   * Lança ErroAtos (access_denied quando a conta não está liberada no aplicativo).
+   */
+  continuarComFedCM(opcoes?: OpcoesFedCM & { params?: undefined }): Promise<PessoaAtos | null>;
+  continuarComFedCM(opcoes: OpcoesFedCM & { params: ParamsFedCM }): Promise<{ codigo: string } | null>;
+  /** O nonce e o code_challenge da ida pelo FedCM (no servidor), e o que guardar na sessão até concluirFedCM(). */
+  comecarFedCM(): Promise<{ params: ParamsFedCM; guardar: IdaFedCM }>;
+  /** Troca o código que o FedCM entregou (sem redirect_uri; no servidor, com ATOS_CLIENT_SECRET) e confere o id_token. */
+  concluirFedCM(codigo: string, guardado: IdaFedCM): Promise<PessoaAtos>;
+  /** Tira a permissão deste aplicativo na Atos (IdentityCredential.disconnect). false sem FedCM. */
+  desconectarFedCM(conta: string): Promise<boolean>;
+  /** O navegador tem o FedCM? */
+  temFedCM(): boolean;
   readonly clientId: string;
   readonly voltaPara: string;
   readonly emissor: string;
+}
+
+export interface ParamsFedCM { nonce: string; desafio: string }
+export interface IdaFedCM { fedcm: true; nonce: string; verifier: string; criado: number }
+export interface OpcoesFedCM {
+  /** "ativo" (padrão; chame no clique de um botão) ou "passivo" (o aviso do navegador ao abrir a página). */
+  modo?: "ativo" | "passivo";
+  /** O texto da janela do navegador: "signin" (padrão), "signup", "use" ou "continue". */
+  contexto?: "signin" | "signup" | "use" | "continue";
+  /** O e-mail esperado (loginHint). */
+  dica?: string;
+  /** Sem FedCM ou com a janela fechada: o endereço do login de sempre (padrão: entrar(extra)); false não redireciona. */
+  semFedCM?: string | false;
+  /** O que vai para entrar() quando cai no redirecionamento. */
+  extra?: ExtraDaIda;
 }
 
 export class ErroAtos extends Error {

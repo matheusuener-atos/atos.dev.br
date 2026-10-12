@@ -4,7 +4,13 @@
    worker/contas.js); aqui so se desenha e se pergunta.
 
    Sem client_id na consulta, a pessoa entra e vai para /conta - ou para o ?volta=, quando e um caminho
-   desta propria Atos (o checkout de um produto manda quem ainda nao entrou para ca e volta). */
+   desta propria Atos (o checkout de um produto manda quem ainda nao entrou para ca e volta).
+
+   O "Continuar como" (FedCM, worker/fedcm.js) abre esta pagina numa janela do navegador de dois jeitos:
+     ?fedcm=entrar          o login_url: a pessoa entra e a janela fecha (IdentityProvider.close); com a sessao ja
+                            aberta, liga o FedCM nela (/api/fedcm/ligar) e fecha.
+     ?fedcm_pedido=<id>     o continue_on: a tela de permissao do aplicativo; permitindo, o codigo volta ao navegador
+                            (IdentityProvider.resolve), que o entrega ao site. Cancelando, a janela fecha. */
 (function () {
   "use strict";
   // O comum com a tela do Workspace (entrar-comum.js): o pedido, os pedacos do formulario, a volta.
@@ -13,12 +19,15 @@
   var consulta = location.search.replace(/^\?/, "");
   var params = new URLSearchParams(consulta);
   var OIDC = params.has("client_id");
+  var FEDCM_LOGIN = !OIDC && params.get("fedcm") === "entrar";
+  var FEDCM_PEDIDO = OIDC ? "" : String(params.get("fedcm_pedido") || "");
+  var IDP = window.IdentityProvider;
   var tela = document.getElementById("tela");
   var S = { modo: "carregando", email: "", nome: "", erro: params.get("erro_google") || "", pedido: null, ocupado: false, google: false, aviso: "", etapa: null };
   // O cadastro esperando o codigo (so na memoria desta aba): o "Reenviar codigo" manda de novo.
   var pendente = null;
   // Aberto por um aplicativo ("Entrar com Atos"): o modo popup, so a marca no topo.
-  if (OIDC) document.body.classList.add("popup");
+  if (OIDC || FEDCM_LOGIN || FEDCM_PEDIDO) document.body.classList.add("popup");
   // O pedido do aplicativo vai junto ao Google e volta (worker/google.js); o erro dele nao.
   params.delete("erro_google");
   // ?etapa=1: o Google confirmou, e a conta tem a verificacao em duas etapas (o cookie da etapa veio junto).
@@ -26,7 +35,8 @@
   params.delete("etapa");
   // So caminho daqui ("/pavlvs/assinar/?preco=..."), nunca outro site: "//x" e "https:" nao passam.
   var VOLTA = C.volta(params);
-  consulta = OIDC ? (function () { var q = new URLSearchParams(params); return q.toString(); })() : VOLTA ? "volta=" + encodeURIComponent(VOLTA) : "";
+  consulta = OIDC ? (function () { var q = new URLSearchParams(params); return q.toString(); })() : FEDCM_LOGIN ? "fedcm=entrar"
+    : FEDCM_PEDIDO ? "fedcm_pedido=" + encodeURIComponent(FEDCM_PEDIDO) : VOLTA ? "volta=" + encodeURIComponent(VOLTA) : "";
   var G = '<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
   /* "Continuar com Google" (worker/google.js), dentro do cartao, depois do "ou": so com o Google ligado na Atos. */
   function comGoogle() {
@@ -121,14 +131,17 @@
         '<div class="linha"><span class="nome"><strong>' + esc(pn.conta.nome || pn.conta.email) + "</strong>" + (pn.conta.nome ? "<small>" + esc(pn.conta.email) + "</small>" : "") + "</span></div></div>" +
         '<p class="erro" role="alert">Sua Conta Atos não tem acesso a este aplicativo. Peça a quem o administra.</p>' +
         '<p class="nota">Quem decide quem entra é quem administra o aplicativo. Se você tem outra Conta Atos com acesso, entre com ela.</p>' +
-        '<div class="dois">' + (pn.voltar ? '<button type="button" class="btn" data-acao="voltar-app">Voltar ao aplicativo</button>' : "<span></span>") +
-        '<button type="button" class="btn primario" data-acao="trocar">Entrar com outra conta</button></div>';
+        (FEDCM_PEDIDO ? '<div class="dois"><span></span><button type="button" class="btn primario" data-acao="fedcm-fechar">Fechar</button></div>'
+          : '<div class="dois">' + (pn.voltar ? '<button type="button" class="btn" data-acao="voltar-app">Voltar ao aplicativo</button>' : "<span></span>") +
+        '<button type="button" class="btn primario" data-acao="trocar">Entrar com outra conta</button></div>');
     } else if (S.modo === "consentir") {
       var p = S.pedido;
       var nome = esc(p.app.nome);
       h = cabeca(nome + " quer entrar com a sua conta Atos", "Confira antes de permitir") +
         '<div class="card">' + linhaDoApp(p.app) + linhaDeTerceiro(p.app) +
-        '<div class="linha"><span class="nome"><strong>' + esc(p.conta.nome || p.conta.email) + "</strong>" + (p.conta.nome ? "<small>" + esc(p.conta.email) + "</small>" : "") + "</span>" + link("trocar", "Trocar de conta") + "</div>" +
+        '<div class="linha"><span class="nome"><strong>' + esc(p.conta.nome || p.conta.email) + "</strong>" + (p.conta.nome ? "<small>" + esc(p.conta.email) + "</small>" : "") + "</span>" + (FEDCM_PEDIDO ? "" : link("trocar", "Trocar de conta")) + "</div>" +
+        // No "Continuar como", o site que pediu (a origem que o navegador confirmou).
+        (FEDCM_PEDIDO && p.origem ? '<div class="linha app"><span class="nome"><small>Pedido pelo site ' + esc(p.origem) + "</small></span></div>" : "") +
         '<div class="escopos"><span class="titulo-secao">' + nome + " poderá</span>" +
         p.escopos.map(function (e) { return '<div><span aria-hidden="true">✓</span><span>' + esc(e.texto) + "</span></div>"; }).join("") + "</div></div>" +
         '<p class="nota">' + nome + " não recebe a sua senha. Você pode tirar essa permissão quando quiser, em Minha conta. " +
@@ -156,6 +169,8 @@
 
   /* Ja dentro da conta: com aplicativo, segue o pedido; sem, vai para /conta. */
   function depoisDeEntrar() {
+    if (FEDCM_PEDIDO) { continuarFedCM(); return; }
+    if (FEDCM_LOGIN) { fecharFedCM(false); return; }
     if (!OIDC) { location.replace(VOLTA || "/conta/"); return; }
     pedir();
   }
@@ -174,7 +189,42 @@
     });
   }
 
+  /* O FedCM: a janela fecha (o navegador volta ao site). ligar: a sessao e de antes do FedCM, sem o cookie dele. */
+  function fecharFedCM(ligar) {
+    S.modo = "carregando"; desenhar();
+    (ligar ? api("/api/fedcm/ligar", {}) : Promise.resolve({})).then(function () {
+      if (IDP && typeof IDP.close === "function") { IDP.close(); return; }
+      ir("fatal", "Você já entrou na Atos. Pode fechar esta janela e voltar ao site.");
+    });
+  }
+
+  /* O FedCM: a permissao do aplicativo (o pedido que /fedcm/afirmar guardou). */
+  function continuarFedCM() {
+    api("/api/fedcm/continuar", { pedido: FEDCM_PEDIDO }).then(function (d) {
+      if (d._status === 401) { ir("entrar"); return; }
+      if (d._status === 403 && d.negado) { S.pedido = d.app ? d : { app: { nome: "o aplicativo", descricao: "" }, conta: { email: "", nome: "" } }; ir("negado"); return; }
+      if (d.erro) { ir("fatal", d.erro); return; }
+      S.pedido = d;
+      ir("consentir");
+    });
+  }
+
+  function autorizarFedCM(permitir) {
+    S.ocupado = true; S.erro = ""; desenhar();
+    api("/api/fedcm/continuar", { pedido: FEDCM_PEDIDO, permitir: permitir }).then(function (d) {
+      if (d.token) {
+        if (IDP && typeof IDP.resolve === "function") { IDP.resolve(d.token); return; }
+        ir("fatal", "Este navegador não terminou o pedido. Volte ao site e use o botão Entrar com Atos.");
+        return;
+      }
+      if (d.negado && !d.erro) { fecharFedCM(false); return; }
+      if (d._status === 401) { ir("entrar", d.erro); return; }
+      S.ocupado = false; S.erro = d.erro || "não deu certo: tente de novo"; desenhar();
+    });
+  }
+
   function autorizar(permitir) {
+    if (FEDCM_PEDIDO) { autorizarFedCM(permitir); return; }
     S.ocupado = true; S.erro = "";
     if (permitir && S.modo !== "consentir") S.modo = "carregando";
     desenhar();
@@ -226,6 +276,7 @@
     else if (a === "permitir") autorizar(true);
     else if (a === "negar") autorizar(false);
     else if (a === "trocar") api("/api/sair", {}).then(function () { S.email = ""; ir("entrar"); });
+    else if (a === "fedcm-fechar") fecharFedCM(false);
     else if (a === "voltar-app") { if (S.pedido && S.pedido.voltar) location.replace(S.pedido.voltar); }
     else if (a === "reenviar") {
       if (!pendente) return;
@@ -241,6 +292,7 @@
 
   function comecar() {
     if (OIDC) { pedir(); return; }
+    if (FEDCM_PEDIDO) { continuarFedCM(); return; }
     carregarConta();
   }
   // A volta do Google com a etapa: primeiro "Confirme que e voce"; depois, o pedido do aplicativo (ou a conta).
@@ -255,6 +307,7 @@
   function carregarConta() { api("/api/eu").then(function (d) {
     var modo = params.get("modo");
     S.google = Boolean(d.google);
+    if (d.conta && !modo && !S.erro && FEDCM_LOGIN) { fecharFedCM(true); return; }
     if (d.conta && !modo && !S.erro) { location.replace(VOLTA || "/conta/"); return; }
     if (d.conta) S.email = d.conta.email;
     // ?login_hint=: o endereco ja preenchido (o Workspace usa a propria tela, /workspace/entrar, que tambem le o login_hint).

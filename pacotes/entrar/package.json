@@ -1,7 +1,7 @@
 {
   "name": "@atos.dev.br/entrar",
   "version": "0.4.0",
-  "description": "Entrar com Atos (OpenID Connect com PKCE) no navegador e no Node, o botão oficial e a conferência dos avisos da Atos, sem dependências.",
+  "description": "Entrar com Atos (OpenID Connect com PKCE, e o \"Continuar como\" do FedCM) no navegador e no Node, o botão oficial e a conferência dos avisos da Atos, sem dependências.",
   "license": "MIT",
   "type": "module",
   "main": "./index.js",
@@ -32,8 +32,8 @@
     "pkce",
     "login",
     "webhook",
-    
-    "botao"
+    "botao",
+    "fedcm"
   ],
   "homepage": "https://atos.dev.br/integracao/",
   "repository": {

@@ -13,6 +13,11 @@
 //   const { url, guardar } = await atos.comecar(); // guarde `guardar` na sessao do usuario e redirecione para `url`
 //   const pessoa = await atos.concluir(req.url, guardar);
 //
+// "Continuar como" (FedCM, Chrome e Edge; nos outros, o redirecionamento): no clique de um botao,
+//   const pessoa = await atos.continuarComFedCM();   // publico; no confidencial, comecarFedCM() + continuarComFedCM({ params }) + concluirFedCM()
+//
+// O botao oficial (https://atos.dev.br/marca/): botaoEntrarComAtos({ tema, tamanho, texto, href }).
+//
 // Avisos ao sistema (webhooks): const aviso = await verificarAviso(corpoCru, req.headers["atos-assinatura"], process.env.ATOS_AVISOS_SEGREDO);
 //
 // Licenca MIT.
@@ -235,8 +240,15 @@ export function entrarComAtos(opcoes) {
     if (erro) throw new ErroAtos(erro, MENSAGENS[erro] || "A Atos recusou a entrada (" + erro + ").", q.get("error_description") || undefined);
     const code = q.get("code");
     if (!code) throw new ErroAtos("invalid_request", "A volta não trouxe o código.");
+    return trocarCodigo(code, guardado, guardado.voltaPara || voltaPara);
+  }
 
-    const corpo = new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: guardado.voltaPara || voltaPara, code_verifier: guardado.verifier });
+  /* Troca o codigo no token_endpoint (PKCE; no servidor, o segredo de ATOS_CLIENT_SECRET) e confere o id_token.
+     `volta`: o redirect_uri da ida; null no codigo do FedCM (que nao tem volta). */
+  async function trocarCodigo(code, guardado, volta) {
+    const d = await config();
+    const corpo = new URLSearchParams({ grant_type: "authorization_code", code, code_verifier: guardado.verifier });
+    if (volta !== null) corpo.set("redirect_uri", volta);
     const cab = { "content-type": "application/x-www-form-urlencoded", accept: "application/json" };
     const segredo = !noNavegador() && typeof process !== "undefined" && process.env ? String(process.env.ATOS_CLIENT_SECRET || "") : "";
     if (segredo) {
@@ -297,7 +309,96 @@ export function entrarComAtos(opcoes) {
     return concluir(atual, guardado);
   }
 
-  return { entrar, retorno, comecar, concluir, sair, clientId, voltaPara, emissor };
+  // ---------------------------------------------------------------- "Continuar como" (FedCM)
+  //
+  // O navegador mostra a Conta Atos aberta nele e a pessoa escolhe, sem sair do site (Chrome e Edge com FedCM). A Atos
+  // devolve um CODIGO, que se troca no token_endpoint como o da volta: com o PKCE e, no servidor, com o segredo.
+
+  const configFedCM = () => emissor + "/fedcm/config.json";
+
+  /* Servidor (ou navegador): o nonce e o code_challenge da ida pelo FedCM, e o que guardar ate a troca. */
+  async function comecarFedCM() {
+    const c = await cripto();
+    const verifier = await aleatorio(32);
+    const nonce = await aleatorio(24);
+    const desafio = b64url(await c.subtle.digest("SHA-256", te.encode(verifier)));
+    return { params: { nonce, desafio }, guardar: { fedcm: true, nonce, verifier, criado: Date.now() } };
+  }
+
+  /* Servidor (ou navegador): troca o codigo que o FedCM entregou (sem redirect_uri) e confere o id_token. */
+  async function concluirFedCM(codigo, guardado) {
+    if (!guardado || typeof guardado !== "object" || !guardado.fedcm || !guardado.nonce || !guardado.verifier) {
+      throw new ErroAtos("state", "Não há uma entrada pelo FedCM começada aqui (o que comecarFedCM() devolveu em guardar não veio).");
+    }
+    if (typeof guardado.criado === "number" && Date.now() - guardado.criado > VALIDADE_DA_IDA_MS) throw new ErroAtos("state", "A entrada demorou demais: comece de novo.");
+    if (typeof codigo !== "string" || !codigo || codigo.length > 100) throw new ErroAtos("invalid_request", "O FedCM não trouxe o código.");
+    return trocarCodigo(codigo, guardado, null);
+  }
+
+  /* O navegador tem o FedCM? (Chrome e Edge; Firefox e Safari, nao.) */
+  function temFedCM() {
+    return noNavegador() && typeof window.IdentityCredential !== "undefined" && typeof navigator !== "undefined" && navigator.credentials && typeof navigator.credentials.get === "function";
+  }
+
+  /**
+   * Navegador: "Continuar como <nome>". modo "ativo" (padrao; chame no clique de um botao) ou "passivo" (o aviso do
+   * navegador no canto, ao abrir a pagina). Sem `params`: cliente publico, troca o codigo aqui e devolve a pessoa.
+   * Com `params` (o que comecarFedCM() deu no servidor): devolve { codigo } para o servidor chamar concluirFedCM().
+   * Sem FedCM no navegador, ou se a pessoa fecha a janela no modo ativo, vai pelo redirecionamento: entrar(extra), ou
+   * o endereco `semFedCM` (o caminho do servidor que comeca o login); semFedCM: false nao redireciona (devolve null).
+   */
+  async function continuarComFedCM(opcoes) {
+    const o = opcoes || {};
+    const modo = o.modo === undefined ? "ativo" : o.modo;
+    if (modo !== "ativo" && modo !== "passivo") throw new ErroAtos("configuracao", "modo: \"ativo\" (no clique de um botão) ou \"passivo\".");
+    const pelaVolta = () => {
+      if (o.semFedCM === false || !noNavegador()) return null;
+      if (typeof o.semFedCM === "string") location.assign(o.semFedCM);
+      else entrar(o.extra).catch(() => null);
+      return null;
+    };
+    if (!temFedCM()) return pelaVolta();
+    let ida = null;
+    let params;
+    if (o.params) {
+      if (typeof o.params.nonce !== "string" || typeof o.params.desafio !== "string") throw new ErroAtos("configuracao", "params precisa ser o que comecarFedCM() devolveu: { nonce, desafio }.");
+      params = o.params;
+    } else {
+      ida = await comecarFedCM();
+      params = ida.params;
+    }
+    const provedor = {
+      configURL: configFedCM(), clientId,
+      // O nonce vai em params (o campo nonce de fora o Chrome marca como obsoleto). O params e do Chrome 132 em diante;
+      // um navegador sem ele nao manda o code_challenge, e a Atos recusa (o site cai no erro, nunca num login sem PKCE).
+      params: { nonce: params.nonce, code_challenge: params.desafio, code_challenge_method: "S256", scope: escopos.join(" ") },
+    };
+    if (o.dica) provedor.loginHint = String(o.dica);
+    let cred;
+    try {
+      cred = await navigator.credentials.get({ identity: { providers: [provedor], mode: modo === "ativo" ? "active" : "passive", context: o.contexto || "signin" } });
+    } catch (e) {
+      // O erro que a Atos deu (IdentityCredentialError: error; "code" no Chrome 142 e antes).
+      const codigo = e && (e.error || e.code);
+      if (e && e.name === "IdentityCredentialError" && typeof codigo === "string" && codigo) {
+        throw new ErroAtos(codigo, MENSAGENS[codigo] || "A Atos recusou a entrada (" + codigo + ").", e.message);
+      }
+      // Fechou a janela, o navegador bloqueou ou nao ha conta: no modo ativo, o login de sempre.
+      return modo === "ativo" ? pelaVolta() : null;
+    }
+    if (!cred || typeof cred.token !== "string") return modo === "ativo" ? pelaVolta() : null;
+    if (!ida) return { codigo: cred.token };
+    return concluirFedCM(cred.token, ida.guardar);
+  }
+
+  /* Navegador: tira a permissao deste aplicativo na Atos (IdentityCredential.disconnect). `conta`: o id ou o e-mail. */
+  async function desconectarFedCM(conta) {
+    if (!temFedCM() || typeof window.IdentityCredential.disconnect !== "function") return false;
+    await window.IdentityCredential.disconnect({ configURL: configFedCM(), clientId, accountHint: String(conta || "") });
+    return true;
+  }
+
+  return { entrar, retorno, comecar, concluir, sair, continuarComFedCM, comecarFedCM, concluirFedCM, desconectarFedCM, temFedCM, clientId, voltaPara, emissor };
 }
 
 // ------------------------------------------------------------------ o botao oficial (https://atos.dev.br/marca/)

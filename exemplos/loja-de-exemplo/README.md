@@ -6,6 +6,13 @@ Um site fictício, mínimo, com o **Entrar com Atos**: Node com Express e o paco
 - `/entrar`: manda a pessoa para a Atos (`comecar()`).
 - `/criar-conta`: o mesmo, com a Atos abrindo direto em "Criar a conta Atos" (`comecar({ criarConta: true })`, que pede `prompt=create`). Lá, "Já tem conta? Entrar" continua o mesmo pedido; quem já está com a sessão aberta na Atos vai direto para a permissão.
 - `/auth/atos/retorno`: a volta (`concluir()`); com `access_denied`, vai para `/sem-acesso`.
+- `/fedcm/comecar` e `/fedcm/concluir`: o "Continuar como" (abaixo).
+
+## "Continuar como" (FedCM)
+
+No Chrome e no Edge, o `publico/fedcm.js` troca o texto dos botões para "Continuar com Atos" e, no clique, o navegador mostra a Conta Atos aberta nele ("Continuar como <nome>"), sem sair da loja. Na primeira vez, a Atos abre uma janela com a permissão do aplicativo (a mesma tela do login de sempre). O código que o navegador entrega vai ao servidor (`/fedcm/concluir`), que o troca com o segredo e o PKCE (`concluirFedCM()`). No Firefox e no Safari, que não têm FedCM, o botão continua o link para `/entrar`; se a pessoa fecha a janela do navegador, também vai para `/entrar`. Quem não está liberado vai para `/sem-acesso`.
+
+O FedCM não precisa de cadastro a mais na Atos: a origem da loja (`http://127.0.0.1:3000`) sai do endereço de volta do acesso.
 
 ## Quem pode entrar: o modo do aplicativo
 

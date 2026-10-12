@@ -101,7 +101,12 @@ export function lerCookie(request, nome) {
 export async function sessaoDe(request, env) {
   const segredo = lerCookie(request, COOKIE);
   if (!segredo || segredo.length > 100) return null;
-  const h = await sha256(segredo);
+  return sessaoPorHash(env, await sha256(segredo));
+}
+
+/* A sessao pelo hash do segredo (o FedCM chega por outro cookie, worker/fedcm.js), com as mesmas conferencias. */
+export async function sessaoPorHash(env, h) {
+  if (!/^[0-9a-f]{64}$/.test(String(h || ""))) return null;
   const s = await kv(env, "atos:sessao:" + h);
   if (!s || !s.sub || !s.email) return null;
   // A conta pode ter trocado de nome; o sub e o e-mail nao mudam.

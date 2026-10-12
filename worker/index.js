@@ -9,6 +9,7 @@
 import { EMISSOR, dentroDoLimite, json } from "./comum.js";
 import { atenderConta, ehRotaDaConta, sessaoDe } from "./contas.js";
 import { atenderOIDC, ehRotaDoOIDC } from "./oidc.js";
+import { atenderFedCM, comLoginStatus, ehRotaDoFedCM } from "./fedcm.js";
 import { atenderGoogle, ehRotaDoGoogle } from "./google.js";
 import { atenderCobrancaV1, ehRotaDaCobrancaV1 } from "./cobranca/api.js";
 import { ehAmbienteDeTeste } from "./cobranca/eventos.js";
@@ -138,7 +139,15 @@ export default {
         if (url.pathname !== "/api/mp/aviso" && !mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
         return comCabecalhos(await atenderCobrancaV1(request, env, url, { ctx }));
       }
-      if (ehRotaDoGoogle(url)) return comCabecalhos(await atenderGoogle(request, env, url));
+      // O "Continuar como" (worker/fedcm.js): /fedcm/afirmar e /fedcm/desconectar vem do site do aplicativo (outra
+      // origem) pelo navegador, com Sec-Fetch-Dest: webidentity, e conferem a origem contra o acesso; /api/fedcm/*, so daqui.
+      if (ehRotaDoFedCM(url)) {
+        if (url.pathname.startsWith("/api/") && !mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
+        return comCabecalhos(await atenderFedCM(request, env, url, { dentroDoLimite }));
+      }
+      // Quem abre ou fecha a sessao (Google, a segunda etapa, entrar, sair) tambem liga ou desliga o FedCM (o cookie
+      // dele e o Set-Login do Login Status API): comLoginStatus.
+      if (ehRotaDoGoogle(url)) return comCabecalhos(await comLoginStatus(await atenderGoogle(request, env, url), env, request));
       if (ehRotaDoOIDC(url)) {
         if (url.pathname.startsWith("/api/") && !mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
         return comCabecalhos(await atenderOIDC(request, env, url, { dentroDoLimite }));
@@ -183,11 +192,11 @@ export default {
       // A seguranca da conta (worker/seguranca.js): a guia Seguranca, a segunda etapa do login e a chave de acesso.
       if (ehRotaDaSeguranca(url)) {
         if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
-        return comCabecalhos(await atenderSeguranca(request, env, url, { dentroDoLimite }));
+        return comCabecalhos(await comLoginStatus(await atenderSeguranca(request, env, url, { dentroDoLimite }), env, request));
       }
       if (ehRotaDaConta(url)) {
         if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
-        return comCabecalhos(await atenderConta(request, env, url, { dentroDoLimite }));
+        return comCabecalhos(await comLoginStatus(await atenderConta(request, env, url, { dentroDoLimite }), env, request));
       }
     } catch (erro) {
       return json({ erro: "falha no servidor da conta" }, 500);
@@ -227,7 +236,7 @@ export default {
     }
     // O kit do botao (/marca/*.svg, botao.css; public/marca/): usado por outros sites, entao com CORS aberto (so leitura,
     // sem cookie) e cache de um dia. O SVG sai com uma CSP que nao deixa nada rodar se for aberto direto.
-    if (/^\/marca\/[a-z0-9-]+\.(svg|css|json)$/.test(url.pathname)) {
+    if (/^\/marca\/[a-z0-9-]+\.(svg|css|json|png)$/.test(url.pathname)) {
       const r = comCabecalhos(await env.ASSETS.fetch(request), false);
       if (r.ok) {
         r.headers.set("access-control-allow-origin", "*");

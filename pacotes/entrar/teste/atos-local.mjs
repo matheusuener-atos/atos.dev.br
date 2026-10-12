@@ -45,10 +45,11 @@ function npx(args, opcoes = {}) {
  * clientes: { <sufixo de 6 letras>: { tipo: "publico"|"confidencial", voltas?: [..], loopback?: bool, origens?: [..], segredo?: "..." } }
  * O client_id fica APP_ID + "-" + sufixo.
  */
-export async function subirAtos({ clientes, liberados = [PESSOAS.joao.email], acesso = "liberados" } = {}) {
+export async function subirAtos({ clientes, liberados = [PESSOAS.joao.email], acesso = "liberados", host = "127.0.0.1" } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "atos-local-"));
   const porta = await portaLivre();
-  const emissor = "http://127.0.0.1:" + porta;
+  // host "localhost": o emissor num site diferente de 127.0.0.1 (o FedCM no Chrome, com a pagina do aplicativo em 127.0.0.1).
+  const emissor = "http://" + (host === "localhost" ? "localhost" : "127.0.0.1") + ":" + porta;
 
   const par = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
   const chave = { ...(await crypto.subtle.exportKey("jwk", par.privateKey)), kid: "atos-local-" + porta };

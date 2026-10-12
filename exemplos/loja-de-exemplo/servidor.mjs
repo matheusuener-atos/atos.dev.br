@@ -57,6 +57,28 @@ app.get(new URL(atos.voltaPara).pathname, async (req, res) => {
   }
 });
 
+// 4. "Continuar como" (FedCM, Chrome e Edge): o navegador mostra a Conta Atos aberta nele, sem sair da loja.
+//    publico/fedcm.js pede /fedcm/comecar (o nonce e o code_challenge; o code_verifier fica na sessão), chama
+//    continuarComFedCM({ params }) e manda o código a /fedcm/concluir, que troca com o segredo (como na volta).
+//    Sem FedCM no navegador, ou fechando a janela, o botão vai a /entrar (o redirecionamento de sempre).
+app.get("/atos/entrar.js", (req, res) => res.type("text/javascript").sendFile(createRequire(import.meta.url).resolve("@atos.dev.br/entrar")));
+app.post("/fedcm/comecar", async (req, res) => {
+  const { params, guardar } = await atos.comecarFedCM();
+  req.session.atosFedcm = guardar;
+  res.json({ params, clientId: atos.clientId, emissor: atos.emissor, voltaPara: atos.voltaPara });
+});
+app.post("/fedcm/concluir", express.json({ limit: "2kb" }), async (req, res) => {
+  const guardado = req.session.atosFedcm;
+  delete req.session.atosFedcm;
+  try {
+    const pessoa = await atos.concluirFedCM(String((req.body && req.body.codigo) || ""), guardado);
+    req.session.pessoa = { id: pessoa.id, nome: pessoa.nome, email: pessoa.email };
+    res.json({ ir: "/" });
+  } catch (e) {
+    res.status(e.codigo === "access_denied" ? 403 : 400).json({ ir: e.codigo === "access_denied" ? "/sem-acesso" : "/entrar", erro: e.message });
+  }
+});
+
 app.post("/sair", express.urlencoded({ extended: false }), (req, res) => {
   req.session.destroy(() => res.redirect("/"));
 });
@@ -103,7 +125,7 @@ function vitrine() {
 
 function pagina(titulo, conteudo) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(titulo)}</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/atos/botao.css"><link rel="stylesheet" href="/loja.css"></head><body><main>${conteudo}</main>
+<title>${esc(titulo)}</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/atos/botao.css"><link rel="stylesheet" href="/loja.css"><script type="module" src="/fedcm.js"></script></head><body><main>${conteudo}</main>
 <footer>Loja da Maria · site de exemplo, com dados fictícios</footer></body></html>`;
 }
 
