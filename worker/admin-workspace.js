@@ -36,6 +36,7 @@ import { modoDeAcesso } from "./oidc-campos.js";
 import { acaoDaEquipe, terceirosParaPainel } from "./integracoes.js";
 import { WORKSPACE, workspaceDe } from "./workspace.js";
 import { anotarDaEquipe, anotarNoIndice, estadoDe, registroDaEquipe } from "./workspace-indice.js";
+import { bloqueioDoFormulario, formulariosParaPainel } from "./formularios.js";
 
 const SUB = /^[A-Za-z0-9_.:@-]{3,120}$/;
 const POR_VARREDURA = 25;
@@ -296,6 +297,24 @@ async function acaoNoApp(env, c, id, acao, d) {
   return r;
 }
 
+// ------------------------------------------------------------------ os formularios (worker/formularios.js)
+
+/* Desligar por abuso (com o motivo, que o dono ve) ou ligar de novo um formulario: dono e suporte. */
+async function acaoNoFormulario(env, c, id, acao, d) {
+  if (!PODE_AGIR.includes(c.quem.papel)) return json({ erro: "o papel " + c.quem.papel + " não desliga formulários" }, 403);
+  const motivo = limparMotivo(d.motivo);
+  if (acao === "desligar" && motivo.length < 3) return json({ erro: "diga o motivo (o dono vê)" }, 400);
+  const r = await bloqueioDoFormulario(env, id, acao, motivo, c.quem, c.agora);
+  if (r.status !== 200) return json({ erro: r.erro }, r.status);
+  try {
+    await anotarDaEquipe(env, { por: c.quem.email, tipo: "workspace.formulario." + acao, sub: r.dono.sub, email: r.dono.conta, alvo: id, motivo,
+      oque: (acao === "desligar" ? "desligou o formulário " : "ligou de novo o formulário ") + r.form.nome + " (" + id + ")" });
+  } catch {
+    // a acao ja valeu; o registro da equipe e o segundo lugar
+  }
+  return json({ ok: true });
+}
+
 // ------------------------------------------------------------------ a entrada
 
 export async function atenderWorkspaceNoPainel(request, env, url, c) {
@@ -321,6 +340,12 @@ export async function atenderWorkspaceNoPainel(request, env, url, c) {
       }
       return json({ erro: "use GET para ver e POST para mudar" }, 405);
     }
+    if (p === "/api/admin/workspace/formularios" && m === "GET") {
+      if (!env.WS_DADOS) return json({ erro: "os formulários não estão neste Worker" }, 503);
+      return json(await formulariosParaPainel(env, c.agora));
+    }
+    r = p.match(/^\/api\/admin\/workspace\/formularios\/(f-[a-z0-9]{12})\/(desligar|ligar)$/);
+    if (r && m === "POST") return env.WS_DADOS ? await acaoNoFormulario(env, c, r[1], r[2], (await lerJson(request)) || {}) : FORA();
     r = p.match(/^\/api\/admin\/workspace\/apps\/(u-[a-z0-9]{10})\/(desligar|ligar|apagar)$/);
     if (r && m === "POST") return await acaoNoApp(env, c, r[1], r[2], (await lerJson(request)) || {});
   } catch (e) {

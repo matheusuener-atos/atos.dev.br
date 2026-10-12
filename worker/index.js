@@ -18,6 +18,7 @@ import { atenderIntegracoes, ehRotaDasIntegracoes } from "./integracoes.js";
 import { VOLTA_DO_WORKSPACE, atenderWorkspace, ehRotaDoWorkspace } from "./workspace.js";
 import { atenderEmailAtos, ehRotaDoEmailAtos, receberEmail } from "./email-atos.js";
 import { atenderSeguranca, ehRotaDaSeguranca } from "./seguranca.js";
+import { atenderFormularioPublico, atenderFormularios, ehRotaDoFormularioPublico, ehRotaDosFormularios } from "./formularios.js";
 
 // O registro de cada cliente da Atos Cobranca (docs/COBRANCA.md): o Durable Object precisa sair do modulo principal.
 export { ClienteCobranca } from "./cobranca/cliente.js";
@@ -28,6 +29,9 @@ export { EmailAtos } from "./email-atos.js";
 // A seguranca de cada Conta Atos (worker/seguranca/objeto.js): idFromName(<sub>), e "entrar" para os desafios do
 // "Entrar com chave de acesso".
 export { SegurancaConta } from "./seguranca/objeto.js";
+// Os recursos do Atos Workspace (worker/workspace-dados.js): os formularios, os avisos, as entradas e as paginas de status.
+// Um objeto "indice" e um por conta ("conta:<sub>").
+export { WorkspaceDados } from "./workspace-dados.js";
 
 const CSP_CONTA = [
   "default-src 'self'",
@@ -118,6 +122,9 @@ export default {
       return Response.redirect(EMISSOR + url.pathname + url.search, 301);
     }
     try {
+      // O envio de um formulario do Workspace (/f/<id>; worker/formularios.js): vem do site do dono (outra origem; o
+      // formulario confere a origem cadastrada) e responde com os proprios cabecalhos (as paginas tem CSP propria).
+      if (ehRotaDoFormularioPublico(url)) return await atenderFormularioPublico(request, env, url, { dentroDoLimite });
       // A Atos Cobranca: o aviso do Mercado Pago chega de fora (sem Origin; quem garante e a assinatura
       // HMAC); o resto e da propria pagina.
       if (ehRotaDaCobrancaV1(url)) {
@@ -142,6 +149,11 @@ export default {
       if (ehRotaDoEmailAtos(url)) {
         if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
         return comCabecalhos(await atenderEmailAtos(request, env, url, { dentroDoLimite }));
+      }
+      // Os formularios do Workspace (worker/formularios.js): as rotas do dono, antes das do Workspace (o mesmo prefixo).
+      if (ehRotaDosFormularios(url)) {
+        if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
+        return comCabecalhos(await atenderFormularios(request, env, url, { dentroDoLimite }));
       }
       if (ehRotaDoWorkspace(url)) {
         if (!mesmaOrigem(request, url)) return json({ erro: "origem não permitida" }, 403);
@@ -190,10 +202,10 @@ export default {
     }
     // A area do Workspace sem sessao: a tela de entrar do Workspace (que tem o caminho da Conta Atos para quem nao tem o
     // alias), voltando a esta guia.
-    if (/^\/workspace(\/(integracoes|email))?\/?$/.test(url.pathname) && request.method === "GET" && !(await sessaoDe(request, env))) {
+    if (/^\/workspace(\/(integracoes|email|formularios))?\/?$/.test(url.pathname) && request.method === "GET" && !(await sessaoDe(request, env))) {
       return irPara(url, "/workspace/entrar/?volta=" + encodeURIComponent(url.pathname));
     }
-    if (/^\/workspace\/(integracoes|email)\/?$/.test(url.pathname)) {
+    if (/^\/workspace\/(integracoes|email|formularios)\/?$/.test(url.pathname)) {
       return comCabecalhos(await env.ASSETS.fetch(new Request(new URL("/workspace/", url), request)), true);
     }
     return comCabecalhos(await env.ASSETS.fetch(request), conta);

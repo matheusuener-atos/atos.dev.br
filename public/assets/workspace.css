@@ -33,3 +33,7 @@
 .pe .we-link { color: var(--text); text-decoration: none; border-bottom: 1px solid #4c5056; padding-bottom: 1px; }
 .pe .we-link:hover { border-color: var(--silver); }
 .ws-noscript { text-align: center; padding: 16px; }
+/* Formularios (workspace-formularios.js), sobre as pecas ig-* de integrar.css */
+.fm-registro { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; font-size: 12px; line-height: 1.5; color: var(--text-2); }
+.fm-registro li { overflow-wrap: anywhere; }
+.fm-registro span { color: var(--faint); }

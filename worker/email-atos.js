@@ -538,6 +538,23 @@ export async function aliasDaConta(env, sub) {
   return resumoDoAlias(v.alias);
 }
 
+/* Para onde a Atos manda os avisos do Workspace ao titular (os formularios, worker/formularios.js; a pagina de status,
+   worker/status.js): o destino confirmado do alias da conta. {pronto: true, endereco, destino} so com o alias existindo,
+   sem suspensao, com o destino confirmado (o codigo e a Cloudflare) e o encaminhamento ligado; senao {pronto: false,
+   motivo: "sem_alias"|"alias_suspenso"|"alias_nao_confirmado"|"alias_desligado"}. Lanca se o objeto nao responde. */
+export async function destinoDoTitular(env, sub) {
+  if (!env || !env.EMAIL_ATOS || !sub) return { pronto: false, motivo: "sem_alias" };
+  const v = await registro(env).pedir("ver", { sub });
+  if (!v || !v.ok) throw new Error("o registro do e-mail Atos não respondeu");
+  const r = v.alias;
+  if (!r || r.sub !== sub) return { pronto: false, motivo: "sem_alias" };
+  const endereco = r.alias + "@" + DOMINIO;
+  if (r.suspenso) return { pronto: false, motivo: "alias_suspenso", endereco };
+  if (!(r.destino && r.destino.codigo_ok && r.destino.cf_ok)) return { pronto: false, motivo: "alias_nao_confirmado", endereco };
+  if (r.estado !== "ligado") return { pronto: false, motivo: "alias_desligado", endereco };
+  return { pronto: true, endereco, destino: r.destino.email };
+}
+
 /* O endereco e um <alias>@atos.dev.br bem formado? Devolve o alias ou "". */
 export function aliasDoTexto(endereco) {
   const e = normal(endereco);

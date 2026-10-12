@@ -55,13 +55,20 @@
   // O emissor de NFS-e da Atos (worker/nfse/emissor.js, EmissorNFSe): uma instancia so (idFromName("atos")), SQLite,
   // com o prestador, o certificado A1 cifrado (NFSE_CHAVE_MESTRA), a numeracao e as notas. O painel o usa por
   // /api/admin/nfse/* (worker/nfse/api.js); a cobranca poe cada pagamento aprovado na fila (worker/nfse/atos.js).
-  "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }, { "name": "SEGURANCA", "class_name": "SegurancaConta" }] },
+  "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }, { "name": "SEGURANCA", "class_name": "SegurancaConta" }, { "name": "WS_DADOS", "class_name": "WorkspaceDados" }] },
   "migrations": [
     { "tag": "v1-clientes-cobranca", "new_sqlite_classes": ["ClienteCobranca"] },
     { "tag": "v2-emissor-nfse", "new_sqlite_classes": ["EmissorNFSe"] },
     { "tag": "v3-email-atos", "new_sqlite_classes": ["EmailAtos"] },
-    { "tag": "v4-seguranca-conta", "new_sqlite_classes": ["SegurancaConta"] }
+    { "tag": "v4-seguranca-conta", "new_sqlite_classes": ["SegurancaConta"] },
+    { "tag": "v5-workspace-dados", "new_sqlite_classes": ["WorkspaceDados"] }
   ],
+  // Os recursos do Atos Workspace (worker/workspace-dados.js, WorkspaceDados): um objeto "indice" (os formularios pelo id,
+  // as paginas de status pelo nome, a agenda das conferencias) e um por conta ("conta:<sub>"). Os formularios
+  // (worker/formularios.js) mandam pelo Resend (RESEND_API_KEY); FORMULARIOS_LIMITE_DIA (var, opcional; padrao 500) e o
+  // teto de envios por dia da Atos inteira. A verificacao contra robos (Cloudflare Turnstile) e opcional e so aparece
+  // com as duas: TURNSTILE_SITEKEY (var, a chave publica do widget, com atos.dev.br na lista de hostnames dele) e
+  // TURNSTILE_SECRET (segredo: npx wrangler secret put TURNSTILE_SECRET). Sem elas, valem a armadilha e os limites.
   // O e-mail Atos (worker/email-atos.js, EmailAtos): uma instancia so (idFromName("registro")) com os aliases, os destinos,
   // os contadores e o registro (30 dias). A mensagem chega pelo handler email() do Worker: o dono configura, no painel da
   // Cloudflare (atos.dev.br > Email > Email Routing > Routing rules), o catch-all com a acao "Send to a Worker" -> atos
@@ -129,7 +136,7 @@
       "routes": [],
       "kv_namespaces": [{ "binding": "CONTAS", "id": "c8011a70799b40b0b3215f4a01b2d28c" }],
       "ratelimits": [{ "name": "LIMITE", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } }],
-      "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }, { "name": "SEGURANCA", "class_name": "SegurancaConta" }] },
+      "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }, { "name": "SEGURANCA", "class_name": "SegurancaConta" }, { "name": "WS_DADOS", "class_name": "WorkspaceDados" }] },
       "vars": {
         "AMBIENTE": "teste",
         // O e-mail Atos no teste: a Cloudflare simulada (worker/email-atos.js): os destinos ficam no objeto, "verificados"

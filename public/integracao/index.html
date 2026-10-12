@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Atos Workspace: o Login Atos nos seus sistemas · Atos</title>
-<meta name="description" content="O Atos Workspace é o produto da Atos para quem constrói sistemas com a Conta Atos. Hoje inclui o Login Atos (Entrar com Atos) para os seus sistemas: login por OpenID Connect, como o Entrar com o Google. Gratuito.">
+<meta name="description" content="O Atos Workspace é o produto da Atos para quem constrói sistemas com a Conta Atos. Hoje inclui o Login Atos (Entrar com Atos) para os seus sistemas, login por OpenID Connect como o Entrar com o Google, e os formulários de contato entregues no seu e-mail Atos. Gratuito.">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#080707">
 <meta property="og:title" content="Atos Workspace: o Login Atos nos seus sistemas">
@@ -33,7 +33,7 @@
 
 <main class="integracao">
   <h1>Atos Workspace</h1>
-  <p class="lead">O produto da Atos para quem constrói sistemas com a Conta Atos. Hoje ele traz o Login Atos para os seus sistemas: o “Entrar com Atos”, um login pronto para o seu site, aplicativo ou servidor, em que a pessoa entra com a Conta Atos dela, do mesmo jeito que entra com o Google. Gratuito: ativar é aceitar os termos do Workspace.</p>
+  <p class="lead">O produto da Atos para quem constrói sistemas com a Conta Atos. Hoje ele traz o Login Atos para os seus sistemas: o “Entrar com Atos”, um login pronto para o seu site, aplicativo ou servidor, em que a pessoa entra com a Conta Atos dela, do mesmo jeito que entra com o Google. E os <a href="#formularios">Formulários</a>: o formulário de contato do seu site, entregue no seu e-mail Atos. Gratuito: ativar é aceitar os termos do Workspace.</p>
   <div class="chamadas">
     <a class="btn primario" href="/entrar/?volta=/workspace/">Ativar o Atos Workspace<span class="seta" aria-hidden="true">→</span></a>
     <a class="btn" href="/workspace/entrar/">Já tenho, ir ao Workspace</a>
@@ -50,6 +50,7 @@
       <div>
         <h3>O que inclui hoje</h3>
         <p>O Login Atos para os seus sistemas: até 5 aplicativos por conta, 5 acessos por aplicativo e 500 pessoas liberadas por aplicativo, em Atos Workspace › Integrações.</p>
+        <p>Os Formulários: o formulário de contato de um site estático (até 5 por conta), entregue no destino do seu e-mail Atos, em Atos Workspace › Formulários. Pedem o e-mail Atos com o destino confirmado, como as Integrações. <a href="#formularios">Como usar</a>.</p>
         <p>O e-mail Atos (em preparação na Atos): um endereço @atos.dev.br que encaminha para o seu e-mail (não é caixa de entrada) e que também entra na sua Conta Atos, com a mesma senha. Cadastrar um sistema pede o e-mail Atos com o destino confirmado; enquanto ele estiver em preparação, a área do Workspace avisa e o cadastro de sistemas espera.</p>
       </div>
       <div>
@@ -824,6 +825,38 @@ app.get(new URL(atos.voltaPara).pathname, async (req, res) =&gt; {
       </li>
     </ol>
     <p class="nota-fim">Para rodar a loja de exemplo contra a Atos de verdade, veja o README de <a href="https://github.com/matheusuener-atos/matheusuener.com.br/tree/main/exemplos/loja-de-exemplo"><code>exemplos/loja-de-exemplo</code></a>: como cadastrar o aplicativo, escolher o modo e gravar o <code>.env</code>.</p>
+  </section>
+
+  <section id="formularios" aria-labelledby="formularios-titulo">
+    <h2 id="formularios-titulo">Formulários</h2>
+    <div class="corpo">
+      <p>Para o formulário de contato de um site estático, sem servidor seu. Em Atos Workspace › Formulários, você dá um nome, diz de quais sites ele é enviado (a origem, como <code>https://exemplo.com.br</code>; até 5) e escolhe os campos (nome, e-mail, assunto, mensagem e até 5 livres). A Atos dá o endereço <code>https://atos.dev.br/f/&lt;id&gt;</code>; cada envio vira um e-mail da Atos no destino confirmado do seu e-mail Atos, e responder a ele vai para o e-mail que a pessoa digitou.</p>
+      <p>A Atos não guarda o que foi preenchido: do envio, fica só quando, o site, o resultado e o tamanho, por 30 dias, no registro do formulário. Envios de outros sites são recusados; campos que você não escolheu são ignorados; arquivos não são aceitos.</p>
+    </div>
+    <h3>No HTML</h3>
+    <pre class="codigo" tabindex="0" aria-label="Exemplo de formulário HTML"><code>&lt;form action="https://atos.dev.br/f/SEU_FORMULARIO" method="post"&gt;
+  &lt;label&gt;Nome &lt;input name="nome"&gt;&lt;/label&gt;
+  &lt;label&gt;E-mail &lt;input name="email" type="email" required&gt;&lt;/label&gt;
+  &lt;label&gt;Mensagem &lt;textarea name="mensagem" required&gt;&lt;/textarea&gt;&lt;/label&gt;
+  &lt;!-- A armadilha contra robôs: fica escondida e vazia. --&gt;
+  &lt;div style="position:absolute;left:-10000px" aria-hidden="true"&gt;&lt;input name="_armadilha" tabindex="-1" autocomplete="off"&gt;&lt;/div&gt;
+  &lt;button type="submit"&gt;Enviar&lt;/button&gt;
+&lt;/form&gt;</code></pre>
+    <p class="nota-fim">Depois de enviar, a pessoa vê a página de “obrigado” da Atos (com o botão de voltar ao site) ou vai para o endereço que você escolher, num dos sites do formulário. A área do Workspace mostra o exemplo já com o endereço e os campos do seu formulário.</p>
+    <h3>Por fetch</h3>
+    <pre class="codigo" tabindex="0" aria-label="Exemplo de envio por fetch"><code>const r = await fetch("https://atos.dev.br/f/SEU_FORMULARIO", {
+  method: "POST",
+  headers: { "content-type": "application/json", accept: "application/json" },
+  body: JSON.stringify({ nome, email, mensagem }),
+});
+const d = await r.json(); // {ok: true} ou {ok: false, erro, codigo}</code></pre>
+    <p class="nota-fim">O CORS só libera os sites cadastrados no formulário.</p>
+    <h3>Contra robôs</h3>
+    <dl class="tabela-ref">
+      <div><dt>Sempre</dt><dd>A origem de cada envio tem de ser um dos sites cadastrados; o campo-armadilha <code>_armadilha</code> (quem o preenche recebe o “obrigado” e nada sai); 5 envios por hora do mesmo endereço de internet em cada formulário; o limite por dia que você escolhe (até 200); 32 KB por envio; e um teto diário da Atos inteira.</dd></div>
+      <div><dt>Verificação</dt><dd>Quando a Atos tem o Cloudflare Turnstile ligado, você pode pedi-lo em cada formulário: o envio passa por uma página da Atos com o desafio antes da entrega. Com ele ligado, o envio por fetch/JSON é recusado (<code>codigo: "verificacao"</code>). Sem ele na Atos, a opção não aparece.</dd></div>
+      <div><dt>Respostas</dt><dd>Por fetch: <code>200 {ok: true}</code>; <code>400</code> campos inválidos; <code>403</code> site não cadastrado ou formulário desligado; <code>404</code> formulário não encontrado; <code>413</code> grande demais; <code>429</code> limite; <code>503</code> o formulário não está recebendo (o e-mail Atos do dono parado, o Workspace desativado) ou o teto da Atos; <code>502</code> o e-mail não saiu (tente de novo).</dd></div>
+    </dl>
   </section>
 
   <section id="referencia" aria-labelledby="referencia-titulo">

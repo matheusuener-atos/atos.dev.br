@@ -111,6 +111,22 @@ export function recusaDoAlias(e, ligado) {
 }
 export const WORKSPACE_FORA = () => json({ erro: "não deu para conferir o Atos Workspace agora: tente de novo em instantes" }, 503);
 
+/* A porta dos recursos do Workspace que pedem o mesmo que as Integracoes (os Formularios, worker/formularios.js; a pagina
+   de status, worker/status.js): a sessao, o Workspace ativo e sem suspensao, e o e-mail Atos com o destino confirmado e
+   a sessao aberta por ele. {sessao, alias} ou {resposta} (o 401/403/503 pronto, com o codigo que a tela entende). */
+export async function portaoDoWorkspace(request, env) {
+  const sessao = await sessaoDe(request, env);
+  if (!sessao) return { resposta: json({ erro: "entre na sua conta", entrar: true }, 401) };
+  let w;
+  try { w = await workspaceDe(env, sessao.sub); } catch { return { resposta: WORKSPACE_FORA() }; }
+  if (!w || !w.ativo) return { resposta: SEM_WORKSPACE() };
+  if (w.suspenso) return { resposta: WORKSPACE_SUSPENSO(w.suspenso) };
+  let alias;
+  try { alias = await estadoDoAlias(env, sessao); } catch { return { resposta: WORKSPACE_FORA() }; }
+  if (alias.pendencia) return { resposta: recusaDoAlias(alias, emailAtosLigado(env)) };
+  return { sessao, alias };
+}
+
 export function ehRotaDoWorkspace(url) {
   return url.pathname === "/api/workspace" || url.pathname.startsWith("/api/workspace/");
 }

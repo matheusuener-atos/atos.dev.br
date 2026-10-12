@@ -16,7 +16,7 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var SECOES = ["geral", "integracoes", "email"];
+  var SECOES = ["geral", "integracoes", "formularios", "email"];
   var S = { conta: null, ws: null, erro: "", aceito: false, ocupado: false, confirmar: false, msg: "" };
 
   function esc(s) {
@@ -45,7 +45,8 @@
     var m = /^\/workspace\/([a-z]+)/.exec(location.pathname);
     return m && SECOES.indexOf(m[1]) > 0 ? m[1] : "geral";
   }
-  var GUIAS = [["geral", "Visão geral", "/workspace/"], ["integracoes", "Integrações", "/workspace/integracoes"], ["email", "E-mail Atos", "/workspace/email"]];
+  var GUIAS = [["geral", "Visão geral", "/workspace/"], ["integracoes", "Integrações", "/workspace/integracoes"], ["formularios", "Formulários", "/workspace/formularios"],
+    ["email", "E-mail Atos", "/workspace/email"]];
   function guias() {
     var sec = secaoAtual();
     return '<nav class="guias" aria-label="Atos Workspace">' + GUIAS.map(function (g) {
@@ -75,6 +76,8 @@
       (S.ws && S.ws.email && S.ws.email.disponivel
         ? "<p>E o <strong>e-mail Atos</strong>: um endereço @atos.dev.br que encaminha para o seu e-mail (não é caixa de entrada; desligado, as mensagens são recusadas).</p>"
         : "<p>Em preparação: o <strong>e-mail Atos</strong>, um endereço @atos.dev.br que encaminha para o seu e-mail.</p>") +
+      "<p>E os <strong>Formulários</strong>: o seu site manda o formulário de contato para um endereço da Atos, e a Atos entrega o que foi preenchido no destino do seu e-mail Atos, sem guardar o conteúdo. " +
+      "Pedem o e-mail Atos confirmado e o login por ele, como as Integrações.</p>" +
       "<p>Para cadastrar um sistema: <strong>1.</strong> ative o Workspace; <strong>2.</strong> crie o seu e-mail Atos e confirme o destino; " +
       "<strong>3.</strong> entre com o endereço @atos.dev.br (a mesma senha da conta); <strong>4.</strong> cadastre o sistema em Integrações. " +
       "Quem entra nele vê o seu endereço @atos.dev.br como quem cadastrou, nunca o seu e-mail pessoal.</p></div>";
@@ -140,6 +143,9 @@
     h += h2("O que está incluído") + '<div class="card"><a class="item" href="/workspace/integracoes" data-ws-secao="integracoes"><span class="logo inicial" aria-hidden="true">L</span>' +
       '<span class="nome"><strong>Integrações</strong><small>O Login Atos para os seus sistemas · ' + esc(String(W.apps)) + " de 5 aplicativos</small></span>" +
       '<span class="seta" aria-hidden="true">→</span></a>' +
+      '<a class="item" href="/workspace/formularios" data-ws-secao="formularios"><span class="logo inicial" aria-hidden="true">F</span>' +
+      '<span class="nome"><strong>Formulários</strong><small>O formulário de contato do seu site, entregue no destino do seu e-mail Atos · até 5</small></span>' +
+      '<span class="seta" aria-hidden="true">→</span></a>' +
       '<a class="item" href="/workspace/email" data-ws-secao="email"><span class="logo inicial" aria-hidden="true">@</span>' +
       '<span class="nome"><strong>E-mail Atos</strong><small>' + (W.alias ? esc(W.alias.endereco) + (W.alias.suspenso ? " · suspenso" : W.alias.confirmado ? "" : " · falta confirmar o destino")
         : W.email && W.email.disponivel ? "Um endereço @atos.dev.br que encaminha para o seu e-mail. Crie o seu antes de cadastrar sistemas" : "Em preparação") + "</small></span>" +
@@ -171,35 +177,65 @@
 
   // ------------------------------------------------------------ Integracoes
 
-  function integracoes() {
-    var h = titulo("Integrações", "Os seus sistemas que usam o Entrar com Atos, e quem pode entrar em cada um.");
-    if (!S.ws) return h + (S.erro ? vazio(esc(S.erro) + ' <button type="button" class="link" data-ws="recarregar">Tentar de novo</button>') : vazio("Carregando…"));
-    if (!S.ws.ativo) {
-      return h + '<div class="card ws-ativar"><p>As Integrações fazem parte do Atos Workspace. Ative o Workspace (gratuito) para cadastrar os seus sistemas no Login Atos.' +
-        (S.ws.apps ? " Os seus " + esc(apps(S.ws.apps)) + " continuam funcionando para quem entra neles; ative de novo para vê-los e mudá-los." : "") + "</p>" +
+  /* O que as Integracoes e os Formularios pedem (o Workspace ativo e sem suspensao, o e-mail Atos confirmado e o login
+     por ele): o aviso do passo que falta, ou "" quando a area abre. `A`: {nome: "As Integrações", fazer: "cadastrar
+     sistemas", porque: o que o e-mail Atos faz nela, antigos: o que continua valendo enquanto isso}. */
+  function portao(A) {
+    var W = S.ws;
+    if (!W.ativo) {
+      return '<div class="card ws-ativar"><p>' + A.nome + " fazem parte do Atos Workspace. Ative o Workspace (gratuito) para " + A.fazer + "." + (A.inativo || "") + "</p>" +
         '<div class="ws-botoes"><a class="btn primario" href="/workspace/" data-ws-secao="geral">Ativar o Atos Workspace</a></div></div>';
     }
-    var W = S.ws;
-    if (W.suspenso) return h + avisoSuspenso(W);
-    var antigos = W.apps ? " Os seus " + esc(apps(W.apps)) + " continuam funcionando para quem entra neles; você volta a vê-los e mudá-los quando cumprir este passo." : "";
+    if (W.suspenso) return avisoSuspenso(W);
+    var antigos = A.antigos || "";
     if (W.pendencia === "sem_alias") {
       if (W.alias && W.alias.suspenso) {
-        return h + '<div class="card ws-ativar"><p class="ws-aviso">A Atos suspendeu o seu e-mail Atos (' + esc(W.alias.endereco) + "). Sem ele, as Integrações ficam paradas. Para entender ou contestar, escreva para contato@atos.dev.br." + antigos + "</p></div>";
+        return '<div class="card ws-ativar"><p class="ws-aviso">A Atos suspendeu o seu e-mail Atos (' + esc(W.alias.endereco) + "). Sem ele, " + A.nome.toLowerCase() + " ficam paradas. Para entender ou contestar, escreva para contato@atos.dev.br." + antigos + "</p></div>";
       }
       if (!(W.email && W.email.disponivel)) {
-        return h + '<div class="card ws-ativar"><p>Cadastrar sistemas pede o e-mail Atos, que ainda está em preparação na Atos. As Integrações abrem quando ele estiver ligado.' + antigos + "</p></div>";
+        return '<div class="card ws-ativar"><p>' + A.nome + " pedem o e-mail Atos, que ainda está em preparação na Atos. Elas abrem quando ele estiver ligado." + antigos + "</p></div>";
       }
-      return h + '<div class="card ws-ativar"><p><strong>Crie o seu e-mail Atos para cadastrar sistemas.</strong> Quem entra nos seus sistemas vê esse endereço como quem cadastrou, nunca o seu e-mail pessoal. ' +
-        "Depois de criar e confirmar o destino, entre com ele (é a mesma conta e a mesma senha)." + antigos + "</p>" +
+      return '<div class="card ws-ativar"><p><strong>Crie o seu e-mail Atos para ' + A.fazer + ".</strong> " + A.porque +
+        " Depois de criar e confirmar o destino, entre com ele (é a mesma conta e a mesma senha)." + antigos + "</p>" +
         '<div class="ws-botoes"><a class="btn primario" href="/workspace/email" data-ws-secao="email">Criar o e-mail Atos</a></div></div>';
     }
     if (W.pendencia === "alias_nao_confirmado") {
-      return h + '<div class="card ws-ativar"><p><strong>Confirme o destino do seu e-mail Atos.</strong> ' + esc(W.alias.endereco) + " ainda não tem o destino confirmado (o código da Atos e o e-mail da Cloudflare). " +
-        "Depois, entre com ele para usar as Integrações." + antigos + "</p>" +
+      return '<div class="card ws-ativar"><p><strong>Confirme o destino do seu e-mail Atos.</strong> ' + esc(W.alias.endereco) + " ainda não tem o destino confirmado (o código da Atos e o e-mail da Cloudflare). " +
+        "Depois, entre com ele para usar " + A.nome.toLowerCase() + "." + antigos + "</p>" +
         '<div class="ws-botoes"><a class="btn primario" href="/workspace/email" data-ws-secao="email">Ir ao E-mail Atos</a></div></div>';
     }
-    if (W.pendencia === "entrar_pelo_alias") return h + entrarPeloAlias(W);
+    if (W.pendencia === "entrar_pelo_alias") return entrarPeloAlias(W);
+    return "";
+  }
+  function liberado() { return Boolean(S.ws && S.ws.ativo && !S.ws.pendencia && !S.ws.suspenso); }
+
+  function integracoes() {
+    var h = titulo("Integrações", "Os seus sistemas que usam o Entrar com Atos, e quem pode entrar em cada um.");
+    if (!S.ws) return h + (S.erro ? vazio(esc(S.erro) + ' <button type="button" class="link" data-ws="recarregar">Tentar de novo</button>') : vazio("Carregando…"));
+    var n = S.ws.apps;
+    var bloqueio = portao({
+      nome: "As Integrações", fazer: "cadastrar sistemas", porque: "Quem entra nos seus sistemas vê esse endereço como quem cadastrou, nunca o seu e-mail pessoal.",
+      inativo: n ? " Os seus " + esc(apps(n)) + " continuam funcionando para quem entra neles; ative de novo para vê-los e mudá-los." : "",
+      antigos: n ? " Os seus " + esc(apps(n)) + " continuam funcionando para quem entra neles; você volta a vê-los e mudá-los quando cumprir este passo." : "",
+    });
+    if (bloqueio) return h + bloqueio;
     return h + '<div id="ig-raiz"><div class="card"><p class="vazio">Carregando…</p></div></div>';
+  }
+
+  // ------------------------------------------------------------ Formularios
+
+  function formularios() {
+    var h = titulo("Formulários", "O formulário de contato do seu site, entregue no seu e-mail Atos.");
+    if (!S.ws) return h + (S.erro ? vazio(esc(S.erro) + ' <button type="button" class="link" data-ws="recarregar">Tentar de novo</button>') : vazio("Carregando…"));
+    var bloqueio = portao({
+      nome: "Os Formulários", fazer: "receber formulários", porque: "As mensagens dos formulários chegam ao destino confirmado desse endereço.",
+      antigos: " Enquanto isso, os formulários que você já cadastrou não entregam mensagens.",
+    });
+    if (bloqueio) return h + bloqueio;
+    return h + '<div id="fm-raiz"><div class="card"><p class="vazio">Carregando…</p></div></div>';
+  }
+  function montarFormularios() {
+    script("/assets/workspace-formularios.js", function () { var r = $("fm-raiz"); if (r && window.WorkspaceFormularios) window.WorkspaceFormularios.montar(r); });
   }
   var scripts = {};
   function script(src, cb) {
@@ -232,11 +268,12 @@
 
   // ------------------------------------------------------------ desenhar e carregar
 
-  var DESENHO = { geral: geral, integracoes: integracoes, email: email };
+  var DESENHO = { geral: geral, integracoes: integracoes, formularios: formularios, email: email };
   function desenhar() {
     var sec = secaoAtual();
     $("secao").innerHTML = DESENHO[sec]();
-    if (sec === "integracoes" && S.ws && S.ws.ativo && !S.ws.pendencia && !S.ws.suspenso) montarIntegracoes();
+    if (sec === "integracoes" && liberado()) montarIntegracoes();
+    if (sec === "formularios" && liberado()) montarFormularios();
     if (sec === "email" && S.ws) montarEmail();
   }
   function ir(sec) {

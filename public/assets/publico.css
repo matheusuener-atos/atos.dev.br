@@ -1,0 +1,29 @@
+/* As paginas publicas do Atos Workspace geradas pelo Worker: o resultado de um formulario (/f/<id>; worker/formularios.js)
+   e a pagina de status (/status/<nome>; worker/status.js). Sobre conta.css. Angulos retos; sem script da Atos. */
+.pub { width: 100%; max-width: 640px; margin: 0 auto; padding: 48px 16px 64px; display: flex; flex-direction: column; gap: 16px; flex: 1; }
+.pub-marca { font-family: var(--serif); font-size: 28px; line-height: 1; color: var(--text); }
+.pub h1 { font-family: var(--serif); font-weight: 400; font-size: 30px; line-height: 1.15; color: var(--text); }
+.pub-texto { font-size: 15px; line-height: 1.6; color: var(--text-soft); text-wrap: pretty; }
+.pub-form { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.pub-pe { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
+.pub .btn { text-decoration: none; }
+/* A pagina de status */
+.st-geral { display: flex; align-items: center; gap: 10px; padding: 14px 16px; font-size: 15px; color: var(--text); }
+.st-ponto { width: 10px; height: 10px; flex-shrink: 0; background: var(--faint); }
+.st-ponto.ok { background: var(--success); }
+.st-ponto.instavel { background: var(--warning); }
+.st-ponto.fora { background: var(--danger); }
+.st-item { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.st-item:last-child { border-bottom: 0; }
+.st-topo { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 12px; font-size: 14px; color: var(--text); }
+.st-topo small { font-size: 12px; color: var(--muted); }
+.st-barras { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; height: 28px; }
+.st-barras span { display: block; background: var(--line); }
+.st-barras span.ok { background: var(--success); }
+.st-barras span.instavel { background: var(--warning); }
+.st-barras span.fora { background: var(--danger); }
+.st-legenda { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); }
+.st-periodo { display: flex; gap: 6px; }
+.st-periodo a { padding: 4px 10px; font-size: 12px; color: var(--muted); text-decoration: none; border: 1px solid var(--line); }
+.st-periodo a[aria-current="page"] { color: var(--text); background: var(--line); }
+.st-eventos { margin: 0; padding: 0 16px 14px 32px; font-size: 13px; line-height: 1.6; color: var(--text-soft); }

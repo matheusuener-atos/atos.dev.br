@@ -21,7 +21,7 @@
 </header>
 <main class="texto">
   <h1>Termos de uso da conta Atos</h1>
-  <p class="descricao">Vigentes desde 11 de outubro de 2026.</p>
+  <p class="descricao">Vigentes desde 12 de outubro de 2026.</p>
   <nav class="guias" aria-label="Documentos">
     <a href="/privacidade/">Privacidade</a>
     <a href="/termos/" aria-current="page">Termos</a>
@@ -60,8 +60,8 @@
     O aplicativo recebe o e-mail da sua conta (o cadastrado), nunca o seu endereço @atos.dev.br.</p>
 
     <h2 id="workspace">Termos do Atos Workspace</h2>
-    <p><strong>Versão de 11 de outubro de 2026, revisão 4</strong> (a Atos pode suspender o Atos Workspace de uma conta, abaixo, em “Suspensão do Workspace”; a revisão 3 trouxe o e-mail Atos como jeito de entrar e como requisito para cadastrar sistemas). Ao ativar o Atos Workspace, a Atos registra esta versão e a data em que você a aceitou.</p>
-    <p>O Atos Workspace é o produto da Atos para quem constrói sistemas com a conta Atos. Ele inclui o Login Atos para os seus sistemas (cadastrar os seus sistemas no Entrar com Atos, em atos.dev.br/workspace/integracoes) e o e-mail Atos (um endereço @atos.dev.br que encaminha para o seu e-mail, em atos.dev.br/workspace/email, quando estiver ligado; abaixo).
+    <p><strong>Versão de 12 de outubro de 2026</strong> (os Formulários, abaixo; a revisão anterior, de 11 de outubro, trouxe a suspensão do Workspace pela Atos). Ao ativar o Atos Workspace, a Atos registra esta versão e a data em que você a aceitou.</p>
+    <p>O Atos Workspace é o produto da Atos para quem constrói sistemas com a conta Atos. Ele inclui o Login Atos para os seus sistemas (cadastrar os seus sistemas no Entrar com Atos, em atos.dev.br/workspace/integracoes), os Formulários (o formulário de contato do seu site, entregue no seu e-mail, em atos.dev.br/workspace/formularios) e o e-mail Atos (um endereço @atos.dev.br que encaminha para o seu e-mail, em atos.dev.br/workspace/email, quando estiver ligado; abaixo).
     É gratuito: ativar é aceitar estes termos, sem cartão nem pagamento. Hoje nada no Workspace é cobrado.</p>
 
     <h3>Ativar e desativar</h3>
@@ -83,6 +83,21 @@
       <li>Não use nome, marca ou aparência que se passe pela Atos, por um produto dela ou por outro serviço. Nomes como Atos, PAVLVS, Paulus, Google e Mercado Pago são recusados.</li>
       <li>Limites: até 5 aplicativos por conta, 5 acessos por aplicativo, 500 pessoas liberadas por aplicativo e 60 mudanças por hora. Criar e mudar pede um login das últimas 12 horas.</li>
       <li>A Atos pode desligar ou apagar um aplicativo usado para fraude, para enganar quem entra ou para atacar o serviço. O motivo do desligamento aparece para você no registro do aplicativo.</li>
+    </ul>
+
+    <h3 id="workspace-formularios">Formulários</h3>
+    <p>Com o Atos Workspace ativo, você cria formulários de contato (até 5 por conta) e recebe para cada um um endereço <code>https://atos.dev.br/f/…</code>, que o seu site usa no <code>&lt;form action&gt;</code> ou num <code>fetch</code>. Ao usar:</p>
+    <ul>
+      <li>Criar e mudar formulários pede o mesmo que cadastrar sistemas: o e-mail Atos com o destino confirmado e o login feito por ele, e um login das últimas 12 horas para mudar.</li>
+      <li>Cada envio aceito vira um e-mail da Atos (de naoresponda@atos.dev.br) no destino do seu e-mail Atos, com os campos preenchidos. Responder a esse e-mail vai para o endereço que a pessoa digitou no campo de e-mail; a Atos não confere se ele é dela.</li>
+      <li>A Atos só entrega com o formulário ligado, o seu Workspace ativo e sem suspensão, e o seu e-mail Atos existindo, sem suspensão, com o destino confirmado e o encaminhamento ligado. Faltando um, os envios são recusados (quem envia vê que o formulário não está recebendo).</li>
+      <li><strong>A Atos não guarda o que foi preenchido.</strong> O conteúdo passa direto para o e-mail. Do envio, fica só um registro por 30 dias: quando, o site de origem, o resultado (entregue, recusado, falhou ou armadilha), o motivo e o tamanho. Se a entrega falhar, nada fica, e quem enviou vê o erro para tentar de novo.</li>
+      <li>Só os sites que você cadastrou (até 5 por formulário) conseguem enviar: a Atos confere a origem de cada envio. Outros campos além dos que você escolheu são ignorados, e arquivos não são aceitos.</li>
+      <li>Contra robôs e abuso: o campo-armadilha (quem o preenche recebe o “obrigado” e nada sai), no máximo 5 envios por hora do mesmo endereço de internet em cada formulário, o limite por dia que você escolhe (até 200), 32 KB por envio e um teto diário da Atos inteira; acima disso, os envios são recusados. Quando a Atos tiver a verificação do Cloudflare Turnstile ligada, você pode pedi-la em cada formulário: ela acontece numa página da Atos antes da entrega, e com ela o envio por fetch/JSON é recusado.</li>
+      <li>Depois de enviar, quem preencheu vê a página de “obrigado” da Atos ou vai para o endereço que você escolher, desde que seja de um dos sites do formulário.</li>
+      <li>A Atos não garante a entrega: ela depende do serviço de e-mail da Atos (o Resend) e do provedor do seu destino, que pode recusar uma mensagem ou mandá-la para o spam.</li>
+      <li>Não use os formulários para spam, para coletar dados que você não tem o direito de coletar, para se passar por outra pessoa ou pela Atos, nem para receber o que a lei proíbe. Você responde pelo seu site e pelo que faz com o que recebe. A Atos pode desligar um formulário usado assim, na hora; você vê o motivo e não consegue religar até a Atos ligar de novo.</li>
+      <li>Apagar um formulário para os envios na hora e apaga o registro dele. Desligar só para os envios.</li>
     </ul>
 
     <h3 id="email-atos">E-mail Atos</h3>
