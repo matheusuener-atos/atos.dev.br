@@ -370,7 +370,9 @@ button.pv-tr.pv-clicavel:hover, .pv-tr.pv-aberto { background: var(--surface-hov
 .pf-titulo { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
 .pf-plano { display: grid; grid-template-columns: 1fr 2fr 1fr 1fr; align-items: end; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .pf-plano .campo:nth-child(5) { grid-column: 1 / 4; }
+.pf-link { display: grid; grid-template-columns: 1fr 2fr auto auto; align-items: end; gap: 8px 12px; padding: 6px 0; }
 @media (max-width: 640px) {
   .pf-plano { grid-template-columns: 1fr 1fr; }
   .pf-plano .campo:nth-child(5) { grid-column: 1 / -1; }
+  .pf-link { grid-template-columns: 1fr 1fr; }
 }

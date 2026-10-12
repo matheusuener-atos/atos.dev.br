@@ -117,11 +117,13 @@ checar(r.status === 403, "o financeiro não abre o Portfólio", r.d);
 r = await chamar("/api/admin/portfolio", { metodo: "GET" });
 checar(r.status === 401, "sem sessão: 401", r.status);
 r = await chamar("/api/admin/portfolio", { metodo: "GET", cookie: dono });
-checar(r.status === 200 && r.d.semente === true && r.d.projetos.map((p) => p.id).join() === "coryphaeus,plantare-maps" && r.d.github.configurado && !r.d.github.conectado,
-  "o dono vê a semente (os dois que estavam na home) e o GitHub configurado, sem conexão", r.d);
+checar(r.status === 200 && r.d.semente === true && r.d.projetos.map((p) => p.id).join() === "pavlvs,workspace,coryphaeus,plantare-maps" && r.d.projetos[0].codigo === true && r.d.github.configurado && !r.d.github.conectado,
+  "o dono vê a semente (os quatro que estavam na home; PAVLVS e Workspace marcados do código) e o GitHub configurado, sem conexão", r.d);
 let h = await home();
 checar(h.includes("<strong>Coryphaeus</strong>") && h.includes("<strong>Plantare Maps</strong>") && h.includes("<strong>PAVLVS</strong>") && />III<\/span>[\s\S]*Coryphaeus|Coryphaeus[\s\S]*>III</.test(h),
-  "a home: os fixos e os da semente, numerados depois dos fixos");
+  "a home: os quatro da semente, na ordem e numerados");
+checar(h.includes('href="/pavlvs/assinar/" data-mp-checkout-cta="checkout-api">Assinar') && h.includes('href="https://github.com/matheusuener-atos/coryphaeus/releases/latest" target="_blank" rel="noopener">Download<span aria-hidden="true">↓</span>') &&
+  h.includes('href="/integracao/">Saiba mais<span aria-hidden="true">→</span>'), "os links do cartão: o Assinar do PAVLVS com a marca do Mercado Pago, o Download e o caminho do site");
 
 console.log("o GitHub App");
 r = await chamar("/api/admin/portfolio/github/conectar", { metodo: "GET", cookie: dono });
@@ -245,8 +247,8 @@ checar(r.status === 401, "os direitos sem o segredo: 401", r.status);
 
 console.log("ordem, apagar e o resto");
 r = await chamar("/api/admin/portfolio/projetos/loja/mover", { cookie: dono, corpo: { para: "cima" } });
-checar(r.status === 200 && r.d.projetos.map((p) => p.id).join() === "coryphaeus,loja,plantare-maps", "subir um projeto", r.d.projetos.map((p) => p.id));
-r = await chamar("/api/admin/portfolio/projetos/coryphaeus/mover", { cookie: dono, corpo: { para: "cima" } });
+checar(r.status === 200 && r.d.projetos.map((p) => p.id).join() === "pavlvs,workspace,coryphaeus,loja,plantare-maps", "subir um projeto", r.d.projetos.map((p) => p.id));
+r = await chamar("/api/admin/portfolio/projetos/pavlvs/mover", { cookie: dono, corpo: { para: "cima" } });
 checar(r.status === 400, "o primeiro não sobe mais", r.d);
 r = await chamar("/api/admin/portfolio/projetos/plantare-maps/apagar", { cookie: dono, corpo: { confirmar: true } });
 checar(r.status === 200 && !r.d.projetos.some((p) => p.id === "plantare-maps"), "apagar um projeto sem venda", r.d);
@@ -256,6 +258,31 @@ r = await chamar("/api/admin/portfolio/projetos", { cookie: dono, corpo: { id: "
 checar(r.status === 200 && !(await home()).includes("Rascunho"), "fora da home: não aparece", r.d);
 r = await chamar("/api/admin/portfolio/projetos/rascunho", { cookie: dono, corpo: { nome: "Rascunho", descricao: "ainda não", produto: { eventos: "https://x.example/e", planos: PLANOS } }, e: { ...env, PORTFOLIO_CHAVE: "" } });
 checar(r.status === 400 && /PORTFOLIO_CHAVE/.test(r.d.erro), "vender sem PORTFOLIO_CHAVE: recusa, dizendo o que falta", r.d);
+
+console.log("o PAVLVS e o Workspace no Portfólio");
+const PAV = { nome: "PAVLVS", descricao: "Assistente jurídico com IA no escritório", plataforma: "Windows e web", site: "https://paulus.ia.br", publicado: true,
+  links: [{ texto: "Assinar", url: "/pavlvs/assinar/" }, { texto: "Baixar", url: "https://github.com/matheusuener-atos/coryphaeus/releases/latest", baixar: true }] };
+r = await chamar("/api/admin/portfolio/projetos/pavlvs", { cookie: dono, corpo: PAV });
+checar(r.status === 200 && r.d.projetos.find((p) => p.id === "pavlvs").descricao === PAV.descricao && r.d.projetos.find((p) => p.id === "pavlvs").codigo === true, "o cartão do PAVLVS muda pelo painel", r.d);
+h = await home();
+checar(h.includes("Assistente jurídico com IA no escritório") && h.includes(">Baixar<span"), "e a home mostra o cartão novo");
+r = await chamar("/api/admin/portfolio/projetos/pavlvs", { cookie: dono, corpo: { ...PAV, produto: { eventos: "https://x.example/e", planos: PLANOS } } });
+checar(r.status === 400 && /do código/.test(r.d.erro), "a venda do PAVLVS não muda por aqui", r.d);
+r = await chamar("/api/admin/portfolio/projetos/pavlvs", { cookie: dono, corpo: { ...PAV, login: { criar: true } } });
+checar(r.status === 400 && /do código/.test(r.d.erro), "nem o login", r.d);
+r = await chamar("/api/admin/portfolio/projetos/workspace/apagar", { cookie: dono, corpo: { confirmar: true } });
+checar(r.status === 409, "o Workspace não se apaga", r.d);
+r = await chamar("/api/admin/portfolio/projetos/workspace", { cookie: dono, corpo: { nome: "Atos Workspace", descricao: "Para quem constrói sistemas", publicado: false } });
+checar(r.status === 200 && !(await home()).includes("<strong>Atos Workspace</strong>"), "mas sai da home", r.d);
+for (const [links, motivo] of [[[{ texto: "X", url: "/a" }], "texto curto"], [[{ texto: "Ver", url: "javascript:alert(1)" }], "javascript:"], [[{ texto: "Ver", url: "//mal.example" }], "//"],
+  [[{ texto: "Ver", url: "/a\" onmouseover=x" }], "aspas"], [[1, 2, 3, 4, 5].map(() => ({ texto: "Ver", url: "/a" })), "mais de 4"]]) {
+  r = await chamar("/api/admin/portfolio/projetos/coryphaeus", { cookie: dono, corpo: { nome: "Coryphaeus", descricao: "Agent OS", publicado: true, links } });
+  checar(r.status === 400, "link recusado: " + motivo, r.d);
+}
+// Uma lista do KV de antes do PAVLVS entrar no Portfolio: ele e o Workspace voltam no comeco.
+guardados.set("atos:portfolio:projetos", JSON.stringify([{ id: "coryphaeus", nome: "Coryphaeus", descricao: "Agent OS", publicado: true }]));
+r = await chamar("/api/admin/portfolio", { metodo: "GET", cookie: dono });
+checar(r.d.projetos.map((p) => p.id).join() === "pavlvs,workspace,coryphaeus", "uma lista sem os do código: eles voltam no começo", r.d.projetos.map((p) => p.id));
 r = await chamar("/api/admin/portfolio/github/desconectar", { cookie: dono, corpo: {} });
 checar(r.status === 200 && !r.d.github.conectado, "desconectar esquece a instalação");
 r = await chamar("/api/admin/portfolio/github/repos", { metodo: "GET", cookie: dono });

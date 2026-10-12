@@ -60,12 +60,9 @@
       (c.selecao === "all" ? "Todos os repositórios da conta" : "Só os repositórios escolhidos no GitHub") + " · desde " + esc(U.quando(c.quando)) + " · por " + esc(c.por) + "</small></span>" +
       '<span class="pv-par"><a class="btn mini" href="/api/admin/portfolio/github/conectar">Mudar os repositórios</a><button type="button" class="btn mini" data-pf="desconectar">Desconectar</button></span></div></div>';
   }
-  function linhaFixa(f, n) {
-    return '<div class="oa-cliente"><div class="item oa-item"><span class="logo inicial" aria-hidden="true">' + esc(f.nome.charAt(0)) + '</span><span class="nome"><strong>' + esc(f.nome) +
-      ' <span class="nf-tag">' + U.pad(n) + '</span> <span class="pv-sit">do código</span></strong><small>Muda em ' + esc(f.onde) + "</small></span></div></div>";
-  }
   function linha(p, i, total) {
     var tags = (p.publicado ? '<span class="pv-sit ok">na home</span>' : '<span class="pv-sit">fora da home</span>') +
+      (p.codigo ? ' <span class="pv-sit">login e venda no código</span>' : "") +
       (p.login ? ' <span class="pv-sit">login</span>' : "") +
       (p.produto ? (p.produto.aberto ? ' <span class="pv-sit ok">vendendo</span>' : ' <span class="pv-sit">venda fechada</span>') : "") +
       (p.repo && p.repo.privado ? ' <span class="pv-sit">repositório privado</span>' : "");
@@ -88,7 +85,7 @@
       '<span class="pv-par"><button type="button" class="btn mini" data-pf="mover" data-para="cima" data-id="' + esc(p.id) + '"' + (i === 0 ? " disabled" : "") + ' aria-label="Subir">↑</button>' +
       '<button type="button" class="btn mini" data-pf="mover" data-para="baixo" data-id="' + esc(p.id) + '"' + (i === total - 1 ? " disabled" : "") + ' aria-label="Descer">↓</button>' +
       '<button type="button" class="btn mini" data-pf="editar" data-id="' + esc(p.id) + '">Editar</button>' +
-      (p.produto ? "" : '<button type="button" class="btn mini perigo" data-pf="apagar" data-id="' + esc(p.id) + '">Apagar</button>') + "</span></div>" + det + "</div>";
+      (p.produto || p.codigo ? "" : '<button type="button" class="btn mini perigo" data-pf="apagar" data-id="' + esc(p.id) + '">Apagar</button>') + "</span></div>" + det + "</div>";
   }
   function precoAtivo(p, plano, periodo) {
     return (p.produto.precos || []).filter(function (x) { return x.ativo !== false && (x.metadados || {}).plano === plano && x.periodo === periodo; })[0] || null;
@@ -104,7 +101,7 @@
     h += '<h2 class="titulo-secao">GitHub</h2>' + blocoGitHub();
     var l = S.dados.projetos || [];
     h += '<div class="pf-titulo"><h2 class="titulo-secao">Na home, nesta ordem</h2><button type="button" class="btn mini primario" data-pf="novo">Novo projeto</button></div>';
-    h += '<div class="card">' + S.dados.fixos.map(function (f, i) { return linhaFixa(f, i + 1); }).join("") + l.map(function (p, i) { return linha(p, i, l.length); }).join("") + "</div>";
+    h += '<div class="card">' + l.map(function (p, i) { return linha(p, i, l.length); }).join("") + "</div>";
     if (S.dados.semente) h += '<p class="nota">Estes são os projetos que já estavam escritos na home. A primeira mudança que você fizer aqui passa a valer no lugar deles.</p>';
     if (!S.dados.venda_ligada) h += '<p class="nota">Para vender pela Atos, falta o segredo PORTFOLIO_CHAVE no Worker: é com ele que o segredo dos eventos de cada produto fica cifrado.</p>';
     var reg = S.dados.registro || [];
@@ -127,12 +124,13 @@
       v: {
         id: x.id || "", nome: x.nome || "", descricao: x.descricao || "", plataforma: x.plataforma || "", site: x.site || "", icone: x.icone || "",
         repo: x.repo || null, mostrar_repo: x.mostrar_repo !== false, publicado: p ? x.publicado === true : true,
+        links: (x.links || []).map(function (l) { return { texto: l.texto, url: l.url, baixar: l.baixar === true }; }),
         login: false, voltas: "", origens: "", privacidade: PRIVACIDADE, termos: TERMOS, acesso: "todos",
         vender: Boolean(x.produto), eventos: x.produto ? x.produto.eventos : "", voltasVenda: x.produto ? (x.produto.voltas || []).join("\n") : "",
         aberto: Boolean(x.produto && x.produto.aberto),
         planos: x.produto ? x.produto.planos.map(plano) : [{ plano: "basico", nome: "Básico", descricao: "", mes: "", ano: "" }],
       },
-      tinhaLogin: Boolean(x.login), tinhaVenda: Boolean(x.produto), idTocado: Boolean(p),
+      tinhaLogin: Boolean(x.login), tinhaVenda: Boolean(x.produto), codigo: Boolean(x.codigo), idTocado: Boolean(p),
     };
   }
   function campo(rotulo, k, valor, extra, dica) {
@@ -178,6 +176,13 @@
       marcar("publicado", v.publicado, "Mostrar na home") +
       (v.repo ? marcar("mostrar_repo", v.repo.privado ? false : v.mostrar_repo, v.repo.privado ? "Botão GitHub no cartão (o repositório é privado: nunca aparece)" : "Botão GitHub no cartão", v.repo.privado) : "");
 
+    h += '<h3 class="oa-h3">Links do cartão</h3>' + v.links.map(linhaLink).join("") +
+      '<div><button type="button" class="btn mini" data-pf="mais-link"' + (v.links.length >= 4 ? " disabled" : "") + ">Mais um link</button></div>" +
+      '<p class="dica">Além dos automáticos (Assinar, quando vende pelo Portfólio; Site; GitHub). Um caminho deste site (ex.: /integracao/) abre na mesma aba; https://… abre em outra.</p>';
+    if (X.codigo) {
+      h += '<p class="nota">O login e a venda do ' + esc(v.nome) + " são do código (worker/oidc.js e worker/cobranca/catalogo.js): aqui muda só o cartão. Ele não se apaga; para sumir da home, desmarque “Mostrar na home”.</p>";
+      return h + rodape(X);
+    }
     h += '<h3 class="oa-h3">Login social (Entrar com Atos)</h3>';
     if (X.tinhaLogin) h += '<p class="nota">Ligado. Voltas, origens e quem entra mudam no Login Atos, pela fila.</p>';
     else {
@@ -202,16 +207,24 @@
         '<span class="dica">Mensal: assinatura no cartão ou um mês no Pix. Anual: cartão ou Pix, de uma vez. Mudar um valor cria outra versão do preço: quem já assinou continua no dele.</span></div>' +
         marcar("aberto", v.aberto, "Vendendo: o checkout aceita pagamento e o cartão da home mostra “Assinar”");
     }
-    h += (X.erro ? '<p class="erro" role="alert">' + esc(X.erro) + "</p>" : "") +
+    return h + rodape(X);
+  }
+  function rodape(X) {
+    return (X.erro ? '<p class="erro" role="alert">' + esc(X.erro) + "</p>" : "") +
       '<div class="botoes"><button type="button" class="btn p" data-admin="fechar-modal">Cancelar</button><button type="button" class="btn p primario" data-pf="salvar"' + (X.enviando ? " disabled" : "") + ">" +
       (X.enviando ? "Salvando…" : "Salvar") + "</button></div>";
-    return h;
+  }
+  function linhaLink(l, i) {
+    return '<div class="pf-link">' + campo("Texto", "link." + i + ".texto", l.texto, ' maxlength="24"') + campo("Endereço", "link." + i + ".url", l.url, ' placeholder="https://… ou /caminho/"') +
+      marcar("link." + i + ".baixar", l.baixar, "Download (↓)") + '<button type="button" class="btn mini" data-pf="tirar-link" data-i="' + i + '">Tirar</button></div>';
   }
   function corpoDoForm() {
     var v = S.form.v, d = {
       id: v.id.trim(), nome: v.nome, descricao: v.descricao, plataforma: v.plataforma, site: v.site.trim(), icone: v.icone, repo: v.repo,
       mostrar_repo: v.mostrar_repo, publicado: v.publicado,
+      links: v.links.filter(function (l) { return l.texto.trim() || l.url.trim(); }).map(function (l) { return { texto: l.texto.trim(), url: l.url.trim(), baixar: l.baixar === true }; }),
     };
+    if (S.form.codigo) return d;
     if (!S.form.tinhaLogin && v.login) d.login = { criar: true, voltas: v.voltas, origens: v.origens, privacidade: v.privacidade.trim(), termos: v.termos.trim(), acesso: v.acesso };
     if (v.vender) {
       var planos = v.planos.map(function (pl) { return { plano: pl.plano.trim(), nome: pl.nome, descricao: pl.descricao, mes: centavos(pl.mes), ano: centavos(pl.ano) }; });
@@ -277,6 +290,8 @@
     if (a === "sem-icone") { S.form.v.icone = ""; A.modal.repintar(); return; }
     if (a === "acesso") { S.form.v.acesso = b.getAttribute("data-v"); A.modal.repintar(); return; }
     if (a === "mais-plano") { S.form.v.planos.push({ plano: "", nome: "", descricao: "", mes: "", ano: "" }); A.modal.repintar(); return; }
+    if (a === "mais-link") { S.form.v.links.push({ texto: "", url: "", baixar: false }); A.modal.repintar(); return; }
+    if (a === "tirar-link") { S.form.v.links.splice(Number(b.getAttribute("data-i")), 1); A.modal.repintar(); return; }
     if (a === "tirar-plano") { S.form.v.planos.splice(Number(b.getAttribute("data-i")), 1); A.modal.repintar(); return; }
     if (a === "desconectar") {
       b.disabled = true;
@@ -344,6 +359,8 @@
   function guardarCampo(el) {
     var k = el.getAttribute("data-pf-in"), v = S.form.v;
     var valor = el.type === "checkbox" ? el.checked : el.value;
+    var ln = /^link\.(\d+)\.(\w+)$/.exec(k);
+    if (ln) { v.links[Number(ln[1])][ln[2]] = valor; return false; }
     var m = /^plano\.(\d+)\.(\w+)$/.exec(k);
     if (m) { v.planos[Number(m[1])][m[2]] = valor; return false; }
     if (k === "repo") { escolherRepo(valor); return true; }

@@ -51,13 +51,25 @@ export const ID_PROJETO = /^[a-z0-9][a-z0-9-]{1,30}$/;
 // Os ids que nao podem ser de projeto: os produtos do codigo e os caminhos do site (atos.dev.br/<id>/assinar).
 const RESERVADOS = ["pavlvs", "paulus", "workspace", "atos", "admin", "api", "assets", "assinar", "conta", "entrar", "integracao", "marca", "pacotes",
   "privacidade", "termos", "oauth", "status", "fedcm", "f", "dev", "www"];
-// Os cartoes que continuam escritos na home (public/index.html): so para leitura no painel.
-export const FIXOS = [
-  { id: "pavlvs", nome: "PAVLVS", onde: "o código: catálogo (worker/cobranca/catalogo.js), login (worker/oidc.js) e o cartão em public/index.html" },
-  { id: "workspace", nome: "Atos Workspace", onde: "o código: worker/workspace.js e o cartão em public/index.html" },
+// Os projetos ligados a um produto do codigo (o PAVLVS e o Atos Workspace): o cartao e do Portfolio (texto, icone,
+// links, ordem, na home ou nao), mas o login e a venda continuam no codigo (worker/oidc.js, worker/cobranca/catalogo.js,
+// worker/workspace.js): o PAVLVS tem clientes que o Portfolio nao representa (o programa instalado, os escritorios) e
+// planos com tokens e pessoas. Nao se apagam; saem da home. Se faltarem na lista do KV, voltam no comeco dela.
+export const DO_CODIGO = [
+  { id: "pavlvs", nome: "PAVLVS", descricao: "O assistente jurídico para escritórios de advocacia", plataforma: "Windows", site: "https://paulus.ia.br", icone: "",
+    repo: null, mostrar_repo: false, publicado: true, login: null, produto: null, codigo: true,
+    links: [{ texto: "Assinar", url: "/pavlvs/assinar/", baixar: false },
+      { texto: "Download", url: "https://github.com/matheusuener-atos/coryphaeus/releases/latest", baixar: true }],
+    criado: "2026-10-12T00:00:00.000Z", por: "semente" },
+  { id: "workspace", nome: "Atos Workspace", plataforma: "Web · gratuito, ou Pro", site: "", icone: "", repo: null, mostrar_repo: false, publicado: true,
+    descricao: "Para quem constrói sistemas com a Conta Atos: o Login Atos (Entrar com Atos) nos seus sistemas, formulários, página de status e a sua página de links em atos.dev.br/@nome",
+    login: null, produto: null, codigo: true,
+    links: [{ texto: "Ativar", url: "/entrar/?volta=/workspace/", baixar: false }, { texto: "Saiba mais", url: "/integracao/", baixar: false }],
+    criado: "2026-10-12T00:00:00.000Z", por: "semente" },
 ];
 // Os que estavam escritos na home antes do Portfolio: valem enquanto a chave do KV nao existe.
 export const SEMENTE = [
+  ...DO_CODIGO,
   { id: "coryphaeus", nome: "Coryphaeus", descricao: "Agent OS for orchestrating local AI agents and tools", plataforma: "Python", site: "", icone: "",
     repo: { nome: "matheusuener-atos/coryphaeus", privado: false, url: "https://github.com/matheusuener-atos/coryphaeus" }, mostrar_repo: true, publicado: true,
     login: null, produto: null, criado: "2026-10-12T00:00:00.000Z", por: "semente" },
@@ -87,7 +99,10 @@ export async function lerProjetos(env) {
   const bruto = await env.CONTAS.get(KP(env).projetos);
   if (bruto === null || bruto === undefined) return SEMENTE.map((x) => ({ ...x }));
   const l = JSON.parse(bruto);
-  return Array.isArray(l) ? l.filter((x) => x && typeof x === "object" && ID_PROJETO.test(String(x.id || ""))) : [];
+  const lista = Array.isArray(l) ? l.filter((x) => x && typeof x === "object" && ID_PROJETO.test(String(x.id || ""))) : [];
+  // Os do codigo nunca somem (uma lista de antes deles, ou mexida a mao): voltam no comeco.
+  const faltam = DO_CODIGO.filter((x) => !lista.some((y) => y.id === x.id)).map((x) => ({ ...x }));
+  return [...faltam, ...lista.map((x) => (DO_CODIGO.some((y) => y.id === x.id) ? { ...x, codigo: true, login: null, produto: null } : x))];
 }
 async function semSemente(env) {
   return (await env.CONTAS.get(KP(env).projetos)) === null;
@@ -180,7 +195,27 @@ function camposDoProjeto(d) {
   const icone = String(d.icone || "");
   if (icone && (icone.length > ICONE_MAX || !ICONE.test(icone))) throw erro("o ícone precisa ser uma imagem PNG, JPEG ou WebP de até 30 KB (ou nenhum)");
   const repo = repoDado(d.repo);
-  return { nome, descricao, plataforma, site, icone, repo, mostrar_repo: Boolean(repo && !repo.privado && d.mostrar_repo !== false), publicado: d.publicado === true };
+  return { nome, descricao, plataforma, site, icone, repo, mostrar_repo: Boolean(repo && !repo.privado && d.mostrar_repo !== false), publicado: d.publicado === true,
+    links: linksDados(d.links) };
+}
+
+const LINKS_MAX = 4;
+// Um caminho deste site (/pavlvs/assinar/, /entrar/?volta=/workspace/): sem esquema, sem "//", sem aspas nem espacos.
+const CAMINHO = /^\/(?!\/)[A-Za-z0-9\-._~!$&'()*+,;=:@%/?]*$/;
+
+/* Os botoes do cartao alem dos automaticos (Assinar da venda, Site, GitHub): [{texto, url, baixar}]. */
+function linksDados(l) {
+  if (l === undefined || l === null) return [];
+  if (!Array.isArray(l)) throw erro("os links do cartão vieram fora do formato");
+  if (l.length > LINKS_MAX) throw erro("no máximo " + LINKS_MAX + " links no cartão");
+  return l.map((x) => {
+    const texto = limparNome(x && x.texto).slice(0, 24);
+    if (texto.length < 2) throw erro("diga o texto de cada link do cartão");
+    const bruto = String((x && x.url) || "").trim();
+    const url = bruto.startsWith("/") ? (CAMINHO.test(bruto) && bruto.length <= 200 && !bruto.includes("'") ? bruto : "") : urlHttps(bruto);
+    if (!url) throw erro("o endereço do link “" + texto + "”: https://… ou um caminho deste site, como /integracao/");
+    return { texto, url, baixar: x.baixar === true };
+  });
 }
 
 const centavos = (x) => (x === null || x === undefined || x === "" ? null : Number(x));
@@ -298,6 +333,9 @@ async function salvar(env, c, id, d, criar) {
     ? { id, ...campos, login: null, produto: null, criado: iso(c.agora), por: c.quem.email }
     : { ...antes, ...campos, mudado: iso(c.agora) };
 
+  // Os do codigo: so o cartao muda aqui.
+  if (projeto.codigo && (d.login || d.produto)) throw erro("o login e a venda do " + projeto.nome + " são do código: aqui muda só o cartão");
+
   // O login: so liga (uma vez); o resto e no Login Atos.
   let ligarLogin = null;
   if (d.login && d.login.criar === true && !projeto.login) ligarLogin = await criarLogin(env, projeto, d.login, c.quem.email, c.agora);
@@ -341,6 +379,7 @@ async function apagar(env, c, id, d) {
   const lista = await lerProjetos(env);
   const p = lista.find((x) => x.id === id);
   if (!p) return json({ erro: "o projeto " + id + " não existe" }, 404);
+  if (p.codigo) return json({ erro: "o " + p.nome + " é do código (o login e a venda dele moram lá): tire da home em vez de apagar." }, 409);
   if (p.produto) return json({ erro: "este projeto vende pela Atos: quem pagou depende dele. Feche a venda e tire da home em vez de apagar." }, 409);
   await guardarProjetos(env, lista.filter((x) => x.id !== id));
   await anotar(env, c.quem.email, id, "apagou" + (p.login ? " (o login " + p.login.app + " continua no Login Atos)" : ""), c.agora);
@@ -389,7 +428,7 @@ async function tela(env) {
   }
   const gh = await kv(env, KP(env).github);
   return {
-    projetos, fixos: FIXOS, semente: await semSemente(env), venda_ligada: Boolean(await chaveDaCifra(env)),
+    projetos, semente: await semSemente(env), venda_ligada: Boolean(await chaveDaCifra(env)),
     github: { configurado: githubAppConfigurado(env), conectado: gh && gh.instalacao ? gh : null },
     registro: (await kv(env, KP(env).registro)) || [],
   };
@@ -461,7 +500,14 @@ export function cartao(p, n) {
   const icone = p.icone ? '<img class="inicial" src="' + escHtml(p.icone) + '" alt="" width="32" height="32">'
     : '<span class="inicial" aria-hidden="true">' + escHtml(String(p.nome || "?").trim().charAt(0).toUpperCase()) + "</span>";
   const acoes = [];
-  if (p.produto && p.produto.aberto) acoes.push('<a class="btn p" href="/' + escHtml(p.id) + '/assinar/">Assinar<span aria-hidden="true">→</span></a>');
+  // Um link ao checkout da Atos leva a marca que o Mercado Pago pede (data-mp-checkout-cta).
+  const assinar = (url) => (/^\/[a-z0-9-]+\/assinar\/$/.test(url) ? ' data-mp-checkout-cta="checkout-api"' : "");
+  if (p.produto && p.produto.aberto) acoes.push('<a class="btn p" href="/' + escHtml(p.id) + '/assinar/"' + assinar("/" + p.id + "/assinar/") + '>Assinar<span aria-hidden="true">→</span></a>');
+  for (const l of Array.isArray(p.links) ? p.links : []) {
+    const fora = !String(l.url).startsWith("/");
+    acoes.push('<a class="btn p" href="' + escHtml(l.url) + '"' + assinar(l.url) + (fora ? ' target="_blank" rel="noopener"' : "") + ">" + escHtml(l.texto) +
+      '<span aria-hidden="true">' + (l.baixar ? "↓" : fora ? "↗" : "→") + "</span></a>");
+  }
   if (p.site) acoes.push('<a class="btn p" href="' + escHtml(p.site) + '" target="_blank" rel="noopener">Site<span aria-hidden="true">↗</span></a>');
   if (p.repo && !p.repo.privado && p.mostrar_repo) acoes.push('<a class="btn p" href="' + escHtml(p.repo.url) + '" target="_blank" rel="noopener">GitHub<span aria-hidden="true">↗</span></a>');
   return '<article class="projeto">\n          <div class="cab">' + icone + '<span class="nome"><strong>' + escHtml(p.nome) + "</strong>" +
