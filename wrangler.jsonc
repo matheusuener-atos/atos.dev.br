@@ -106,6 +106,8 @@
   "vars": {
     "APP_URL": "https://atos.dev.br",
     "GITHUB_CLIENT_ID": "Ov23li63aRJVcRPb4QhE",
+    // A chave publica do widget Turnstile (atos.dev.br); o segredo e TURNSTILE_SECRET (wrangler secret put).
+    "TURNSTILE_SITEKEY": "0x4AAAAAAFUQ1_7SdDy3YIAH",
     "MP_PUBLIC_KEY": "APP_USR-0bb20e6b-f846-4b8e-a267-12bfc8c7fc1a",
     "PRODUTOS_ABERTOS": "pavlvs",
     "CF_ACCOUNT_ID": "54164f67b5d5eb33c0a1d325dfebb449"
