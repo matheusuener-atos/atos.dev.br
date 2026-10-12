@@ -16,7 +16,7 @@
 //   POST /api/esqueci    {email}                 manda um codigo para trocar a senha
 //   POST /api/redefinir  {email, codigo, senha}  troca a senha e abre a sessao
 //   POST /api/sair                               fecha a sessao deste navegador
-//   GET  /api/eu                                 {conta: {email, nome, via, alias?} | null}
+//   GET  /api/eu                                 {conta: {email, nome, via, alias?} | null, google, workspace, painel}
 //   POST /api/nome       {nome}                  troca o nome de quem esta dentro
 //
 // entrar, esqueci e redefinir aceitam {workspace: true} (a tela /workspace/entrar): so o endereco Atos passa; outro
@@ -58,6 +58,7 @@ import { AMR, exigeSegunda, iniciarEtapa, respostaDaEtapa } from "./seguranca/et
 import { anotar, indexarSessao } from "./seguranca/atividade.js";
 import { avisar } from "./seguranca/avisos.js";
 import { listaDaEquipe } from "./admin.js";
+import { workspaceAtivo } from "./workspace.js";
 
 const ITERACOES = 30000;
 const MIN_SENHA = 10;
@@ -229,7 +230,17 @@ export async function atenderConta(request, env, url, deps = {}) {
 
   if (p === "/api/eu") {
     const s = await sessaoDe(request, env);
-    return json({ conta: s ? { email: s.email, nome: s.nome, via: s.via, ...(s.alias ? { alias: s.alias + "@" + DOMINIO } : {}) } : null, google: googleLigado(env) });
+    // O menu de conta do topo (public/assets/menu-conta.js): workspace (o Atos Workspace ativo nesta conta) e painel (o
+    // e-mail esta na equipe do painel; a entrada no painel ainda pede a segunda etapa e o login recente, worker/admin.js).
+    // Sem sessao, os dois sao false; quem nao e da equipe recebe so painel: false. Sem conseguir conferir o Workspace
+    // (o registro do cliente fora), workspace: false: o menu so deixa de mostrar o atalho.
+    let workspace = false;
+    let painel = false;
+    if (s) {
+      try { workspace = await workspaceAtivo(env, s.sub); } catch { workspace = false; }
+      painel = (await listaDaEquipe(env)).some((x) => x.email === normal(s.email));
+    }
+    return json({ conta: s ? { email: s.email, nome: s.nome, via: s.via, ...(s.alias ? { alias: s.alias + "@" + DOMINIO } : {}) } : null, google: googleLigado(env), workspace, painel });
   }
   if (request.method !== "POST") return json({ erro: "use POST" }, 405);
 

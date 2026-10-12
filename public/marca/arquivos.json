@@ -35,6 +35,14 @@
   191,
   44
  ],
+ "atos-coroa-escura.svg": [
+  64,
+  64
+ ],
+ "atos-coroa.svg": [
+  64,
+  64
+ ],
  "atos-criar-conta-claro-grande.svg": [
   242,
   56
@@ -69,6 +77,42 @@
  ],
  "atos-criar-conta-neutro-pequeno.svg": [
   198,
+  44
+ ],
+ "atos-curto-claro-grande.svg": [
+  124,
+  56
+ ],
+ "atos-curto-claro-medio.svg": [
+  110,
+  48
+ ],
+ "atos-curto-claro-pequeno.svg": [
+  100,
+  44
+ ],
+ "atos-curto-escuro-grande.svg": [
+  124,
+  56
+ ],
+ "atos-curto-escuro-medio.svg": [
+  110,
+  48
+ ],
+ "atos-curto-escuro-pequeno.svg": [
+  100,
+  44
+ ],
+ "atos-curto-neutro-grande.svg": [
+  124,
+  56
+ ],
+ "atos-curto-neutro-medio.svg": [
+  110,
+  48
+ ],
+ "atos-curto-neutro-pequeno.svg": [
+  100,
   44
  ],
  "atos-entrar-claro-grande.svg": [

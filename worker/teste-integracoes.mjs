@@ -137,6 +137,18 @@ checar(r.status === 403 && r.d.workspace === false, "nem cria", r.d);
 r = await ativar(ana);
 checar(r.status === 200 && r.d.ativo === true, "a dona ativa o Workspace", r.d);
 checar((await ativar(bia)).d.ativo === true, "a Bia também (para as recusas de outra conta abaixo)");
+
+console.log("o /api/eu do menu de conta (workspace e painel)");
+r = await chamar("/api/eu", { metodo: "GET" });
+checar(r.status === 200 && r.d.conta === null && r.d.workspace === false && r.d.painel === false, "sem sessão: conta null, workspace e painel false", r.d);
+r = await chamar("/api/eu", { metodo: "GET", cookie: joao });
+checar(r.d.conta.email === "joao@escritorio.adv.br" && r.d.workspace === false && r.d.painel === false, "com sessão, sem Workspace nem equipe: os dois false", r.d);
+r = await chamar("/api/eu", { metodo: "GET", cookie: ana });
+checar(r.d.workspace === true && r.d.painel === false, "com o Workspace ativo: workspace true (fora da equipe: painel false)", r.d);
+r = await chamar("/api/eu", { metodo: "GET", cookie: dono });
+checar(r.d.painel === true && r.d.workspace === false && Object.keys(r.d).sort().join() === "conta,google,painel,workspace", "da equipe: painel true, e nada mais do painel no /api/eu", r.d);
+r = await chamar("/api/eu", { metodo: "GET", cookie: ana, e: { ...env, CLIENTES: undefined } });
+checar(r.status === 200 && r.d.conta && r.d.workspace === false, "o registro do Workspace fora: 200 com workspace false (o menu só tira o atalho)", r.d);
 r = await chamar("/api/integracoes", { metodo: "GET", cookie: ana });
 checar(r.status === 200 && r.d.apps.length === 0 && r.d.limites.apps === 2 && r.d.limites.liberados === 100 && r.d.plano.id === "gratuito" && r.d.limites.acessos === 5 && r.d.recente && r.d.descoberta === A + "/.well-known/openid-configuration",
   "com sessão: nenhum aplicativo, os limites do gratuito e o que precisa para integrar", r.d);
@@ -219,6 +231,33 @@ r = await chamar("/oauth/userinfo", { metodo: "OPTIONS", origem: "https://horta.
 checar(r.status === 204 && r.r.headers.get("access-control-allow-origin") === "https://horta.example", "o pré-voo do CORS aceita a origem do terceiro (pelo índice)");
 r = await chamar("/oauth/userinfo", { metodo: "GET", origem: "https://horta.example", headers: { authorization: "Bearer " + acesso } });
 checar(r.status === 200 && r.d.email === "joao@escritorio.adv.br", "o userinfo responde", r.d);
+
+console.log("o claim atos_dono (só o dono, só no aplicativo dele)");
+checar(!("atos_dono" in info) && !("atos_dono" in r.d), "o joão (liberado, não dono): sem atos_dono no id_token nem no userinfo", { info, userinfo: r.d });
+let codDona = await codigoPara(ana, web, WEB);
+r = await trocar(codDona, web, WEB);
+const infoDona = r.status === 200 ? await conferirIdToken(env, r.d.id_token) : null;
+checar(infoDona && infoDona.atos_dono === true && infoDona.aud === web, "a dona: atos_dono true no id_token", infoDona || r.d);
+r = await chamar("/oauth/userinfo", { metodo: "GET", headers: { authorization: "Bearer " + r.d.access_token } });
+checar(r.status === 200 && r.d.atos_dono === true, "e no userinfo", r.d);
+// O aplicativo da Bia (aberto a qualquer Conta Atos): a Ana entra, mas lá não é a dona.
+r = await chamar("/api/integracoes/apps", { cookie: bia, corpo: { ...SITE, nome: "Pomar da Bia", site: "https://pomar.example", privacidade: "https://pomar.example/p", termos: "https://pomar.example/t" } });
+const appBia = r.d.app;
+r = await chamar("/api/integracoes/apps/" + appBia.id + "/acessos", { cookie: bia, corpo: { tipo: "publico", voltas: ["https://pomar.example/volta"] } });
+const webBia = r.d.acesso;
+await chamar("/api/integracoes/apps/" + appBia.id, { cookie: bia, corpo: { acao: "acesso", acesso: "todos" } });
+codDona = await codigoPara(ana, webBia, "https://pomar.example/volta");
+r = await trocar(codDona, webBia, "https://pomar.example/volta");
+const infoOutro = r.status === 200 ? await conferirIdToken(env, r.d.id_token) : null;
+checar(infoOutro && !("atos_dono" in infoOutro), "a Ana no aplicativo da Bia: sem atos_dono", infoOutro || r.d);
+r = await chamar("/oauth/userinfo", { metodo: "GET", headers: { authorization: "Bearer " + r.d.access_token } });
+checar(r.status === 200 && !("atos_dono" in r.d), "nem no userinfo", r.d);
+const codBia = await codigoPara(bia, webBia, "https://pomar.example/volta");
+r = await trocar(codBia, webBia, "https://pomar.example/volta");
+checar(r.status === 200 && (await conferirIdToken(env, r.d.id_token)).atos_dono === true, "a Bia no próprio aplicativo: atos_dono true", r.d);
+await chamar("/api/integracoes/apps/" + appBia.id, { cookie: bia, corpo: { acao: "apagar", confirmar: true } });
+r = await chamar("/.well-known/openid-configuration", { metodo: "GET" });
+checar(r.d.claims_supported.includes("atos_dono"), "a descoberta anuncia o atos_dono");
 r = await chamar("/api/apps", { metodo: "GET", cookie: joao });
 checar(r.d.apps.some((a) => a.id === app.id && a.terceiro && a.cadastrado_por === "ana.horta@atos.dev.br"), "a Minha conta do joão lista o aplicativo de terceiro (para tirar o acesso)", r.d);
 const codPendente = await codigoPara(joao, web, WEB);

@@ -1,0 +1,44 @@
+/* "Monte o seu" (assets/monte-o-seu.js): o configurador do menu de conta, na /marca/ e no cartao "Como integrar". Usa as
+   cores de conta.css e os blocos de codigo de integrar.css (il-bloco, il-cab, il-pre). Cantos retos. */
+.mos { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 20px; margin-top: 12px; padding: 16px; background: var(--surface-2); border: 1px solid var(--line); }
+.mos-controles { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.mos-grupo { margin: 0; padding: 0; border: 0; min-width: 0; }
+.mos-grupo legend { margin: 0 0 6px; padding: 0; font-size: 12px; font-weight: 600; color: var(--silver); }
+.mos-opcoes { display: flex; flex-wrap: wrap; }
+.mos-opcao { position: relative; display: inline-flex; cursor: pointer; margin: 0 -1px -1px 0; }
+.mos-opcao input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.mos-opcao span { display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); font-size: 12px; font-weight: 500; }
+.mos-opcao:hover span { color: var(--text); }
+.mos-opcao input:checked + span { position: relative; z-index: 1; border-color: var(--text-soft); color: var(--text); background: var(--surface); }
+.mos-opcao input:focus-visible + span { outline: 2px solid var(--text-soft); outline-offset: 2px; }
+.mos-caixas { display: flex; flex-direction: column; gap: 10px; }
+.mos-marcar { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text-soft); cursor: pointer; }
+.mos-marcar input { width: 16px; height: 16px; margin: 2px 0 0; flex-shrink: 0; accent-color: var(--text); }
+.mos-marcar span { display: flex; flex-direction: column; gap: 2px; }
+.mos-marcar small { font-size: 12px; color: var(--faint); line-height: 1.45; }
+.mos-marcar.mos-desligado { opacity: .5; cursor: default; }
+.mos-campo input { max-width: 100%; }
+
+.mos-saida { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.mos-palco { border: 1px solid var(--line); min-height: 240px; }
+.mos-palco[data-tema="claro"] { background: #fbfaf8; }
+.mos-palco[data-tema="escuro"] { background: #0b0a09; }
+.mos-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 56px; padding: 0 16px; }
+.mos-palco[data-tema="claro"] .mos-topo { background: #ffffff; border-bottom: 1px solid #e6e4df; }
+.mos-palco[data-tema="escuro"] .mos-topo { background: #080707; border-bottom: 1px solid #2c2a26; }
+.mos-logo { font-family: var(--serif); font-size: 20px; }
+.mos-palco[data-tema="claro"] .mos-logo { color: #131312; }
+.mos-palco[data-tema="escuro"] .mos-logo { color: #ece8e1; }
+.mos-lugar { display: inline-flex; min-width: 0; }
+.mos-nota { margin: 0; padding: 12px 16px; font-size: 12px; }
+.mos-palco[data-tema="claro"] .mos-nota { color: #5e5e5a; }
+.mos-palco[data-tema="escuro"] .mos-nota { color: #9a948a; }
+.mos-nota:empty { display: none; }
+.mos-bloco { background: var(--bg); }
+.mos-pre { max-height: 400px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mos-dica { margin: 0; line-height: 1.55; }
+.mos-dica code { font-size: 12px; }
+
+@media (max-width: 760px) {
+  .mos { grid-template-columns: minmax(0, 1fr); padding: 12px; }
+}

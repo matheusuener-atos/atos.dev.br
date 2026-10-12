@@ -1,7 +1,7 @@
 {
   "name": "@atos.dev.br/entrar",
-  "version": "0.4.0",
-  "description": "Entrar com Atos (OpenID Connect com PKCE, e o \"Continuar como\" do FedCM) no navegador e no Node, o botão oficial e a conferência dos avisos da Atos, sem dependências.",
+  "version": "0.5.0",
+  "description": "Entrar com Atos (OpenID Connect com PKCE, e o \"Continuar como\" do FedCM) no navegador e no Node, o botão oficial, o menu de conta e a conferência dos avisos da Atos, sem dependências.",
   "license": "MIT",
   "type": "module",
   "main": "./index.js",
@@ -11,12 +11,14 @@
       "types": "./index.d.ts",
       "default": "./index.js"
     },
-    "./botao.css": "./botao.css"
+    "./botao.css": "./botao.css",
+    "./menu.css": "./menu.css"
   },
   "files": [
     "index.js",
     "index.d.ts",
     "botao.css",
+    "menu.css",
     "README.md",
     "LICENSE"
   ],

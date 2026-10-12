@@ -1,5 +1,6 @@
 /* "Como integrar" um sistema ao Entrar com Atos: o cartao com os dados do provedor, o fluxo em 5 passos, o comando que
    grava o .env (PowerShell e Linux/macOS), o trecho minimo em cada linguagem (integrar-linguagens.js, carregado aqui),
+   o "Monte o seu" do botao e do menu de conta (monte-o-seu.js, com o client_id do acesso),
    um pedido pronto para colar num assistente de codigo (Claude Code etc.) e os comandos que abrem o Claude Code com o
    pedido. O segredo nunca entra no pedido, no .env gravado nem nos comandos.
 
@@ -22,6 +23,22 @@
     var l = document.createElement("link");
     l.rel = "stylesheet"; l.href = "/assets/integrar.css";
     document.head.appendChild(l);
+  }
+  // O "Monte o seu" do passo 3 (assets/monte-o-seu.js, um modulo, e a folha dele; usa o menu do pacote servido aqui).
+  if (!document.querySelector('link[href="/marca/menu.css"]')) {
+    var lm = document.createElement("link");
+    lm.rel = "stylesheet"; lm.href = "/marca/menu.css";
+    document.head.appendChild(lm);
+  }
+  if (!document.querySelector('link[href="/assets/monte-o-seu.css"]')) {
+    var lc = document.createElement("link");
+    lc.rel = "stylesheet"; lc.href = "/assets/monte-o-seu.css";
+    document.head.appendChild(lc);
+  }
+  if (!document.querySelector('script[src="/assets/monte-o-seu.js"]')) {
+    var ms = document.createElement("script");
+    ms.type = "module"; ms.src = "/assets/monte-o-seu.js";
+    document.head.appendChild(ms);
   }
   var textos = {};
 
@@ -132,6 +149,9 @@
       '<p class="dica">' + (conf ? "Os exemplos de servidor leem o <code>.env</code>." : "Num acesso público, use o de JavaScript (navegador); os de servidor são para um acesso confidencial e leem o <code>.env</code>.") +
       " As linguagens marcadas “não testado” foram escritas pela documentação da biblioteca, sem rodar aqui.</p>" +
       L.linguagensHtml(v, base + "-ling") +
+      '<h4 class="ig-h4">3. Escolha o botão e o menu</h4>' +
+      '<p class="dica">O botão “Entrar” e, depois do login, o menu de conta no topo do seu site (o pacote <code>@atos.dev.br/entrar</code> 0.5.0). Escolha, veja ao vivo e copie o código, já com o <code>client_id</code> deste acesso.</p>' +
+      '<div data-mos data-client-id="' + esc(c.id) + '"></div>' +
       '<h4 class="ig-h4">Ou peça a um assistente de código</h4>' +
       L.blocoHtml("Pedido para um assistente de código", pedido, "Pedido para um assistente de código") +
       L.abasHtml(base + "-claude", "Sistema", [

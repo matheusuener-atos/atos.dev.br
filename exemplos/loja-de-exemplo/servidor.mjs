@@ -5,7 +5,7 @@ import express from "express";
 import session from "express-session";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { botaoEntrarComAtos, entrarComAtos } from "@atos.dev.br/entrar";
+import { botaoEntrarComAtos, entrarComAtos, menuContaAtos } from "@atos.dev.br/entrar";
 
 for (const v of ["ATOS_CLIENT_ID", "ATOS_REDIRECT_URI", "ATOS_CLIENT_SECRET", "SESSION_SECRET"]) {
   if (!process.env[v]) { console.error("Falta " + v + " no .env (veja o README)."); process.exit(1); }
@@ -22,6 +22,8 @@ const app = express();
 app.use(express.static(fileURLToPath(new URL("./publico", import.meta.url))));
 // O botão oficial da Atos (atos.dev.br/marca/): a folha vem do pacote (a mesma de https://atos.dev.br/marca/botao.css).
 app.get("/atos/botao.css", (req, res) => res.type("text/css").sendFile(createRequire(import.meta.url).resolve("@atos.dev.br/entrar/botao.css")));
+// O menu de conta do topo (a mesma folha de https://atos.dev.br/marca/menu.css).
+app.get("/atos/menu.css", (req, res) => res.type("text/css").sendFile(createRequire(import.meta.url).resolve("@atos.dev.br/entrar/menu.css")));
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
@@ -48,7 +50,7 @@ app.get(new URL(atos.voltaPara).pathname, async (req, res) => {
   delete req.session.atos;
   try {
     const pessoa = await atos.concluir(req.originalUrl, guardado);
-    req.session.pessoa = { id: pessoa.id, nome: pessoa.nome, email: pessoa.email };
+    req.session.pessoa = { id: pessoa.id, nome: pessoa.nome, email: pessoa.email, dono: pessoa.dono };
     res.redirect("/");
   } catch (e) {
     // access_denied: a conta não está liberada na Loja, ou a pessoa não permitiu.
@@ -72,7 +74,7 @@ app.post("/fedcm/concluir", express.json({ limit: "2kb" }), async (req, res) => 
   delete req.session.atosFedcm;
   try {
     const pessoa = await atos.concluirFedCM(String((req.body && req.body.codigo) || ""), guardado);
-    req.session.pessoa = { id: pessoa.id, nome: pessoa.nome, email: pessoa.email };
+    req.session.pessoa = { id: pessoa.id, nome: pessoa.nome, email: pessoa.email, dono: pessoa.dono };
     res.json({ ir: "/" });
   } catch (e) {
     res.status(e.codigo === "access_denied" ? 403 : 400).json({ ir: e.codigo === "access_denied" ? "/sem-acesso" : "/entrar", erro: e.message });
@@ -94,9 +96,10 @@ app.get("/sem-acesso", (req, res) => {
 
 app.get("/", (req, res) => {
   const p = req.session.pessoa;
-  const topo = p
-    ? `<form method="post" action="/sair"><button class="link" type="submit">Sair</button></form>`
-    : `<nav class="acoes">${botaoEntrarComAtos({ tamanho: "pequeno", href: "/entrar" })}</nav>`;
+  // O menu de conta (pacote 0.5.0): "Entrar" antes; depois, o e-mail, e o clique abre o menu com Sair (POST /sair, que
+  // sai da Loja, não da Atos; com a caixa "Sair da conta?"). A Maria, dona do aplicativo na Atos (pessoa.dono, o claim
+  // atos_dono), vê também Minha conta e Workspace. publico/menu.js liga o comportamento.
+  const topo = `<span class="conta" id="conta">${menuContaAtos(MENU(p))}</span>`;
   const corpo = p
     ? `<section class="ola">
         <p class="sobre">Área de clientes</p>
@@ -118,6 +121,11 @@ app.get("/", (req, res) => {
   res.send(pagina("Loja da Maria", `<header class="cabeca"><a class="logo" href="/">Loja da Maria</a>${topo}</header>${corpo}${vitrine()}`));
 });
 
+/* As opções do menu (as mesmas em publico/menu.js). */
+function MENU(p) {
+  return { menu: true, marca: "a", tema: "claro", email: p ? p.email : "", entrar: "/entrar", sair: "/sair", confirmarSair: true, dono: Boolean(p && p.dono), atalhosDoDono: true };
+}
+
 function vitrine() {
   const itens = [["Bolo de fubá", "R$ 32,00"], ["Brigadeiro (cento)", "R$ 120,00"], ["Pão de mel", "R$ 6,50"]];
   return `<ul class="vitrine">${itens.map(([n, v], i) => `<li><div class="foto foto-${i + 1}" aria-hidden="true"></div><strong>${n}</strong><span>${v}</span></li>`).join("")}</ul>`;
@@ -125,7 +133,7 @@ function vitrine() {
 
 function pagina(titulo, conteudo) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(titulo)}</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/atos/botao.css"><link rel="stylesheet" href="/loja.css"><script type="module" src="/fedcm.js"></script></head><body><main>${conteudo}</main>
+<title>${esc(titulo)}</title><link rel="icon" href="data:,"><link rel="stylesheet" href="/atos/botao.css"><link rel="stylesheet" href="/atos/menu.css"><link rel="stylesheet" href="/loja.css"><script type="module" src="/fedcm.js"></script><script type="module" src="/menu.js"></script></head><body><main>${conteudo}</main>
 <footer>Loja da Maria · site de exemplo, com dados fictícios</footer></body></html>`;
 }
 

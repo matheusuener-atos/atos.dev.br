@@ -9,7 +9,7 @@
    Tema:    atos-entrar--claro (padrão), atos-entrar--escuro, atos-entrar--neutro
    Tamanho: atos-entrar--grande (56 px), atos-entrar--medio (48 px, padrão), atos-entrar--pequeno (44 px)
    Forma:   atos-entrar--icone (só o quadrado; o texto continua para leitores de tela), atos-entrar--largo (100% da largura)
-   Texto:   "Entrar com Atos", "Continuar com Atos" ou "Criar conta com Atos". */
+   Texto:   "Entrar com Atos", "Continuar com Atos", "Criar conta com Atos" ou o curto "Entrar" (para topbars). */
 
 .atos-entrar {
   box-sizing: border-box; display: inline-flex; align-items: center; gap: 12px;

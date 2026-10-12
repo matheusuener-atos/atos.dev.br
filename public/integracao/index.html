@@ -17,7 +17,8 @@
 <link rel="stylesheet" href="/assets/integrar.css">
 <link rel="stylesheet" href="/assets/integracao.css">
 <script src="/assets/tema.js"></script>
-<script src="/assets/topo.js" defer></script>
+<link rel="stylesheet" href="/marca/menu.css">
+<script type="module" src="/assets/menu-conta.js"></script>
 <script src="/assets/integrar-linguagens.js" defer></script>
 </head>
 <body>
@@ -196,7 +197,7 @@
 <!-- linguagens:inicio -->
 <div class="il"><div class="il-abas" role="tablist" aria-label="Escolha a linguagem"><button type="button" role="tab" id="pg-ling-js-aba" aria-controls="pg-ling-js" aria-selected="true" data-il="aba">JavaScript</button><button type="button" role="tab" id="pg-ling-python-aba" aria-controls="pg-ling-python" aria-selected="false" tabindex="-1" data-il="aba">Python</button><button type="button" role="tab" id="pg-ling-dotnet-aba" aria-controls="pg-ling-dotnet" aria-selected="false" tabindex="-1" data-il="aba">C#/.NET</button><button type="button" role="tab" id="pg-ling-php-aba" aria-controls="pg-ling-php" aria-selected="false" tabindex="-1" data-il="aba">PHP <span class="il-marca">não testado</span></button><button type="button" role="tab" id="pg-ling-java-aba" aria-controls="pg-ling-java" aria-selected="false" tabindex="-1" data-il="aba">Java <span class="il-marca">não testado</span></button><button type="button" role="tab" id="pg-ling-go-aba" aria-controls="pg-ling-go" aria-selected="false" tabindex="-1" data-il="aba">Go <span class="il-marca">não testado</span></button><button type="button" role="tab" id="pg-ling-ruby-aba" aria-controls="pg-ling-ruby" aria-selected="false" tabindex="-1" data-il="aba">Ruby <span class="il-marca">não testado</span></button></div><div class="il-painel" role="tabpanel" id="pg-ling-js" aria-labelledby="pg-ling-js-aba"><p class="il-bib">Biblioteca: <strong>@atos.dev.br/entrar (o pacote da Atos, sem dependências)</strong></p><p class="il-nota il-testado">Testado contra a Atos: o pacote no Node e num navegador simulado (state, iss, access_denied e id_token forjados recusados), e o servidor Express abaixo.</p><div class="il-bloco"><div class="il-cab"><span>Instalação</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Instalação em JavaScript">npm install @atos.dev.br/entrar
 # Sem npm (página sem empacotador): baixe o mesmo código, um arquivo só, licença MIT:
-#   https://atos.dev.br/pacotes/entrar/0.4.0/entrar.js
+#   https://atos.dev.br/pacotes/entrar/0.5.0/entrar.js
 # No servidor Node, também:
 npm install express express-session</pre></div><div class="il-bloco"><div class="il-cab"><span>Código no navegador (acesso público)</span><button type="button" class="btn mini" data-il="copiar">Copiar</button></div><pre class="il-pre" tabindex="0" aria-label="Código no navegador (acesso público) em JavaScript">// Navegador (cliente público, sem segredo). Com empacotador (Vite, webpack...): o pacote do npm.
 // Sem empacotador: baixe o entrar.js (o mesmo código) e importe de &quot;./entrar.js&quot;.

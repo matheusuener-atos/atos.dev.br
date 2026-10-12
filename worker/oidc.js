@@ -29,6 +29,9 @@
 //
 // Endpoints: /.well-known/openid-configuration, /entrar (autorizacao),
 // /oauth/token, /oauth/userinfo, /oauth/jwks, /oauth/revogar.
+// O claim atos_dono (id_token e userinfo): true so quando quem entrou e o dono do aplicativo daquele client_id
+// (ehDonoDoApp); para qualquer outra pessoa, ou em outro aplicativo, o claim nao vem. O site usa para mostrar ao dono os
+// atalhos Minha conta e Workspace no menu de conta (o pacote @atos.dev.br/entrar 0.5.0: pessoa.dono, atalhosDoDono).
 // A pessoa ve e revoga os aplicativos em /conta (GET /api/apps, POST /api/apps/revogar).
 //
 // A chave de assinatura e o segredo ATOS_CHAVE do Worker: a JWK privada P-256
@@ -370,10 +373,21 @@ export async function assinarJWT(env, corpo) {
   return cab + "." + c + "." + b64url(assinatura);
 }
 
-function reivindicacoes(escopos, conta) {
+/* O dono do aplicativo: o de terceiro, a conta que o cadastrou (o sub); o da equipe, quem o criou (o e-mail em `por`).
+   Os fixos (o PAVLVS, o Workspace) nao tem dono aqui. */
+export function ehDonoDoApp(app, pessoa) {
+  if (!app || !pessoa || !pessoa.sub) return false;
+  if (app.dono && app.dono.sub) return app.dono.sub === pessoa.sub;
+  return Boolean(app.por && pessoa.email && normal(app.por) === normal(pessoa.email));
+}
+
+/* `dono`: quem entrou e o dono do aplicativo deste client_id. So entao vai o claim atos_dono: true (o site pode mostrar ao
+   dono os atalhos Minha conta e Workspace da Atos); para os outros, o claim nao vem. Nada mais do aplicativo vai. */
+function reivindicacoes(escopos, conta, dono = false) {
   const r = { sub: conta.sub };
   if (escopos.includes("email")) Object.assign(r, { email: conta.email, email_verified: true });
   if (escopos.includes("profile")) r.name = conta.nome || "";
+  if (dono) r.atos_dono = true;
   return r;
 }
 
@@ -423,7 +437,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
       subject_types_supported: ["public"],
       id_token_signing_alg_values_supported: ["ES256"],
       scopes_supported: Object.keys(ESCOPOS),
-      claims_supported: ["sub", "email", "email_verified", "name", "auth_time", "nonce", "amr"],
+      claims_supported: ["sub", "email", "email_verified", "name", "auth_time", "nonce", "amr", "atos_dono"],
       code_challenge_methods_supported: ["S256"],
       token_endpoint_auth_methods_supported: ["none", "client_secret_basic", "client_secret_post"],
       prompt_values_supported: ["none", "login", "consent", "create"],
@@ -509,7 +523,7 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     const idToken = await assinarJWT(env, {
       iss: EMISSOR, aud: clienteId, azp: clienteId, iat: s, exp: s + TOKEN_S, auth_time: c.auth_time,
       ...(c.nonce ? { nonce: c.nonce } : {}), ...(Array.isArray(c.amr) && c.amr.length ? { amr: c.amr.map(String).slice(0, 10) } : {}),
-      ...reivindicacoes(c.escopos, dados),
+      ...reivindicacoes(c.escopos, dados, ehDonoDoApp(reg.apps[cliente.app], { sub: c.sub, email: c.email })),
     });
     const acesso = aleatorio(32);
     await env.CONTAS.put("atos:acesso:" + (await sha256(acesso)), JSON.stringify({ sub: c.sub, email: c.email, clienteId, escopos: c.escopos }), { expirationTtl: TOKEN_S });
@@ -531,7 +545,8 @@ export async function atenderOIDC(request, env, url, deps = {}) {
     if (!conta || conta.sub !== a.sub) return recusa("");
     // Tirada da lista do aplicativo: o access_token para de valer aqui na hora.
     if (!podeEntrar(reg.apps[reg.clientes[a.clienteId].app], { sub: a.sub, email: a.email })) return recusa("esta Conta Atos não tem mais acesso a este aplicativo");
-    return json(reivindicacoes(a.escopos, { sub: a.sub, email: a.email, nome: conta.nome || "" }), 200, extra);
+    const appDoToken = reg.apps[reg.clientes[a.clienteId].app];
+    return json(reivindicacoes(a.escopos, { sub: a.sub, email: a.email, nome: conta.nome || "" }, ehDonoDoApp(appDoToken, { sub: a.sub, email: a.email })), 200, extra);
   }
 
   if (p === "/oauth/revogar") {

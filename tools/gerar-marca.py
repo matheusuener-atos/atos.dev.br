@@ -1,5 +1,7 @@
 # Gera o kit do botao "Entrar com Atos" (public/marca/*.svg): os botoes claro, escuro e neutro, em tres tamanhos, com
-# os tres textos, e o icone so (quadrado). O texto sai em contorno (paths): o SVG nao depende de fonte instalada.
+# os quatro textos ("Entrar com Atos", "Continuar com Atos", "Criar conta com Atos" e o curto "Entrar", para topbars), o
+# icone so (quadrado), a marca e a coroa de espinhos (atos-coroa.svg clara e atos-coroa-escura.svg: o contorno do
+# original public/assets/coroa-original.png, por tools/coroa.py). O texto sai em contorno (paths): o SVG nao depende de fonte instalada.
 #
 #   - o texto: Inter Tight (public/assets/fontes/inter-tight.woff2, SIL Open Font License 1.1), peso 500, com o
 #     espacamento e o kerning do HarfBuzz;
@@ -8,7 +10,7 @@
 #
 # Precisa de Python com fonttools, brotli e uharfbuzz (num venv; nada global) e do Tinos do pacote @fontsource/tinos
 # (npm, numa pasta temporaria):
-#   python -m venv .venv && .venv/Scripts/python -m pip install fonttools brotli uharfbuzz
+#   python -m venv .venv && .venv/Scripts/python -m pip install fonttools brotli uharfbuzz pillow
 #   npm install --prefix <tmp> @fontsource/tinos@5.1.0
 #   .venv/Scripts/python tools/gerar-marca.py <tmp>/node_modules/@fontsource/tinos/files/tinos-latin-400-normal.woff2
 # Imprime o caminho do "A" (viewBox 0 0 64 64), que o botao.css/HTML e o pacote usam (MARCA_A).
@@ -24,8 +26,11 @@ from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 from fontTools.varLib import instancer
 
+from coroa import caminho_da_coroa
+
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SAIDA = os.path.join(RAIZ, "public", "marca")
+COROA_PNG = os.path.join(RAIZ, "public", "assets", "coroa-original.png")
 INTER = os.path.join(RAIZ, "public", "assets", "fontes", "inter-tight.woff2")
 PESO = 500
 
@@ -42,7 +47,7 @@ TAMANHOS = {
     "medio": (48, 28, 16, 12, 18),
     "pequeno": (44, 24, 15, 10, 16),
 }
-TEXTOS = {"entrar": "Entrar com Atos", "continuar": "Continuar com Atos", "criar-conta": "Criar conta com Atos"}
+TEXTOS = {"entrar": "Entrar com Atos", "continuar": "Continuar com Atos", "criar-conta": "Criar conta com Atos", "curto": "Entrar"}
 
 
 def n(x):
@@ -147,10 +152,19 @@ def main():
         s.write('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Atos"><title>Atos</title>' +
                 svg_marca(0, 0, 64, d_a) + "</svg>\n")
     medidas["atos-marca.svg"] = [64, 64]
+    # a coroa de espinhos (a marca "coroa" do menu de conta), sem fundo, 64 x 64: clara (fundos escuros) e escura
+    # (fundos claros)
+    d_coroa = caminho_da_coroa(COROA_PNG)
+    for nome, cor in (("atos-coroa.svg", "#ece8e1"), ("atos-coroa-escura.svg", "#131312")):
+        with open(os.path.join(SAIDA, nome), "w", encoding="utf-8", newline="\n") as s:
+            s.write('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Atos"><title>Atos</title>' +
+                    '<path fill="%s" d="%s"/></svg>\n' % (cor, d_coroa))
+        medidas[nome] = [64, 64]
     with open(os.path.join(SAIDA, "arquivos.json"), "w", encoding="utf-8", newline="\n") as s:
         json.dump(medidas, s, indent=1, sort_keys=True)
         s.write("\n")
     print(d_a)
+    print(d_coroa)
 
 
 main()

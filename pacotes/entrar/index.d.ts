@@ -7,6 +7,8 @@ export interface PessoaAtos {
   /** O e-mail (escopo email), ou "". Pode mudar: só para mostrar. */
   email: string;
   emailVerificado: boolean;
+  /** true só quando quem entrou é o dono deste aplicativo na Atos (o claim atos_dono do id_token; 0.5.0). */
+  dono: boolean;
   idToken: string;
   /** Para /oauth/userinfo e para sair(). Vale 1 hora; não há refresh_token. */
   accessToken: string;
@@ -125,8 +127,8 @@ export interface OpcoesDoBotao {
   tema?: "claro" | "escuro" | "neutro";
   /** grande 56 px, medio 48 px (padrão), pequeno 44 px de altura. */
   tamanho?: "grande" | "medio" | "pequeno";
-  /** "Entrar com Atos" (padrão), "Continuar com Atos" ou "Criar conta com Atos". */
-  texto?: "entrar" | "continuar" | "criar-conta";
+  /** "Entrar com Atos" (padrão), "Continuar com Atos", "Criar conta com Atos" ou "curto": só "Entrar" (0.5.0, para topbars). */
+  texto?: "entrar" | "continuar" | "criar-conta" | "curto";
   /** O destino do link (padrão "#"). javascript:, data: e vbscript: lançam ErroAtos. */
   href?: string;
   /** Só o quadrado (o texto fica para leitores de tela). */
@@ -138,4 +140,37 @@ export interface OpcoesDoBotao {
 
 /** O HTML do botão oficial (um <a>, sem script nem estilo inline). Precisa da folha https://atos.dev.br/marca/botao.css (ou "@atos.dev.br/entrar/botao.css"). */
 export function botaoEntrarComAtos(opcoes?: OpcoesDoBotao): string;
+
+/** As opções do menu de conta (0.5.0; https://atos.dev.br/marca/#menu). */
+export interface OpcoesDoMenu {
+  /** true (padrão): depois de entrar, o e-mail abre o menu. false: um botão só ("Entrar" antes, "Sair" depois). */
+  menu?: boolean;
+  /** Os itens como links soltos (sem e-mail nem menu). */
+  links?: boolean;
+  /** "a" (padrão: o quadrado com o A), "coroa" (a coroa de espinhos) ou "nenhuma". */
+  marca?: "a" | "coroa" | "nenhuma";
+  /** "claro" (padrão, para fundos claros) ou "escuro". */
+  tema?: "claro" | "escuro";
+  /** O e-mail de quem entrou, da sessão do seu site. Vazio: antes de entrar (o botão Entrar). */
+  email?: string;
+  /** O caminho que começa o login (padrão "/entrar"). */
+  entrar?: string;
+  /** Como sair do SEU site (não da Atos): o caminho que recebe um POST (padrão "/sair"), ou uma função. */
+  sair?: string | (() => void);
+  /** A caixa "Sair da conta?" antes de sair (padrão false). Esc, Cancelar ou o clique fora fecham sem sair. */
+  confirmarSair?: boolean;
+  /** pessoa.dono (o claim atos_dono): quem entrou é o dono deste aplicativo na Atos. */
+  dono?: boolean;
+  /** Ao dono (dono: true), mostra os atalhos Minha conta e Workspace da Atos no menu (padrão false). */
+  atalhosDoDono?: boolean;
+  /** Links do seu site, antes do Sair (até 12). */
+  itens?: { rotulo: string; href: string }[];
+  /** O id da lista do menu (padrão: um gerado). */
+  id?: string;
+}
+
+/** O HTML do menu de conta (sem script nem estilo inline). Precisa da folha https://atos.dev.br/marca/menu.css (ou "@atos.dev.br/entrar/menu.css"). */
+export function menuContaAtos(opcoes?: OpcoesDoMenu): string;
+/** Navegador: liga o menu em `elemento` (escreve o HTML se ainda não estiver lá): abrir e fechar, setas, Home, End, Esc, clique fora e o Sair. */
+export function ligarMenuContaAtos(elemento: Element, opcoes?: OpcoesDoMenu): { fechar(): void; desligar(): void };
 export default entrarComAtos;

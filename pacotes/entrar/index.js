@@ -17,6 +17,8 @@
 //   const pessoa = await atos.continuarComFedCM();   // publico; no confidencial, comecarFedCM() + continuarComFedCM({ params }) + concluirFedCM()
 //
 // O botao oficial (https://atos.dev.br/marca/): botaoEntrarComAtos({ tema, tamanho, texto, href }).
+// O menu de conta (0.5.0): lugar.innerHTML = menuContaAtos({ menu: true, marca: "a", email, sair: "/sair" });
+//   ligarMenuContaAtos(lugar, opcoes)  // abrir/fechar, setas, Esc e, se confirmarSair: true, a caixa "Sair da conta?"
 //
 // Avisos ao sistema (webhooks): const aviso = await verificarAviso(corpoCru, req.headers["atos-assinatura"], process.env.ATOS_AVISOS_SEGREDO);
 //
@@ -266,6 +268,8 @@ export function entrarComAtos(opcoes) {
     const c = await conferirIdToken(t.id_token, guardado.nonce);
     return {
       id: c.sub, nome: typeof c.name === "string" ? c.name : "", email: typeof c.email === "string" ? c.email : "", emailVerificado: c.email_verified === true,
+      // atos_dono: a Atos so manda (true) quando quem entrou e o dono deste aplicativo; para os outros, nao vem.
+      dono: c.atos_dono === true,
       idToken: t.id_token, accessToken: t.access_token || "", expiraEm: c.exp * 1000,
     };
   }
@@ -407,14 +411,15 @@ export function entrarComAtos(opcoes) {
 const MARCA_A = "M26.93 48.65V50H15.73V48.65L19.59 47.97L31.19 15.67H36.02L48.08 47.97L52.4 48.65V50H38V48.65L42.57 47.97L39.19 38.14H25.79L22.36 47.97ZM32.39 19.33 26.55 35.86H38.41Z";
 const BOTAO_TEMAS = ["claro", "escuro", "neutro"];
 const BOTAO_TAMANHOS = ["grande", "medio", "pequeno"];
-const BOTAO_TEXTOS = { entrar: "Entrar com Atos", continuar: "Continuar com Atos", "criar-conta": "Criar conta com Atos" };
+// "curto" (0.5.0): so "Entrar", para topbars; a marca ao lado diz que e com a Atos.
+const BOTAO_TEXTOS = { entrar: "Entrar com Atos", continuar: "Continuar com Atos", "criar-conta": "Criar conta com Atos", curto: "Entrar" };
 
 const escHtml = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 /**
  * O HTML do botao oficial "Entrar com Atos" (um <a>, sem script). Precisa da folha https://atos.dev.br/marca/botao.css
  * (ou da copia em "@atos.dev.br/entrar/botao.css"). Sem estilo inline: passa em CSP sem 'unsafe-inline'.
- * @param {{tema?: "claro"|"escuro"|"neutro", tamanho?: "grande"|"medio"|"pequeno", texto?: "entrar"|"continuar"|"criar-conta",
+ * @param {{tema?: "claro"|"escuro"|"neutro", tamanho?: "grande"|"medio"|"pequeno", texto?: "entrar"|"continuar"|"criar-conta"|"curto",
  *   href?: string, icone?: boolean, largo?: boolean, id?: string}} [opcoes]
  */
 export function botaoEntrarComAtos(opcoes) {
@@ -424,7 +429,7 @@ export function botaoEntrarComAtos(opcoes) {
   const texto = o.texto === undefined ? "entrar" : o.texto;
   if (!BOTAO_TEMAS.includes(tema)) throw new ErroAtos("configuracao", "tema do botão: claro, escuro ou neutro.");
   if (!BOTAO_TAMANHOS.includes(tamanho)) throw new ErroAtos("configuracao", "tamanho do botão: grande, medio ou pequeno.");
-  if (!Object.prototype.hasOwnProperty.call(BOTAO_TEXTOS, texto)) throw new ErroAtos("configuracao", "texto do botão: entrar, continuar ou criar-conta.");
+  if (!Object.prototype.hasOwnProperty.call(BOTAO_TEXTOS, texto)) throw new ErroAtos("configuracao", "texto do botão: entrar, continuar, criar-conta ou curto.");
   const href = o.href === undefined ? "#" : String(o.href);
   // O botao leva ao login da Atos: nunca um javascript: (nem data: ou vbscript:).
   if (/^\s*(javascript|data|vbscript):/i.test(href)) throw new ErroAtos("configuracao", "o href do botão não pode ser javascript:, data: ou vbscript:.");
@@ -436,6 +441,221 @@ export function botaoEntrarComAtos(opcoes) {
     '<svg class="atos-entrar__marca" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect width="64" height="64" fill="#131312"/>' +
     '<path fill="#d8d8d8" d="' + MARCA_A + '"/></svg>' +
     '<span class="atos-entrar__texto">' + BOTAO_TEXTOS[texto] + "</span></a>";
+}
+
+// ------------------------------------------------------------------ o menu de conta (0.5.0; https://atos.dev.br/marca/#menu)
+//
+// No topo do seu site: antes de entrar, o botao "Entrar"; depois, o e-mail de quem entrou, e o clique abre o menu com Sair
+// (ou, com menu: false, um botao so: "Entrar" antes, "Sair" depois). Precisa da folha https://atos.dev.br/marca/menu.css
+// (ou "@atos.dev.br/entrar/menu.css"). Sem estilo inline nem script no HTML: o comportamento (abrir e fechar, as setas, o
+// Esc, a confirmacao do Sair, se o site quiser) e o ligarMenuContaAtos(), no seu proprio script.
+//
+// O Sair sai do SEU site (o `sair`: o caminho que recebe um POST e apaga a sessao do seu sistema, ou uma funcao), nao da
+// Atos: a Conta Atos continua aberta na Atos.
+
+// A coroa de espinhos (viewBox 0 0 64 64), a mesma de atos.dev.br/marca/atos-coroa.svg (tools/gerar-marca.py).
+const MARCA_COROA = "M34.4 4 36.5 4.1 36.5 4.4 35.9 4.8 35 5.8 34.8 5.8 34.5 6.2 36.2 6.9 37.2 7.8 37.6 7.8 38.1 6.9 38.5 6.6 38.6 8.1 39.8 7.8 41.9 7.8 44.2 8.6 44.4 8.9 45.8 9.6 47.5 11.4 47.5 11.6 48.6 13 49 14.1 50.8 13.8 50.6 14.2 49.9 15 49.8 15.5 51.4 15.8 52.5 16.2 54.1 17.8 54.8 18.8 56.8 19.1 57.1 21.4 55.6 21.1 55.6 23.6 55.4 24.5 57.2 24.9 57.2 25.1 56.1 25.6 56 26 57 26.8 58.1 28.6 58.5 30.1 58.5 32.6 57.5 35.6 57.2 35.8 57 36.4 56 37.2 56.1 37.8 57.1 38.1 57.4 38.5 55.4 38.9 55.9 41.4 55.9 43.5 55 46 56 47.6 55.5 49.8 55.2 49.8 54.5 48.2 53.8 47.4 52.9 48.2 51.6 48.9 49.9 49.2 50.5 50.5 48.9 50 48.1 51.9 47.1 53 47.1 53.2 45.5 54.8 44.1 55.5 42.9 55.9 40.6 55.9 38.9 55.4 38.4 56.9 38.1 56.8 37.8 55.6 37.4 55.6 36.8 56.4 35.4 57.1 32.6 57.6 30.4 60 27.9 60 27.8 59.9 28.6 59.1 28.6 58.9 30 57.6 29.9 57.2 28.4 56.9 26.5 55.8 26 57.2 25.9 57.5 25.6 57.5 25.1 55.6 23.6 56 21.9 56 20.5 55.8 18.6 55 17.5 54 17.2 54 16.2 52.8 15.6 51.4 15.2 49.5 13.5 50.1 13.5 49.8 14.2 48.6 14.1 48.2 12.2 47.9 11 47.1 9.5 45.6 9 44.8 6.2 44.8 5.5 42.1 8.2 42.5 8.2 40.2 8.6 38.4 6.6 38 7.1 37.5 7.9 37.2 8 36.8 7.2 35.6 6.5 33.6 6.1 31.6 6.1 29.9 6.9 27.4 7.1 27.2 7.4 26.6 8.2 25.9 8 25.4 7 25 6.8 24.6 8.6 24.4 8 21.6 8.2 19.9 9 18.4 8.5 15.1 9.6 13.6 10 14.1 10.4 16 10.5 16.2 10.8 16.2 12.1 15.4 13.6 15 13 13.9 14.9 14.2 15.5 12.6 16.4 11.6 16.4 11.4 18.8 9.2 20 8.6 21.9 8.1 23.5 8.1 25.4 8.6 25.5 6.9 25.9 7 26.1 7.6 26.8 8.2 27.4 7.6 28.9 6.8 31.8 6ZM32.1 8 30.2 8.4 28.2 9.5 28.4 9.9 28.8 9.9 29.6 10.4 32.1 10.9 33.6 10.8 36 9.5 35.8 9 34.5 8.2ZM40.1 9.8 39.6 9.9 39.5 10.1 40.2 10.9 40.5 11.5 40.9 11.8 40.9 12 41.2 12.2 41.9 13.5 42.1 13.6 42.1 14 41.6 14.1 40.6 14.9 40.2 14.6 39.5 13.2 38.8 12.5 38.5 11.9 37.9 11.4 37.9 11.1 37.4 11 35 12.4 33 12.9 31.1 15.1 28.9 15.1 28.9 14.8 30.5 13 30.5 12.6 28.9 12.2 27.1 11.4 26.6 11.4 26.6 11.6 26.2 11.9 26.2 12.1 24.8 13.9 24.8 14.1 22.8 15.9 20.5 16.8 16.5 16.9 16 20 15.8 21 15.5 21.2 15.5 21.9 17 24.4 16.2 26.5 16 26.6 15.8 26.4 14.4 23.6 14.1 23.6 12.9 24.9 12.6 24.9 12.4 25.2 10.2 26.6 8.5 28.6 8.1 30.1 8.2 32.2 9.4 35.4 9.8 35.6 10.2 34.1 11.4 32 13 32.8 13.1 33 12 35.1 11.2 37.4 13 38.5 13.2 38.9 13.9 39.1 14.2 39.6 14.5 39.6 15.5 40.6 15.5 40.9 18.9 41.8 19.9 43.8 19.1 43.9 16.9 43.2 17.2 46.4 17.2 49.2 17.5 50.6 18 51.8 18.8 52.6 20.5 53.6 22 54 23.4 53.9 24.2 53.8 24.1 53.2 23.4 52.6 23.4 52.4 22.8 51.9 22.8 51.6 21.4 50 21.4 49.6 22.6 48.8 23 48.8 23.2 49 23.2 49.2 25.2 51.5 25.2 51.8 26.2 52.8 26.5 52.8 29.4 51.1 30.9 50.6 32 50.5 34.2 48.2 36.6 48.2 36.5 48.6 34.5 50.6 34.5 50.9 35.5 51.1 37.6 52.2 38.6 50.6 39.1 50.2 39.1 50 40.8 48.5 42 47.9 43.4 47.5 47 47.4 47.2 43 47.6 41.8 48.1 41 47.5 37.8 49.4 37.4 49.8 39 50 39 54.8 35.9 56 34.1 56.5 32.2 56.5 30.4 56.2 29.4 55.6 28.2 54.9 27.5 54.4 27.5 53.9 29.1 52.8 31.5 51.1 30.9 51 30.2 52.1 28.1 52.8 26.1 50.2 24.5 49 23.2 48.4 22.2 45 21.8 44.9 19.5 47.8 20 47.4 15.8 46.8 13.8 44.4 11.1 44.1 11.1 43.2 10.4 41.6 9.8ZM22.1 10.1 21 10.4 19.2 11.4 17.2 13.6 16.9 14.9 19.4 14.8 20.6 14.6 22.1 13.9 23.5 12.5 23.5 12.2 24.8 10.8 24.8 10.5 24 10.2ZM13.9 17 12.9 17.2 11.8 17.9 10.9 18.9 10.2 20.1 10.1 22.2 10.6 23.9 11.5 23.4 12.9 22.1 13.8 20.6 14.4 17.5 14.4 17ZM49.8 17.5 49.5 17.6 49.6 19.5 50.2 21.5 51.8 23.1 53.4 24 53.6 23.1 53.6 21.1 53.1 19.9 51.5 18ZM53.1 39.4 50.8 40.9 49.5 42.5 49.1 44 49.1 47.2 49.9 47.2 51.9 46.5 52.9 45.5 53.6 44.1 53.9 43.4 53.9 41.8 53.4 39.4ZM10.6 39.5 10.2 40.6 10.2 42.6 10.8 43.9 11.6 44.8 11.6 45 12.8 45.9 14.8 46.4 15.1 46.4 15.1 44.9 14.9 43.6 14.4 42.5 13 41 11.4 40 11.1 39.6ZM44.5 49.4 43.1 49.6 41.8 50.2 39.5 52.9 39.5 53.4 41 53.9 41.8 53.9 42.8 53.9 43.9 53.4 44.5 52.8 44.8 52.8 46.4 50.9 46.9 49.4ZM31.9 52.5 30.1 53 28.1 54 28 54.2 28.4 54.6 29.8 55.2 32.4 55.6 34.6 55.2 36 54.4 36.2 53.9 33.8 52.6Z";
+const MENU_MARCAS = ["a", "coroa", "nenhuma"];
+const MENU_TEMAS = ["claro", "escuro"];
+let menuSeq = 0;
+
+function hrefSeguro(h, nome) {
+  const s = String(h);
+  if (/^\s*(javascript|data|vbscript):/i.test(s)) throw new ErroAtos("configuracao", "o " + nome + " do menu não pode ser javascript:, data: ou vbscript:.");
+  return s;
+}
+
+/* As opcoes conferidas (lanca ErroAtos("configuracao") no que esta fora). */
+function opcoesDoMenu(opcoes) {
+  const o = opcoes || {};
+  const modo = o.links ? "links" : o.menu === false ? "botao" : "menu";
+  const marca = o.marca === undefined ? "a" : o.marca;
+  const tema = o.tema === undefined ? "claro" : o.tema;
+  if (!MENU_MARCAS.includes(marca)) throw new ErroAtos("configuracao", "marca do menu: a, coroa ou nenhuma.");
+  if (!MENU_TEMAS.includes(tema)) throw new ErroAtos("configuracao", "tema do menu: claro ou escuro.");
+  const emissor = String(o.emissor || EMISSOR).replace(/\/+$/, "");
+  const itens = [];
+  for (const x of Array.isArray(o.itens) ? o.itens.slice(0, 12) : []) {
+    if (!x || typeof x.rotulo !== "string" || !x.rotulo.trim()) throw new ErroAtos("configuracao", "cada item do menu precisa de rotulo e href.");
+    itens.push({ rotulo: x.rotulo.trim(), href: hrefSeguro(x.href === undefined ? "#" : x.href, "href do item") });
+  }
+  // Ao dono do aplicativo (pessoa.dono, o claim atos_dono), se o site quiser: Minha conta e Workspace da Atos.
+  if (o.atalhosDoDono && o.dono === true) {
+    itens.push({ rotulo: "Minha conta", href: emissor + "/conta/" }, { rotulo: "Workspace", href: emissor + "/workspace/" });
+  }
+  return {
+    modo, marca, tema, itens,
+    email: typeof o.email === "string" ? o.email.trim() : "",
+    entrar: hrefSeguro(o.entrar === undefined ? "/entrar" : o.entrar, "entrar"),
+    sair: typeof o.sair === "function" ? o.sair : hrefSeguro(o.sair === undefined ? "/sair" : o.sair, "sair"),
+    confirmarSair: o.confirmarSair === true,
+    id: o.id ? String(o.id) : "",
+  };
+}
+
+function marcaDoMenu(marca) {
+  if (marca === "a") {
+    return '<svg class="atos-menu__marca" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect width="64" height="64" fill="#131312"/>' +
+      '<path fill="#d8d8d8" d="' + MARCA_A + '"/></svg>';
+  }
+  if (marca === "coroa") {
+    return '<svg class="atos-menu__marca atos-menu__marca--coroa" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path fill="currentColor" d="' + MARCA_COROA + '"/></svg>';
+  }
+  return "";
+}
+
+/* O Sair: um formulario POST para `sair` (funciona com o ligarMenuContaAtos, que pode pedir a confirmacao, ou chamar a
+   funcao `sair`). */
+function formSair(o, classe, conteudo, papel) {
+  const acao = typeof o.sair === "string" ? ' action="' + escHtml(o.sair) + '"' : "";
+  return '<form class="atos-menu__form" method="post"' + acao + ' role="none"><button type="submit" class="' + classe + '" data-atos-sair' +
+    (papel ? ' role="menuitem" tabindex="-1"' : "") + ">" + conteudo + "</button></form>";
+}
+
+/**
+ * O HTML do menu de conta (sem script nem estilo inline). Ligue o comportamento com ligarMenuContaAtos().
+ * @param {{menu?: boolean, links?: boolean, marca?: "a"|"coroa"|"nenhuma", tema?: "claro"|"escuro", email?: string,
+ *   entrar?: string, sair?: string|Function, confirmarSair?: boolean, dono?: boolean, atalhosDoDono?: boolean,
+ *   itens?: {rotulo: string, href: string}[], id?: string}} [opcoes]
+ */
+export function menuContaAtos(opcoes) {
+  const o = opcoesDoMenu(opcoes);
+  const marca = marcaDoMenu(o.marca);
+  const classes = "atos-menu atos-menu--" + o.tema + " atos-menu--" + o.modo + (o.marca === "nenhuma" ? " atos-menu--sem-marca" : "");
+  if (!o.email) {
+    return '<div class="' + classes + '" data-atos-menu><a class="atos-menu__entrar" href="' + escHtml(o.entrar) + '">' + marca +
+      '<span class="atos-menu__rotulo">Entrar</span></a></div>';
+  }
+  if (o.modo === "botao") {
+    return '<div class="' + classes + '" data-atos-menu>' +
+      formSair(o, "atos-menu__entrar atos-menu__entrar--sair", marca + '<span class="atos-menu__rotulo">Sair</span>', false) + "</div>";
+  }
+  if (o.modo === "links") {
+    return '<nav class="' + classes + '" data-atos-menu aria-label="Conta">' +
+      o.itens.map((x) => '<a class="atos-menu__link" href="' + escHtml(x.href) + '">' + escHtml(x.rotulo) + "</a>").join("") +
+      formSair(o, "atos-menu__link atos-menu__link--sair", "Sair", false) + "</nav>";
+  }
+  const id = o.id || "atos-menu-" + ++menuSeq + "-" + Math.random().toString(36).slice(2, 7);
+  return '<div class="' + classes + '" data-atos-menu>' +
+    '<button type="button" class="atos-menu__botao" aria-haspopup="menu" aria-expanded="false" aria-controls="' + escHtml(id) + '">' + marca +
+    '<span class="atos-menu__email">' + escHtml(o.email) + "</span>" +
+    '<svg class="atos-menu__seta" viewBox="0 0 10 10" aria-hidden="true" focusable="false"><path d="M1 3l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>' +
+    '<div class="atos-menu__lista" id="' + escHtml(id) + '" role="menu" aria-label="Conta ' + escHtml(o.email) + '" hidden>' +
+    o.itens.map((x) => '<a class="atos-menu__item" role="menuitem" tabindex="-1" href="' + escHtml(x.href) + '">' + escHtml(x.rotulo) + "</a>").join("") +
+    (o.itens.length ? '<hr class="atos-menu__separador" role="separator">' : "") +
+    formSair(o, "atos-menu__item atos-menu__item--sair", "Sair", true) + "</div></div>";
+}
+
+/* A caixa "Sair?" (so com confirmarSair): um <dialog> modal; Esc, Cancelar ou o clique fora fecham sem sair. O foco fica
+   preso nos dois botoes e volta a `devolver` ao fechar. Resolve true (Sair) ou false. */
+function confirmarSaida(tema, devolver) {
+  return new Promise((resolver) => {
+    const d = document.createElement("dialog");
+    const n = ++menuSeq;
+    d.className = "atos-menu-dialogo atos-menu--" + tema;
+    d.setAttribute("aria-modal", "true");
+    d.setAttribute("aria-labelledby", "atos-sair-t" + n);
+    d.setAttribute("aria-describedby", "atos-sair-d" + n);
+    d.innerHTML = '<div class="atos-menu-dialogo__caixa"><h2 class="atos-menu-dialogo__titulo" id="atos-sair-t' + n + '">Sair da conta?</h2>' +
+      '<p class="atos-menu-dialogo__texto" id="atos-sair-d' + n + '">Você sai da sua conta neste site. Para voltar, é só entrar de novo.</p>' +
+      '<div class="atos-menu-dialogo__botoes"><button type="button" class="atos-menu-dialogo__botao" data-cancelar>Cancelar</button>' +
+      '<button type="button" class="atos-menu-dialogo__botao atos-menu-dialogo__botao--sair" data-confirmar>Sair</button></div></div>';
+    document.body.appendChild(d);
+    const cancelar = d.querySelector("[data-cancelar]");
+    const confirmar = d.querySelector("[data-confirmar]");
+    let feito = false;
+    const fim = (sim) => {
+      if (feito) return;
+      feito = true;
+      if (d.open && d.close) d.close();
+      d.remove();
+      if (devolver && devolver.isConnected && !sim) devolver.focus();
+      resolver(sim);
+    };
+    cancelar.addEventListener("click", () => fim(false));
+    confirmar.addEventListener("click", () => fim(true));
+    d.addEventListener("cancel", (e) => { e.preventDefault(); fim(false); });
+    // O clique fora: no fundo (o proprio <dialog>, que nao tem margem interna), nunca na caixa.
+    d.addEventListener("click", (e) => { if (e.target === d) fim(false); });
+    d.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.preventDefault(); fim(false); return; }
+      if (e.key !== "Tab") return;
+      // O foco preso: Tab e Shift+Tab so andam entre Cancelar e Sair.
+      e.preventDefault();
+      (document.activeElement === cancelar ? confirmar : cancelar).focus();
+    });
+    if (typeof d.showModal === "function") d.showModal();
+    else d.setAttribute("open", "");
+    cancelar.focus();
+  });
+}
+
+/**
+ * Liga o menu de conta em `elemento` (escreve o HTML de menuContaAtos(opcoes), se ainda nao estiver la): abrir e fechar,
+ * as setas, Home e End, o Esc (o foco volta ao botao), o clique fora e o Sair - com a caixa de confirmacao so se
+ * confirmarSair: true. `sair`: o caminho do POST do seu site, ou uma funcao (chamada no lugar do POST).
+ * Devolve {fechar(), desligar()}.
+ */
+export function ligarMenuContaAtos(elemento, opcoes) {
+  if (typeof document === "undefined" || !elemento || !elemento.querySelector) throw new ErroAtos("configuracao", "ligarMenuContaAtos precisa de um elemento da página.");
+  const o = opcoesDoMenu(opcoes);
+  let raiz = elemento.matches && elemento.matches("[data-atos-menu]") ? elemento : elemento.querySelector("[data-atos-menu]");
+  if (!raiz) {
+    elemento.innerHTML = menuContaAtos(opcoes);
+    raiz = elemento.querySelector("[data-atos-menu]");
+  }
+  const botao = raiz.querySelector(".atos-menu__botao");
+  const lista = raiz.querySelector(".atos-menu__lista");
+  const itens = () => (lista ? [...lista.querySelectorAll('[role="menuitem"]')] : []);
+  const aberto = () => Boolean(lista && !lista.hidden);
+  const abrir = (qual) => {
+    if (!lista) return;
+    lista.hidden = false;
+    botao.setAttribute("aria-expanded", "true");
+    const l = itens();
+    if (l.length) l[qual === "ultimo" ? l.length - 1 : 0].focus();
+  };
+  const fechar = (devolver) => {
+    if (!aberto()) return;
+    lista.hidden = true;
+    botao.setAttribute("aria-expanded", "false");
+    if (devolver) botao.focus();
+  };
+  const ouvintes = [];
+  const ouvir = (alvo, tipo, f) => { alvo.addEventListener(tipo, f); ouvintes.push([alvo, tipo, f]); };
+  if (botao && lista) {
+    ouvir(botao, "click", () => (aberto() ? fechar(true) : abrir("primeiro")));
+    ouvir(botao, "keydown", (e) => {
+      if (e.key === "ArrowDown") { e.preventDefault(); abrir("primeiro"); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); abrir("ultimo"); }
+      else if (e.key === "Escape") fechar(true);
+    });
+    ouvir(lista, "keydown", (e) => {
+      const l = itens();
+      const i = l.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") { e.preventDefault(); l[(i + 1) % l.length].focus(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); l[(i - 1 + l.length) % l.length].focus(); }
+      else if (e.key === "Home") { e.preventDefault(); l[0].focus(); }
+      else if (e.key === "End") { e.preventDefault(); l[l.length - 1].focus(); }
+      else if (e.key === "Escape") { e.preventDefault(); fechar(true); }
+      else if (e.key === "Tab") fechar(false);
+    });
+    ouvir(document, "pointerdown", (e) => { if (!raiz.contains(e.target)) fechar(false); });
+  }
+  ouvir(raiz, "submit", async (e) => {
+    const form = e.target;
+    if (!form.matches || !form.matches(".atos-menu__form")) return;
+    e.preventDefault();
+    const quem = botao || form.querySelector("button");
+    fechar(false);
+    if (o.confirmarSair && !(await confirmarSaida(o.tema, quem))) return;
+    if (typeof o.sair === "function") o.sair();
+    else HTMLFormElement.prototype.submit.call(form);
+  });
+  return {
+    fechar: () => fechar(false),
+    desligar: () => { for (const [alvo, tipo, f] of ouvintes) alvo.removeEventListener(tipo, f); ouvintes.length = 0; },
+  };
 }
 
 // ------------------------------------------------------------------ os avisos ao sistema (webhooks)

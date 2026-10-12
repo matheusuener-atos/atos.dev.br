@@ -1,35 +1,92 @@
-/* A pagina do kit do botao (/marca/): so o que e desta pagina; o resto vem de conta.css e integracao.css. Cantos retos. */
+/* A pagina do kit do botao (/marca/): so o que e desta pagina; o resto vem de conta.css, integracao.css, integrar.css
+   (os blocos de codigo do "Monte o seu") e monte-o-seu.css. Cantos retos. */
 
-.vitrine-botoes { margin-top: 20px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); }
-.vitrine-botoes > div { padding: 20px 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; min-width: 0; }
-.vitrine-botoes .fundo-claro { background: #ffffff; }
-.vitrine-botoes .fundo-escuro { background: #131312; }
-.vitrine-botoes .fundo-neutro { background: #ffffff; }
-.vitrine-botoes .rotulo { font-size: 12px; font-weight: 600; color: #4a4a47; }
-.vitrine-botoes .fundo-escuro .rotulo { color: #c9c9c4; }
-.vitrine-botoes img { display: block; max-width: 100%; height: auto; }
+main.integracao.marca-pagina { max-width: 1080px; }
+.marca-pagina section { margin-top: 56px; }
 
+/* o indice do topo */
+.indice-marca { margin-top: 28px; display: flex; flex-wrap: wrap; border: 1px solid var(--line); background: var(--surface-2); }
+.indice-marca a { padding: 10px 14px; font-size: 13px; font-weight: 500; color: var(--muted); text-decoration: none; border-right: 1px solid var(--line); margin-bottom: -1px; border-bottom: 1px solid var(--line); }
+.indice-marca a:hover { color: var(--text); background: var(--surface); }
+
+/* os botoes: um quadro por tema, uma linha por texto, uma coluna por tamanho */
+.temas { margin-top: 24px; display: flex; flex-direction: column; gap: 16px; }
+.tema { border: 1px solid var(--line); }
+.integracao .tema-nome { margin: 0; padding: 10px 16px; font-size: 13px; font-weight: 600; color: var(--text); background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.tema-nome span { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.grade-botoes { padding: 8px 16px 16px; }
+.tema-claro .grade-botoes { background: #ffffff; }
+.tema-escuro .grade-botoes { background: #131312; }
+.tema-neutro .grade-botoes { background: #ffffff; }
+.gb-linha { display: grid; grid-template-columns: 170px repeat(3, minmax(0, 1fr)); gap: 16px; align-items: center; padding: 10px 0; border-top: 1px solid #ecebe8; }
+.tema-escuro .gb-linha { border-top-color: #2a2a28; }
+.gb-linha.gb-cab { border-top: 0; padding: 4px 0; font-size: 12px; font-weight: 600; color: #4a4a47; }
+.tema-escuro .gb-cab { color: #c9c9c4; }
+.gb-cab small { font-weight: 400; margin-left: 4px; }
+.gb-rotulo { font-size: 13px; font-weight: 500; color: #4a4a47; }
+.tema-escuro .gb-rotulo { color: #c9c9c4; }
+.gb-celula { min-width: 0; }
+.gb-celula img { display: block; max-width: 100%; height: auto; }
+.integracao .nota-marca { margin-top: 16px; max-width: 760px; font-size: 14px; line-height: 1.6; color: var(--text-soft); padding: 12px 16px; border: 1px solid var(--line); background: var(--surface-2); }
+.nota-marca a { color: var(--text); }
+
+/* o codigo: HTML e pacote lado a lado */
+.lado-a-lado { margin-top: 20px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.lado-a-lado > div { min-width: 0; display: flex; flex-direction: column; }
+.integracao .lado-a-lado h3 { margin: 0; }
+.lado-a-lado .codigo { flex: 1; white-space: pre-wrap; overflow-wrap: anywhere; }
+.lado-a-lado .codigo code { overflow-wrap: anywhere; }
+.integracao .nota-codigo { margin-top: 10px; font-size: 13px; line-height: 1.55; color: var(--muted); }
+.ao-vivo { margin-top: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 20px 16px; background: #ffffff; border: 1px solid var(--line); }
+
+/* as regras */
 .regras { margin-top: 20px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--line); background: var(--surface); }
-.regras > div { padding: 16px; min-width: 0; }
+.regras > div { padding: 16px 20px; min-width: 0; }
 .regras > div + div { border-left: 1px solid var(--line); }
-.regras h3 { margin: 0 0 8px; font-size: 13px; color: var(--text); }
-.regras ul { margin: 0; padding-left: 18px; }
+.integracao .regras h3 { margin: 0 0 10px; font-size: 13px; }
+.integracao .regras > div:first-child h3 { color: var(--success); }
+.integracao .regras > div + div h3 { color: var(--danger); }
 .regras li { font-size: 14px; }
 
-.espaco { margin-top: 16px; display: inline-flex; padding: 12px; background: repeating-linear-gradient(45deg, #2c2a26 0 4px, #1a1917 4px 8px); border: 1px dashed var(--line-hover); }
-.espaco img { display: block; }
+/* o espaco livre */
+.espaco-linha { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 20px 32px; }
+.espaco-linha p { flex: 1 1 320px; max-width: 560px; }
+.espaco { display: inline-flex; max-width: 100%; padding: 12px; background: repeating-linear-gradient(45deg, #2c2a26 0 4px, #1a1917 4px 8px); border: 1px dashed var(--line-hover); }
+.espaco img { display: block; max-width: 100%; height: auto; }
 
-.downloads { margin-top: 16px; border: 1px solid var(--line); background: var(--surface); }
-.downloads > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.7; }
+/* os arquivos */
+.tabela-arquivos { margin-top: 16px; border: 1px solid var(--line); background: var(--surface); }
+.tabela-arquivos table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tabela-arquivos th, .tabela-arquivos td { padding: 10px 16px; text-align: left; vertical-align: top; border-top: 1px solid var(--line); }
+.tabela-arquivos thead th { border-top: 0; font-size: 12px; font-weight: 600; color: var(--silver); background: var(--surface-2); }
+.tabela-arquivos tbody th { font-weight: 500; color: var(--muted); }
+.tabela-arquivos td a { color: var(--text); margin-right: 12px; white-space: nowrap; }
+.downloads { margin: 0; border-top: 1px solid var(--line); }
+.downloads > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.7; }
 .downloads > div:first-child { border-top: 0; }
 .downloads dt { color: var(--muted); font-weight: 500; }
 .downloads dd { margin: 0; color: var(--text-soft); min-width: 0; }
-.downloads a { color: var(--text); margin-right: 10px; white-space: nowrap; }
+.downloads a { color: var(--text); margin-right: 4px; }
 
-.ao-vivo { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 16px; padding: 20px 16px; background: #ffffff; border: 1px solid var(--line); }
+/* o menu de conta: os exemplos, parados e abertos (assets/marca.js) */
+.vitrine-menu { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+.vm-cartao { margin: 0; display: flex; flex-direction: column; border: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.vm-palco { min-height: 214px; padding: 12px; display: flex; justify-content: flex-end; align-items: flex-start; background: var(--chrome); border-bottom: 1px solid var(--line); overflow: hidden; }
+.vm-palco.vm-claro { background: #fbfaf8; }
+.vm-palco .atos-menu--menu { flex-direction: column; align-items: flex-end; gap: 6px; max-width: 100%; }
+.vm-palco .atos-menu__lista { position: static; min-width: 180px; }
+.vm-cartao figcaption { padding: 10px 12px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.vm-cartao figcaption strong { display: block; color: var(--text); font-weight: 600; }
 
 @media (max-width: 760px) {
-  .vitrine-botoes, .regras { grid-template-columns: minmax(0, 1fr); }
+  .marca-pagina section { margin-top: 44px; }
+  .lado-a-lado, .regras { grid-template-columns: minmax(0, 1fr); }
   .regras > div + div { border-left: 0; border-top: 1px solid var(--line); }
+  .gb-linha { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .gb-linha.gb-cab { display: none; }
+  .gb-celula { display: flex; align-items: center; gap: 10px; }
+  .gb-celula::before { content: attr(data-tamanho); width: 60px; flex: none; font-size: 11px; color: #7a7a76; }
+  .tabela-arquivos th, .tabela-arquivos td { padding: 8px 10px; }
+  .tabela-arquivos td a { display: block; margin: 0; }
   .downloads > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }

@@ -52,10 +52,12 @@ h1, h2, h3, p { margin: 0; }
   padding: 0 28px; border-bottom: 1px solid var(--line); background: var(--chrome);
 }
 .marca { flex: 1; font-family: var(--serif); font-size: 24px; text-decoration: none; }
-.topo nav { display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; font-weight: 500; }
-.topo nav a { color: var(--nav); text-decoration: none; }
-.topo nav a:hover { color: var(--nav-hover); }
-.topo nav a[aria-current], .topo nav a.forte { color: var(--silver); }
+.topo nav { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; font-size: 13px; font-weight: 500; }
+.topo nav > a { color: var(--nav); text-decoration: none; }
+.topo nav > a:hover { color: var(--nav-hover); }
+.topo nav > a[aria-current], .topo nav > a.forte { color: var(--silver); }
+/* O menu de conta (assets/menu-conta.js e a folha /marca/menu.css): o ultimo item do topo. */
+.topo-conta { display: inline-flex; min-width: 0; }
 
 .rodape {
   flex-shrink: 0; border-top: 1px solid var(--line); padding: 16px 28px; display: flex; flex-wrap: wrap; gap: 12px 28px;
@@ -401,7 +403,7 @@ main.texto { flex: 1; width: 100%; max-width: 820px; margin: 0 auto; padding: 48
 @media (max-width: 640px) {
   .topo { padding: 0 16px; gap: 16px; }
   .topo nav { gap: 14px; }
-  .topo nav a:not(:last-child) { display: none; }
+  .topo nav > a:not(:last-child) { display: none; }
   .rodape { padding: 16px; }
   main.entrar { padding: 40px 16px; }
   main.entrar .quadro { display: none; }

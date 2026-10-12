@@ -2,7 +2,7 @@
 
 Um site fictício, mínimo, com o **Entrar com Atos**: Node com Express e o pacote [`@atos.dev.br/entrar`](https://www.npmjs.com/package/@atos.dev.br/entrar), num acesso confidencial (servidor com segredo). É o exemplo do passo a passo "Na prática" de [atos.dev.br/integracao](https://atos.dev.br/integracao/#na-pratica).
 
-- `/`: a vitrine com os botões oficiais "Entrar com Atos" e "Criar conta com Atos"; depois do login, "Olá, <nome>" com o e-mail.
+- `/`: a vitrine com os botões oficiais "Entrar com Atos" e "Criar conta com Atos"; depois do login, "Olá, <nome>" com o e-mail. No topo, o menu de conta da Atos (abaixo).
 - `/entrar`: manda a pessoa para a Atos (`comecar()`).
 - `/criar-conta`: o mesmo, com a Atos abrindo direto em "Criar a conta Atos" (`comecar({ criarConta: true })`, que pede `prompt=create`). Lá, "Já tem conta? Entrar" continua o mesmo pedido; quem já está com a sessão aberta na Atos vai direto para a permissão.
 - `/auth/atos/retorno`: a volta (`concluir()`); com `access_denied`, vai para `/sem-acesso`.
@@ -25,7 +25,11 @@ Na Atos, cada aplicativo tem um modo em "Quem pode entrar":
 
 Os botões “Entrar com Atos” e “Criar conta com Atos” são os oficiais do kit da Atos ([atos.dev.br/marca](https://atos.dev.br/marca/)): o HTML sai do `botaoEntrarComAtos()` do pacote e a folha (`/atos/botao.css`) é a do próprio pacote, a mesma de `https://atos.dev.br/marca/botao.css`.
 
-O `botaoEntrarComAtos()` é do `@atos.dev.br/entrar` **0.4.0**, que ainda não está no npm: por isso o `package.json` daqui aponta para a cópia do repositório (`file:../../pacotes/entrar`). Quando a 0.4.0 estiver no npm, troque por `"^0.4.0"`. Fora deste repositório, com a 0.3 do npm, ponha no lugar o HTML de [atos.dev.br/marca](https://atos.dev.br/marca/#html).
+O `botaoEntrarComAtos()` é do `@atos.dev.br/entrar` 0.4.0 e o menu de conta da **0.5.0**, que ainda não estão no npm: por isso o `package.json` daqui aponta para a cópia do repositório (`file:../../pacotes/entrar`). Quando a 0.5.0 estiver no npm, troque por `"^0.5.0"`. Fora deste repositório, use o arquivo servido pela Atos (`https://atos.dev.br/pacotes/entrar/0.5.0/entrar.js`).
+
+## O menu de conta
+
+O topo usa o menu de conta do pacote (`menuContaAtos()` no servidor, `ligarMenuContaAtos()` em `publico/menu.js`, a folha `/atos/menu.css`): "Entrar" antes do login; depois, o e-mail, e o clique abre o menu com Sair. O Sair faz o POST para `/sair`, que apaga a sessão da Loja (a Conta Atos continua aberta na Atos), depois da caixa "Sair da conta?" (`confirmarSair: true`; Esc, Cancelar ou o clique fora fecham sem sair). Quem entrou e é o dono do aplicativo na Atos (o claim `atos_dono`, em `pessoa.dono`) vê também Minha conta e Workspace, os atalhos da Atos (`atalhosDoDono: true`); os clientes veem só o e-mail e Sair.
 
 ## Rodar contra a Atos
 

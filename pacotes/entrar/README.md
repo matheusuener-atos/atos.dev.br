@@ -6,7 +6,7 @@ O **Entrar com Atos** (OpenID Connect) em JavaScript, no navegador e no Node 18 
 npm install @atos.dev.br/entrar
 ```
 
-Sem npm (uma página sem empacotador): o mesmo código num arquivo só, servido pela Atos, `https://atos.dev.br/pacotes/entrar/0.4.0/entrar.js`; importe de `"./entrar.js"`.
+Sem npm (uma página sem empacotador): o mesmo código num arquivo só, servido pela Atos, `https://atos.dev.br/pacotes/entrar/0.5.0/entrar.js`; importe de `"./entrar.js"`.
 
 Antes, ative o [Atos Workspace](https://atos.dev.br/workspace/) (gratuito) e cadastre o seu sistema em [atos.dev.br/workspace/integracoes](https://atos.dev.br/workspace/integracoes): o aplicativo, o acesso (o `client_id`) e o endereço de volta. Veja também [atos.dev.br/integracao](https://atos.dev.br/integracao/).
 
@@ -120,7 +120,30 @@ import { botaoEntrarComAtos } from "@atos.dev.br/entrar";
 lugar.innerHTML = botaoEntrarComAtos({ tema: "claro", tamanho: "medio", texto: "entrar", href: "/entrar" });
 ```
 
-`tema`: `"claro"`, `"escuro"` ou `"neutro"`; `tamanho`: `"grande"` (56 px), `"medio"` (48 px) ou `"pequeno"` (44 px); `texto`: `"entrar"`, `"continuar"` ou `"criar-conta"`; `icone: true` (só o quadrado), `largo: true` (a largura toda), `id`. Fora da lista, ou um `href` `javascript:`, lança `ErroAtos` (`codigo: "configuracao"`).
+`tema`: `"claro"`, `"escuro"` ou `"neutro"`; `tamanho`: `"grande"` (56 px), `"medio"` (48 px) ou `"pequeno"` (44 px); `texto`: `"entrar"`, `"continuar"`, `"criar-conta"` ou `"curto"` (só "Entrar", para topbars; 0.5.0); `icone: true` (só o quadrado), `largo: true` (a largura toda), `id`. Fora da lista, ou um `href` `javascript:`, lança `ErroAtos` (`codigo: "configuracao"`).
+
+## O menu de conta (0.5.0)
+
+No topo do seu site: antes de entrar, o botão "Entrar"; depois, o e-mail de quem entrou, e o clique abre o menu com Sair. Ou, com `menu: false`, um botão só: "Entrar" antes, "Sair" depois. O HTML sai de `menuContaAtos()` (sem script nem estilo inline) e o comportamento de `ligarMenuContaAtos()`, no seu script: abrir e fechar, as setas, Home e End, o Esc (o foco volta ao botão), o clique fora e o Sair. A folha é `https://atos.dev.br/marca/menu.css` (a mesma vai no pacote, em `@atos.dev.br/entrar/menu.css`). Monte o seu e veja ao vivo em [atos.dev.br/marca](https://atos.dev.br/marca/#menu).
+
+```js
+import { menuContaAtos, ligarMenuContaAtos } from "@atos.dev.br/entrar";
+
+const opcoes = {
+  menu: true, marca: "a", tema: "claro",
+  email: pessoa ? pessoa.email : "",     // da sessão do seu site; vazio = antes de entrar
+  entrar: "/entrar",                     // o caminho que começa o login
+  sair: "/sair",                         // um POST que apaga a sessão do SEU site (ou uma função)
+  confirmarSair: false,                  // true: a caixa "Sair da conta?" antes de sair
+  dono: pessoa ? pessoa.dono : false, atalhosDoDono: true,
+};
+lugar.innerHTML = menuContaAtos(opcoes);
+ligarMenuContaAtos(lugar, opcoes);
+```
+
+- `marca`: `"a"` (o quadrado com o A), `"coroa"` (a coroa de espinhos) ou `"nenhuma"`; `tema`: `"claro"` ou `"escuro"`; `links: true`: os itens soltos, sem menu; `itens`: links do seu site antes do Sair (`[{ rotulo, href }]`).
+- O **Sair sai do seu site**, não da Atos: o `sair` é o seu caminho (o formulário faz um POST para ele) ou uma função. A Conta Atos continua aberta na Atos. A confirmação é opcional (`confirmarSair`, padrão `false`): Esc, Cancelar ou o clique fora fecham sem sair.
+- **O dono do aplicativo**: o `id_token` e o userinfo trazem `atos_dono: true` só quando quem entrou é o dono do aplicativo daquele `client_id` (para os outros, o claim não vem); o pacote põe isso em `pessoa.dono`. Com `atalhosDoDono: true` e `dono: true`, o menu mostra Minha conta e Workspace (`atos.dev.br/conta/` e `atos.dev.br/workspace/`), para o dono gerir o aplicativo. Para as outras pessoas, só o e-mail e Sair. Se preferir, ponha esses links no seu próprio menu com o mesmo `pessoa.dono`.
 
 ## "Continuar como" pelo FedCM (0.4.0)
 
@@ -181,7 +204,7 @@ Devolve `{ entrar, retorno, comecar, concluir, sair, continuarComFedCM, comecarF
 | `concluir(urlDaVolta, guardar)` | servidor: a pessoa. |
 | `sair(accessToken)` | invalida o `access_token` na Atos (a sessão local é sua). |
 
-A pessoa: `{ id, nome, email, emailVerificado, idToken, accessToken, expiraEm }`. Identifique-a por `id` (o `sub`, que não muda); o e-mail pode mudar. Os tokens valem 1 hora e não há `refresh_token`: para renovar, comece de novo (com `prompt: "none"` a volta é direta se a sessão na Atos estiver aberta).
+A pessoa: `{ id, nome, email, emailVerificado, dono, idToken, accessToken, expiraEm }` (`dono`: o claim `atos_dono`, 0.5.0). Identifique-a por `id` (o `sub`, que não muda); o e-mail pode mudar. Os tokens valem 1 hora e não há `refresh_token`: para renovar, comece de novo (com `prompt: "none"` a volta é direta se a sessão na Atos estiver aberta).
 
 Toda falha lança `ErroAtos`, com `codigo` (`access_denied`, `login_required`, `consent_required`, `state`, `iss`, `id_token`, `invalid_grant`, `invalid_client`, `rede`, `descoberta`, `configuracao`), `message` em português e, quando a Atos mandou, `descricao`. `access_denied` é a conta sem acesso ao aplicativo (quem pode entrar se decide no cadastro, na Atos) ou a pessoa que não permitiu.
 
@@ -192,7 +215,7 @@ Contra a Atos de verdade: o Worker deste repositório em `wrangler dev`, com con
     cd pacotes/entrar
     npm test
 
-O botão (`teste/botao.test.mjs`) e o FedCM (`teste/fedcm.test.mjs`, com o Worker da Atos no mesmo processo e o `navigator.credentials.get` simulado: o público, o confidencial com o segredo, `access_denied`, a janela fechada e o navegador sem FedCM) têm os próprios testes, sem rede. O `verificarAviso` tem os próprios testes (`teste/aviso.test.mjs`, sem a Atos: assinatura certa, errada, de outro segredo, corpo mexido, velha e fora do formato).
+O botão (`teste/botao.test.mjs`), o menu de conta (`teste/menu.test.mjs`: o HTML em cada estado, os atalhos só ao dono, o escape e as recusas; o comportamento no navegador é conferido na página atos.dev.br/marca) e o FedCM (`teste/fedcm.test.mjs`, com o Worker da Atos no mesmo processo e o `navigator.credentials.get` simulado: o público, o confidencial com o segredo, `access_denied`, a janela fechada e o navegador sem FedCM) têm os próprios testes, sem rede. O `verificarAviso` tem os próprios testes (`teste/aviso.test.mjs`, sem a Atos: assinatura certa, errada, de outro segredo, corpo mexido, velha e fora do formato).
 
 Testado no Node 24; o Node 18 usa o WebCrypto de `node:crypto` (o código cuida disso), mas não rodou aqui.
 

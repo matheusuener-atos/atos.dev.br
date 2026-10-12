@@ -1,0 +1,97 @@
+/* O menu de conta do Login Atos (https://atos.dev.br/marca/#menu): o "Entrar" antes do login; depois, o e-mail com o menu
+   (ou um botao so, ou links soltos). O HTML vem de menuContaAtos() e o comportamento de ligarMenuContaAtos(), do pacote
+   @atos.dev.br/entrar (0.5.0). Sem dependencia (nem fonte, nem imagem de fora) e sem estilo inline. Cantos retos.
+
+   Tema:  atos-menu--claro (padrao, para fundos claros) ou atos-menu--escuro
+   Modo:  atos-menu--menu (o e-mail abre o menu), atos-menu--botao (Entrar antes, Sair depois), atos-menu--links
+   A caixa "Sair da conta?" (so com confirmarSair: true): .atos-menu-dialogo */
+
+.atos-menu--claro {
+  --atos-menu-fundo: #ffffff; --atos-menu-borda: #d6d4cf; --atos-menu-borda-forte: #8a877f; --atos-menu-texto: #131312;
+  --atos-menu-suave: #5e5e5a; --atos-menu-hover: #f2f2f0; --atos-menu-perigo: #b3261e; --atos-menu-foco: #131312;
+  --atos-menu-veu: rgba(19, 19, 18, .45);
+}
+.atos-menu--escuro {
+  --atos-menu-fundo: #121110; --atos-menu-borda: #2c2a26; --atos-menu-borda-forte: #4a463f; --atos-menu-texto: #ece8e1;
+  --atos-menu-suave: #9a948a; --atos-menu-hover: #1a1917; --atos-menu-perigo: #e08e7a; --atos-menu-foco: #d6d0c6;
+  --atos-menu-veu: rgba(8, 7, 6, .78);
+}
+
+.atos-menu {
+  position: relative; display: inline-flex; align-items: center; gap: 18px; max-width: 100%; vertical-align: middle;
+  font: 500 13px/1.2 "Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--atos-menu-texto);
+}
+.atos-menu *, .atos-menu-dialogo * { box-sizing: border-box; border-radius: 0; }
+
+/* o botao Entrar (e o Sair do modo botao) e o botao do menu */
+.atos-menu__entrar, .atos-menu__botao {
+  box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; height: 36px; min-width: 0; max-width: 100%; margin: 0;
+  padding: 0 12px 0 8px; background: transparent; border: 1px solid var(--atos-menu-borda); border-radius: 0; color: var(--atos-menu-texto);
+  font: inherit; text-decoration: none; white-space: nowrap; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.atos-menu--sem-marca .atos-menu__entrar, .atos-menu--sem-marca .atos-menu__botao { padding-left: 12px; }
+.atos-menu__entrar:hover, .atos-menu__botao:hover, .atos-menu__botao[aria-expanded="true"] { border-color: var(--atos-menu-borda-forte); color: var(--atos-menu-texto); text-decoration: none; }
+.atos-menu__entrar--sair, .atos-menu__entrar--sair:hover { color: var(--atos-menu-perigo); }
+.atos-menu__marca { flex: none; display: block; width: 20px; height: 20px; }
+.atos-menu__marca--coroa { width: 22px; height: 22px; }
+.atos-menu__email { min-width: 0; overflow: hidden; text-overflow: ellipsis; max-width: 26ch; }
+.atos-menu__seta { flex: none; display: block; width: 10px; height: 10px; color: var(--atos-menu-suave); }
+.atos-menu__botao[aria-expanded="true"] .atos-menu__seta { transform: rotate(180deg); }
+
+/* a lista */
+.atos-menu__lista {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 50; display: flex; flex-direction: column; min-width: 210px; margin: 0; padding: 4px 0;
+  background: var(--atos-menu-fundo); border: 1px solid var(--atos-menu-borda);
+}
+.atos-menu__lista[hidden] { display: none; }
+.atos-menu__item {
+  display: block; width: 100%; margin: 0; padding: 9px 14px; background: none; border: 0; border-radius: 0; color: var(--atos-menu-texto);
+  font: inherit; text-align: left; text-decoration: none; white-space: nowrap; cursor: pointer;
+}
+.atos-menu__item:hover, .atos-menu__item:focus { background: var(--atos-menu-hover); color: var(--atos-menu-texto); text-decoration: none; outline: none; }
+.atos-menu__item:focus-visible { box-shadow: inset 2px 0 0 var(--atos-menu-foco); }
+.atos-menu__item--sair, .atos-menu__item--sair:hover, .atos-menu__item--sair:focus { color: var(--atos-menu-perigo); }
+.atos-menu__separador { height: 1px; margin: 4px 0; border: 0; background: var(--atos-menu-borda); }
+.atos-menu__form { display: block; margin: 0; }
+.atos-menu--botao .atos-menu__form, .atos-menu--links .atos-menu__form { display: inline-flex; }
+
+/* os links soltos */
+.atos-menu--links { flex-wrap: wrap; gap: 6px 18px; }
+.atos-menu__link {
+  margin: 0; padding: 0; background: none; border: 0; color: var(--atos-menu-suave); font: inherit; text-decoration: none; white-space: nowrap; cursor: pointer;
+}
+.atos-menu__link:hover { color: var(--atos-menu-texto); text-decoration: none; }
+.atos-menu__link--sair, .atos-menu__link--sair:hover { color: var(--atos-menu-perigo); }
+
+.atos-menu__entrar:focus-visible, .atos-menu__botao:focus-visible, .atos-menu__link:focus-visible,
+.atos-menu-dialogo__botao:focus-visible { outline: 2px solid var(--atos-menu-foco); outline-offset: 2px; }
+
+/* a caixa "Sair da conta?" */
+.atos-menu-dialogo {
+  box-sizing: border-box; width: min(380px, calc(100vw - 32px)); max-width: none; margin: auto; padding: 0;
+  background: var(--atos-menu-fundo); border: 1px solid var(--atos-menu-borda); border-radius: 0; color: var(--atos-menu-texto);
+  font: 400 14px/1.5 "Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+.atos-menu-dialogo::backdrop { background: var(--atos-menu-veu, rgba(8, 7, 6, .78)); }
+.atos-menu-dialogo__caixa { padding: 20px; }
+.atos-menu-dialogo__titulo { margin: 0 0 6px; font: 400 21px/1.25 "Times New Roman", Times, "Liberation Serif", serif; color: var(--atos-menu-texto); }
+.atos-menu-dialogo__texto { margin: 0 0 18px; color: var(--atos-menu-suave); }
+.atos-menu-dialogo__botoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.atos-menu-dialogo__botao {
+  height: 36px; margin: 0; padding: 0 16px; background: transparent; border: 1px solid var(--atos-menu-borda); border-radius: 0;
+  color: var(--atos-menu-texto); font: 500 13px/1 "Inter Tight", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; cursor: pointer;
+}
+.atos-menu-dialogo__botao:hover { border-color: var(--atos-menu-borda-forte); }
+.atos-menu-dialogo__botao--sair, .atos-menu-dialogo__botao--sair:hover { border-color: var(--atos-menu-perigo); color: var(--atos-menu-perigo); }
+
+@media (max-width: 480px) {
+  .atos-menu__email { max-width: 14ch; }
+}
+@media (forced-colors: active) {
+  .atos-menu__entrar, .atos-menu__botao, .atos-menu__lista, .atos-menu-dialogo { border-color: ButtonText; }
+  .atos-menu__item:focus { outline: 2px solid Highlight; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .atos-menu__seta { transition: none; }
+}
