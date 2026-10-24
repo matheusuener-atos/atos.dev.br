@@ -1,5 +1,15 @@
 # Atos Cobrança
 
+## Integração planejada do Plantare
+
+O Plantare ainda usa cobrança própria no código consultado em 24/10/2026.
+O [contrato proposto do Plantare](PLANTARE-COBRANCA.md) descreve orçamento
+por área/camadas, direito por compra, compatibilidade e corte reversível.
+É uma proposta de implementação: cadastrar um produto no catálogo não
+habilita esse fluxo. Os nomes de eventos e rotas abaixo também incluem
+desenhos históricos; no código atual, os eventos de cobrança implementados
+são `direito.atualizado` e `credito.adicionado`.
+
 A Atos é a única que cobra. O Mercado Pago é só da Atos: uma conta, um app, um webhook. Os produtos (o PAVLVS e os que ainda vierem) não falam com o Mercado Pago, não guardam cartão e não emitem nota. Eles fazem três coisas:
 1. mandam a pessoa ao checkout da Atos;
 2. recebem da Atos os eventos do que mudou;
