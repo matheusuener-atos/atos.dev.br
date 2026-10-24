@@ -150,6 +150,33 @@ o QR e os parâmetros da URL nunca confirmam pagamento. Valor zero usa a
 rota de cortesia, não uma order de Pix. Valores positivos abaixo do mínimo
 operacional atual de R$ 1,00 são recusados, sem arredondar para cima em silêncio.
 
+## Evolução da experiência de checkout
+
+Ideia do dono registrada em 24/10/2026, para avaliação futura: o Plantare
+usar uma versão do checkout de `atos.dev.br` sem necessariamente sair do
+aplicativo. Considerar duas apresentações: **janela pop-up com o checkout
+da Atos** ou **checkout incorporado/injetado na experiência do Plantare**.
+É uma possibilidade de interface, não uma segunda implementação da cobrança.
+
+Avaliar no trabalho de checkout M2, sem tornar todas as apresentações um
+requisito desta primeira integração. A decisão deve comparar experiência em
+desktop/celular, login, bloqueio de pop-up, compatibilidade do gateway e
+isolamento entre os domínios. Preservar retorno por página/aba como alternativa
+quando a apresentação escolhida não estiver disponível.
+
+Antes de incorporar via frame ou componente, definir tecnicamente o que
+“injetado” significa. O código atual da Atos protege páginas contra
+enquadramento; não remover essa proteção globalmente para viabilizar a ideia.
+Uma opção incorporada deve ter integração explícita e limitada às origens
+autorizadas. O Plantare não passa a capturar dados de pagamento ou manter
+uma cópia independente das regras fiscais/financeiras.
+
+Fechar o pop-up ou receber uma mensagem de interface não confirma pagamento.
+Qualquer comunicação entre janelas deve conferir origem e correlação da
+intenção; o direito continua sendo confirmado pelo servidor, por consulta e
+evento autenticado da Atos. A apresentação escolhida não altera o contrato
+de orçamento, idempotência, identidade e direito por compra.
+
 ## Snapshot de compra e eventos
 
 Campos mínimos persistidos na Atos e projetados no Plantare:
