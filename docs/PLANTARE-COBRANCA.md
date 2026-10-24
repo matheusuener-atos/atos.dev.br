@@ -4,6 +4,8 @@ Estado: **desenho técnico para implementação**, em 24/10/2026. Nenhuma rota,
 migração, flag ou tipo de evento novo descrito aqui existe por efeito deste
 documento. A entrega é o contrato e a sequência de implementação da
 [issue Plantare #2](https://github.com/matheusuener-atos/plantare-maps/issues/2).
+O [plano local do Plantare](https://github.com/matheusuener-atos/plantare-maps/pull/5)
+é a entrega coordenada no outro repositório.
 
 ## Diagnóstico do código atual
 
