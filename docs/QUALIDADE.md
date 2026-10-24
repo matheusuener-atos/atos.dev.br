@@ -14,6 +14,11 @@ credenciais, Wrangler, acesso a contas de produção ou serviços externos.
 | `npm run test:integracao` | `worker/teste-linguagens.mjs` e `pacotes/entrar/teste/{aviso,botao,fedcm,menu}.test.mjs` | Sincronização dos exemplos e arquivos publicados, assinatura dos avisos, botões, menu e contrato FedCM com Worker simulado |
 | `npm test` | Os três grupos acima, nesta ordem | Verificação essencial completa; para no primeiro grupo reprovado |
 
+O grupo de cobrança inclui também `worker/cobranca/plantare/test/orcamentos.test.mjs`
+e `preco.test.mjs`: contrato, preço, recuperação e reservas transacionais dos
+[orçamentos Plantare M1](PLANTARE-ORCAMENTOS.md). O storage é exercitado com
+SQLite em memória do Node 24; nenhum gateway participa desses testes.
+
 O runner nativo do Node executa cada arquivo em processo isolado, com limite
 de dois minutos por arquivo. Os testes antigos do Worker imprimem suas
 checagens e encerram com código diferente de zero quando há falha; o runner

@@ -24,6 +24,8 @@ import { atenderPaginaDeStatus, atenderStatus, conferirStatusAgendado, ehRotaDaP
 import { atenderLinks, atenderPaginaDeLinks, ehRotaDaPaginaDeLinks, ehRotaDosLinks } from "./links.js";
 import { homeComPortfolio } from "./portfolio.js";
 import { carregarCatalogo, produtoDe } from "./cobranca/catalogo.js";
+import { atenderPlantare, ehRotaPlantare } from "./cobranca/plantare/api.js";
+export { PlantareOrcamentos } from "./cobranca/plantare/objeto.js";
 
 // O registro de cada cliente da Atos Cobranca (docs/COBRANCA.md): o Durable Object precisa sair do modulo principal.
 export { ClienteCobranca } from "./cobranca/cliente.js";
@@ -127,6 +129,8 @@ export default {
       return Response.redirect(EMISSOR + url.pathname + url.search, 301);
     }
     try {
+      // Orçamentos S2S do Plantare têm autenticação própria; não liberar Origin nas rotas de página.
+      if (ehRotaPlantare(url)) return comCabecalhos(await atenderPlantare(request, env, url));
       // O envio de um formulario do Workspace (/f/<id>; worker/formularios.js): vem do site do dono (outra origem; o
       // formulario confere a origem cadastrada) e responde com os proprios cabecalhos (as paginas tem CSP propria).
       if (ehRotaDoFormularioPublico(url)) return await atenderFormularioPublico(request, env, url, { dentroDoLimite });
