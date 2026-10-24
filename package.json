@@ -1,1 +1,13 @@
-{"type":"module","private":true}
+{
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "npm run test:conta && npm run test:cobranca && npm run test:integracao",
+    "test:conta": "node --test --test-concurrency=1 --test-timeout=120000 worker/teste.mjs worker/teste-oauth.mjs worker/teste-seguranca.mjs worker/teste-avisos.mjs worker/teste-admin.mjs worker/teste-admin-workspace.mjs",
+    "test:cobranca": "node --test --test-concurrency=1 --test-timeout=120000 worker/cobranca/teste.mjs worker/teste-nfse-atos.mjs worker/teste-nfse-emissor.mjs worker/teste-nfse-semente.mjs",
+    "test:integracao": "node --test --test-concurrency=1 --test-timeout=120000 worker/teste-linguagens.mjs pacotes/entrar/teste/aviso.test.mjs pacotes/entrar/teste/botao.test.mjs pacotes/entrar/teste/fedcm.test.mjs pacotes/entrar/teste/menu.test.mjs"
+  }
+}
