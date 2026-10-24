@@ -81,6 +81,13 @@ qualquer diferença de centavo bloqueia o corte até decisão registrada.
 O snapshot guarda a versão da tarifa, quantidades e memória do cálculo;
 alterar o catálogo não reprecifica orçamento aceito ou pedido já criado.
 
+Precisão registrada na implementação [M1, PR #9](https://github.com/matheusuener-atos/atos.dev.br/pull/9):
+os contratos e snapshots usam unidades inteiras, mas a primeira tarifa mantém
+a ordem de cálculo e o arredondamento JS do legado. Decimal exato altera
+alguns meios-centavos (600,25 ha com AB/bordadura: 378.122 versus 378.123
+centavos). Preservar o valor legado é a escolha inicial de compatibilidade;
+uma regra decimal diferente deve ter outra versão, sem reprecificar a migração.
+
 Cupons preservam percentual, fixo limitado ao preço normal e cortesia, além
 de validade, primeira compra, área mínima, usos e uso por pessoa/talhão.
 Não basta copiar o cadastro: importar consumo e reservas ainda válidas.
