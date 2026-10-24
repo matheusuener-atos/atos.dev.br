@@ -47,7 +47,7 @@
   // As chaves "id:*" (as contas, como o PAVLVS ja as criava) sao das duas; as
   // "atos:*" (sessoes, permissoes, codigos e tokens) so deste Worker.
   "kv_namespaces": [{ "binding": "CONTAS", "id": "c8011a70799b40b0b3215f4a01b2d28c" }],
-  "ratelimits": [{ "name": "LIMITE", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }],
+  "ratelimits": [{ "name": "LIMITE", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }, { "name": "PLANTARE_LIMITE", "namespace_id": "1004", "simple": { "limit": 60, "period": 60 } }],
   "observability": { "enabled": true },
   // A Atos Cobranca (docs/COBRANCA.md, worker/cobranca/): um objeto por cliente (a Conta Atos), com os dados
   // fiscais, as assinaturas, as compras e os direitos - o registro do dinheiro, com consistencia forte.
@@ -55,13 +55,14 @@
   // O emissor de NFS-e da Atos (worker/nfse/emissor.js, EmissorNFSe): uma instancia so (idFromName("atos")), SQLite,
   // com o prestador, o certificado A1 cifrado (NFSE_CHAVE_MESTRA), a numeracao e as notas. O painel o usa por
   // /api/admin/nfse/* (worker/nfse/api.js); a cobranca poe cada pagamento aprovado na fila (worker/nfse/atos.js).
-  "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }, { "name": "SEGURANCA", "class_name": "SegurancaConta" }, { "name": "WS_DADOS", "class_name": "WorkspaceDados" }] },
+  "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }, { "name": "SEGURANCA", "class_name": "SegurancaConta" }, { "name": "WS_DADOS", "class_name": "WorkspaceDados" }, { "name": "PLANTARE_ORCAMENTOS", "class_name": "PlantareOrcamentos" }] },
   "migrations": [
     { "tag": "v1-clientes-cobranca", "new_sqlite_classes": ["ClienteCobranca"] },
     { "tag": "v2-emissor-nfse", "new_sqlite_classes": ["EmissorNFSe"] },
     { "tag": "v3-email-atos", "new_sqlite_classes": ["EmailAtos"] },
     { "tag": "v4-seguranca-conta", "new_sqlite_classes": ["SegurancaConta"] },
-    { "tag": "v5-workspace-dados", "new_sqlite_classes": ["WorkspaceDados"] }
+    { "tag": "v5-workspace-dados", "new_sqlite_classes": ["WorkspaceDados"] },
+    { "tag": "v6-plantare-orcamentos", "new_sqlite_classes": ["PlantareOrcamentos"] }
   ],
   // Os recursos do Atos Workspace (worker/workspace-dados.js, WorkspaceDados): um objeto "indice" (os formularios pelo id,
   // as paginas de status pelo nome, a agenda das conferencias) e um por conta ("conta:<sub>"). Os formularios
@@ -147,8 +148,8 @@
       "workers_dev": true,
       "routes": [],
       "kv_namespaces": [{ "binding": "CONTAS", "id": "c8011a70799b40b0b3215f4a01b2d28c" }],
-      "ratelimits": [{ "name": "LIMITE", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } }],
-      "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }, { "name": "SEGURANCA", "class_name": "SegurancaConta" }, { "name": "WS_DADOS", "class_name": "WorkspaceDados" }] },
+      "ratelimits": [{ "name": "LIMITE", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } }, { "name": "PLANTARE_LIMITE", "namespace_id": "1005", "simple": { "limit": 60, "period": 60 } }],
+      "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }, { "name": "SEGURANCA", "class_name": "SegurancaConta" }, { "name": "WS_DADOS", "class_name": "WorkspaceDados" }, { "name": "PLANTARE_ORCAMENTOS", "class_name": "PlantareOrcamentos" }] },
       "vars": {
         "AMBIENTE": "teste",
         // O e-mail Atos no teste: a Cloudflare simulada (worker/email-atos.js): os destinos ficam no objeto, "verificados"
