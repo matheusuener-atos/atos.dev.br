@@ -18,11 +18,19 @@ No `wrangler dev`, a var `ATOS_EMISSOR_LOCAL=http://127.0.0.1:<porta>` faz a des
 
 ## Rodar os testes e publicar
 
-    node worker/teste.mjs
-    node worker/teste-oauth.mjs
-    node worker/teste-admin.mjs
-    node worker/teste-linguagens.mjs
-    cd pacotes/entrar && npm test                       # o pacote, contra o Worker em wrangler dev
+Com Node.js 24 ou mais recente, a verificação essencial roda na raiz, sem
+instalar dependências nem configurar segredos:
+
+    npm test
+
+O mesmo comando roda no GitHub Actions em Linux e Windows nos pull requests
+e na `main`. Para executar só uma área: `npm run test:conta`,
+`npm run test:cobranca` ou `npm run test:integracao`.
+Veja [a cobertura, os requisitos e os limites da validação](docs/QUALIDADE.md).
+
+Testes complementares e publicação (com os ambientes preparados):
+
+    npm test --prefix pacotes/entrar                   # o pacote completo, contra o Worker em wrangler dev
     node exemplos/entrar-com-atos/testar.mjs --python <python com authlib e flask> --dotnet <EntrarComAtos.dll> --node <pasta com express>
     node exemplos/entrar-com-atos/testar-env.mjs        # os comandos do .env no PowerShell 5.1/7 e no bash
     npx wrangler deploy
