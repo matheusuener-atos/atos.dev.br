@@ -19,7 +19,9 @@ No `wrangler dev`, a var `ATOS_EMISSOR_LOCAL=http://127.0.0.1:<porta>` faz a des
 ## Rodar os testes e publicar
 
 A API de [orçamentos Plantare M1](docs/PLANTARE-ORCAMENTOS.md) usa autenticação
-de servidor e vem desabilitada. Esta etapa não cria pagamentos nem checkout.
+de servidor e vem desabilitada. O [registro de compras, primeira parte de
+M2](docs/PLANTARE-COMPRAS.md), adiciona rascunhos e consultas por conta, com
+flag própria. Essas etapas ainda não criam Pix ou página de checkout.
 
 Com Node.js 24 ou mais recente, a verificação essencial roda na raiz, sem
 instalar dependências nem configurar segredos:

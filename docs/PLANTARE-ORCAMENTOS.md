@@ -2,7 +2,7 @@
 
 Implementação da [issue #7](https://github.com/matheusuener-atos/atos.dev.br/issues/7),
 baseada no [contrato proposto no PR #6](https://github.com/matheusuener-atos/atos.dev.br/pull/6).
-Esta etapa persiste intenções e orçamentos e reserva cupons. Não cria Pix,
+M1 persiste intenções e orçamentos e reserva cupons. Não cria Pix,
 checkout, fatura, nota, pagamento, evento financeiro ou direito de download.
 
 ## Rotas implementadas
@@ -14,7 +14,9 @@ Prefixo: `/api/cobranca/v1/plantare`.
 | `POST /orcamentos` | Valida, calcula e persiste orçamento de 15 minutos; retorna 200 |
 | `GET /intencoes/{id}?sub=…` | Recupera snapshot, `expirado` e `compra: null`; retorna 200 mesmo se o orçamento venceu |
 
-As demais rotas de checkout/compra propostas no contrato ainda retornam 404.
+O [registro de compras da primeira parte de M2](PLANTARE-COMPRAS.md) estende
+essas rotas com uma flag própria e inclui o snapshot em `compra` quando há
+rascunho. Sem essa flag, as rotas novas de checkout/compra retornam 404.
 Todas as respostas são `no-store`. Não há CORS para o navegador. A rota
 autentica o **sistema Plantare**, não uma sessão individual: é responsabilidade
 do Worker Plantare extrair o `sub` da sessão da pessoa e medir o talhão.

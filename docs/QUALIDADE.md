@@ -16,7 +16,9 @@ credenciais, Wrangler, acesso a contas de produção ou serviços externos.
 
 O grupo de cobrança inclui também `worker/cobranca/plantare/test/orcamentos.test.mjs`
 e `preco.test.mjs`: contrato, preço, recuperação e reservas transacionais dos
-[orçamentos Plantare M1](PLANTARE-ORCAMENTOS.md). O storage é exercitado com
+[orçamentos Plantare M1](PLANTARE-ORCAMENTOS.md). Inclui `compras.test.mjs`,
+que verifica o [registro de compras M2](PLANTARE-COMPRAS.md), idempotência,
+rollback, isolamento e paginação por conta. O storage é exercitado com
 SQLite em memória do Node 24; nenhum gateway participa desses testes.
 
 O runner nativo do Node executa cada arquivo em processo isolado, com limite
