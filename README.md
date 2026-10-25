@@ -21,7 +21,9 @@ No `wrangler dev`, a var `ATOS_EMISSOR_LOCAL=http://127.0.0.1:<porta>` faz a des
 A API de [orçamentos Plantare M1](docs/PLANTARE-ORCAMENTOS.md) usa autenticação
 de servidor e vem desabilitada. O [registro de compras, primeira parte de
 M2](docs/PLANTARE-COMPRAS.md), adiciona rascunhos e consultas por conta, com
-flag própria. Essas etapas ainda não criam Pix ou página de checkout.
+flag própria. O [checkout M2](docs/PLANTARE-CHECKOUT.md) implementa sessão,
+Pix, cortesia, direitos e eventos apenas em ambiente de teste, desabilitado
+por padrão. A integração de produção com o Plantare ainda depende de M3/M4.
 
 Com Node.js 24 ou mais recente, a verificação essencial roda na raiz, sem
 instalar dependências nem configurar segredos:

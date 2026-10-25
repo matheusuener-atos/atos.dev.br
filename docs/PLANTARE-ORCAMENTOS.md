@@ -126,7 +126,9 @@ já registrada exige nova versão; versões não apagam reservas ou consumo.
 
 Reservas contam para o limite global e impedem outro uso da pessoa ou do
 talhão enquanto vigentes. Expiram com o orçamento e são limpas da lista ativa
-na próxima tentativa, preservando os snapshots. Há limite operacional de
+na próxima tentativa, preservando os snapshots. No [checkout M2](PLANTARE-CHECKOUT.md),
+reservas promovidas a compra pendente não vencem com o orçamento e são
+consumidas/liberadas pela confirmação apropriada. Há limite operacional de
 128 reservas simultâneas por campanha; saturação retorna 503, não outro preço.
 `ilimitado` conserva a exceção legada às restrições de uso/primeira compra,
 mas ainda respeita validade, área mínima e versão.

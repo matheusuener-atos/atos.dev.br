@@ -18,7 +18,9 @@ O grupo de cobrança inclui também `worker/cobranca/plantare/test/orcamentos.te
 e `preco.test.mjs`: contrato, preço, recuperação e reservas transacionais dos
 [orçamentos Plantare M1](PLANTARE-ORCAMENTOS.md). Inclui `compras.test.mjs`,
 que verifica o [registro de compras M2](PLANTARE-COMPRAS.md), idempotência,
-rollback, isolamento e paginação por conta. O storage é exercitado com
+rollback, isolamento e paginação por conta. `checkout.test.mjs` verifica
+sessão, pagamento, direitos, cupons, recuperação, webhook e eventos do
+[checkout M2](PLANTARE-CHECKOUT.md), com gateway simulado. O storage é exercitado com
 SQLite em memória do Node 24; nenhum gateway participa desses testes.
 
 O runner nativo do Node executa cada arquivo em processo isolado, com limite

@@ -15,6 +15,10 @@ export function storage() {
   let cauda = Promise.resolve();
   const s = {
     falharEm: 0,
+    alarme: null,
+    async setAlarm(ms) { s.alarme = ms; },
+    async getAlarm() { return s.alarme; },
+    async delete(k) { db.prepare("delete from dados where chave = ?").run(k); },
     async get(k) { const r = db.prepare("select valor from dados where chave = ?").get(k); return r ? JSON.parse(r.valor) : undefined; },
     async put(k, v) {
       if (s.falharEm && --s.falharEm === 0) throw new Error("falha de escrita simulada");
@@ -23,7 +27,7 @@ export function storage() {
     contar() { return db.prepare("select count(*) as n from dados").get().n; },
     async list({ prefix = "", startAfter = "", end = "\uffff", limit = 1000 } = {}) {
       const rows = db.prepare("select chave, valor from dados where chave >= ? and chave > ? and chave < ? order by chave limit ?")
-        .all(prefix, startAfter, end, limit);
+        .all(prefix, startAfter, end === "\uffff" ? prefix + "\uffff" : end, limit);
       return new Map(rows.filter((r) => r.chave.startsWith(prefix)).map((r) => [r.chave, JSON.parse(r.valor)]));
     },
     transaction(fn) {
@@ -48,7 +52,9 @@ export function ambiente(cupons = {}) {
     idFromName: (n) => n,
     get(id) {
       if (!storages.has(id)) storages.set(id, storage());
-      if (!objetos.has(id)) objetos.set(id, new PlantareOrcamentos({ storage: storages.get(id) }, env, { agora: () => relogio.agora }));
+      if (!objetos.has(id)) objetos.set(id, new PlantareOrcamentos({ storage: storages.get(id) }, env, {
+        agora: () => relogio.agora, buscar: (...args) => globalThis.fetch(...args),
+      }));
       return { async fetch(url, op) {
         const r = await objetos.get(id).fetch(new Request(url, op));
         if (env.perderResposta) { env.perderResposta = false; throw new Error("resposta perdida após persistir"); }
