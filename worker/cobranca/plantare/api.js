@@ -46,6 +46,21 @@ export async function atenderPlantare(request, env, url) {
       const chave = request.headers.get("idempotency-key");
       if (!CHAVE.test(chave || "")) falhar(400, "idempotencia_invalida", "Idempotency-Key obrigatório");
       dados = { op: "criar", chave, dados: await corpoLimitado(request) };
+    } else if (url.pathname === PREFIXO + "/checkouts" && request.method === "POST" && env.PLANTARE_COMPRAS_ATIVAS === "1") {
+      if (url.search) falhar(400, "entrada_invalida", "parâmetros de consulta não permitidos");
+      const chave = request.headers.get("idempotency-key");
+      if (!CHAVE.test(chave || "")) falhar(400, "idempotencia_invalida", "Idempotency-Key obrigatório");
+      dados = { op: "checkout", chave, dados: await corpoLimitado(request) };
+    } else if ((url.pathname === PREFIXO + "/compras" || url.pathname.startsWith(PREFIXO + "/compras/"))
+        && request.method === "GET" && env.PLANTARE_COMPRAS_ATIVAS === "1") {
+      const lista = url.pathname === PREFIXO + "/compras";
+      const permitidos = lista ? ["sub", "limite", "cursor"] : ["sub"];
+      if ([...url.searchParams.keys()].some((k) => !permitidos.includes(k) || url.searchParams.getAll(k).length !== 1)
+          || url.searchParams.getAll("sub").length !== 1)
+        falhar(400, "entrada_invalida", "parâmetros de consulta inválidos");
+      dados = lista ? { op: "compras", sub: url.searchParams.get("sub"),
+        limite: url.searchParams.get("limite") ?? "25", cursor: url.searchParams.get("cursor") }
+        : { op: "compra", sub: url.searchParams.get("sub"), id: url.pathname.slice((PREFIXO + "/compras/").length) };
     } else if (url.pathname.startsWith(PREFIXO + "/intencoes/") && request.method === "GET") {
       if ([...url.searchParams.keys()].some((k) => k !== "sub") || url.searchParams.getAll("sub").length !== 1)
         falhar(400, "entrada_invalida", "informe somente um sub");

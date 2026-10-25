@@ -1,10 +1,11 @@
 import { json, sha256 } from "../../comum.js";
 import { CHAVE, ID, SUB, VALIDADE_MS, ErroPlantare, falhar, validarOrcamento } from "./contrato.js";
 import { calcularPreco, definirCupom } from "./preco.js";
+import { criarCompra, consultarCompra, listarCompras } from "./compras.js";
 
 // Um único objeto para o produto: os limites de campanha cruzam contas.
 // Transações locais incluem intenção, orçamento, idempotência e reserva.
-// Não há gateway, evento financeiro, consumo de cupom ou checkout em M1.
+// Orçamentos e rascunhos de compra não fazem chamadas ao gateway.
 export class PlantareOrcamentos {
   constructor(ctx, env, deps = {}) { this.ctx = ctx; this.env = env; this.agora = deps.agora || Date.now; }
 
@@ -13,6 +14,12 @@ export class PlantareOrcamentos {
       const d = await request.json();
       if (d.op === "criar") return json(await this.criar(d.dados, d.chave), 200);
       if (d.op === "intencao") return json(await this.intencao(d.sub, d.id));
+      if (["checkout", "compra", "compras"].includes(d.op)) {
+        if (this.env.PLANTARE_COMPRAS_ATIVAS !== "1") falhar(503, "compras_indisponiveis", "registro de compras desabilitado");
+        if (d.op === "checkout") return json(await criarCompra(this, d.dados, d.chave));
+        if (d.op === "compra") return json(await consultarCompra(this, d.sub, d.id));
+        return json(await listarCompras(this, d.sub, d.limite, d.cursor));
+      }
       return json({ erro: "operação não encontrada" }, 404);
     } catch (e) {
       if (e instanceof ErroPlantare) return json({ erro: e.message, codigo: e.codigo }, e.status);
@@ -95,6 +102,7 @@ export class PlantareOrcamentos {
     const intencao = await this.ctx.storage.get(await this.chaveIntencao(sub, id));
     if (!intencao) falhar(404, "intencao_nao_encontrada", "intenção não encontrada nesta conta");
     return { produto: "plantare", intent_id: id, sub, orcamento: intencao.orcamento,
-      expirado: Date.parse(intencao.orcamento.valido_ate) <= this.agora(), compra: null };
+      expirado: Date.parse(intencao.orcamento.valido_ate) <= this.agora(),
+      compra: intencao.compra_id ? await consultarCompra(this, sub, intencao.compra_id) : null };
   }
 }
