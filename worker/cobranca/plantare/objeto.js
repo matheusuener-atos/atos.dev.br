@@ -2,18 +2,25 @@ import { json, sha256 } from "../../comum.js";
 import { CHAVE, ID, SUB, VALIDADE_MS, ErroPlantare, falhar, validarOrcamento } from "./contrato.js";
 import { calcularPreco, definirCupom } from "./preco.js";
 import { criarCompra, consultarCompra, listarCompras } from "./compras.js";
+import { consultarPagamento, pagarCompra, receberOrder, retomarPagamentos } from "./pagamentos.js";
+import { entregarEventos } from "./eventos.js";
 
 // Um único objeto para o produto: os limites de campanha cruzam contas.
 // Transações locais incluem intenção, orçamento, idempotência e reserva.
 // Orçamentos e rascunhos de compra não fazem chamadas ao gateway.
 export class PlantareOrcamentos {
-  constructor(ctx, env, deps = {}) { this.ctx = ctx; this.env = env; this.agora = deps.agora || Date.now; }
+  constructor(ctx, env, deps = {}) { this.ctx = ctx; this.env = env; this.agora = deps.agora || Date.now; this.buscar = deps.buscar || fetch; }
+
+  async alarm() { await retomarPagamentos(this); await entregarEventos(this); }
 
   async fetch(request) {
     try {
       const d = await request.json();
       if (d.op === "criar") return json(await this.criar(d.dados, d.chave), 200);
       if (d.op === "intencao") return json(await this.intencao(d.sub, d.id));
+      if (d.op === "pagar") return json(await pagarCompra(this, d.sub, d.id, d.perfil, d.email));
+      if (d.op === "pagamento") return json(await consultarPagamento(this, d.sub, d.id));
+      if (d.op === "order") return json(await receberOrder(this, d.order));
       if (["checkout", "compra", "compras"].includes(d.op)) {
         if (this.env.PLANTARE_COMPRAS_ATIVAS !== "1") falhar(503, "compras_indisponiveis", "registro de compras desabilitado");
         if (d.op === "checkout") return json(await criarCompra(this, d.dados, d.chave));
@@ -84,7 +91,7 @@ export class PlantareOrcamentos {
       if (hist.compras_pagas > 0) falhar(409, "cupom_primeira", "cupom válido apenas para a primeira compra");
     }
 
-    const reservas = estado.reservas.filter((r) => Date.parse(r.expira) > agora);
+    const reservas = estado.reservas.filter((r) => r.compra_id || Date.parse(r.expira) > agora);
     const pessoas = [...estado.consumos, ...reservas];
     if (pessoas.some((p) => p.sub === d.sub || p.area_hash === d.area_hash))
       falhar(409, "cupom_reservado", "cupom já usado ou reservado para esta pessoa ou talhão");

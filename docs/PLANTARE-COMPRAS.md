@@ -1,7 +1,9 @@
 # Registro de compras Plantare — primeira parte de M2
 
 Implementa a base durável da [issue #8](https://github.com/matheusuener-atos/atos.dev.br/issues/8),
-sobre os [orçamentos de M1](PLANTARE-ORCAMENTOS.md). M2 continua em andamento.
+sobre os [orçamentos de M1](PLANTARE-ORCAMENTOS.md). Esta página descreve a
+primeira parte. O [checkout M2](PLANTARE-CHECKOUT.md) estende o registro com
+pagamento, direitos e eventos em ambiente de teste; M2 segue em homologação.
 
 O orçamento pode originar **um rascunho de compra por intenção**, recuperável
 após concorrência, reinício ou perda da resposta. O preço e o escopo são
@@ -74,7 +76,7 @@ de checkout da Atos ainda será implementada.
 
 ## Limites e continuação de M2
 
-Não há página de checkout, Pix, chamada ao Mercado Pago, evento, fatura ou
+Na primeira parte, não há página de checkout, Pix, chamada ao Mercado Pago, evento, fatura ou
 concessão nesta etapa. A reserva de cupom mantém a validade original do
 orçamento. O rascunho não a consome nem prolonga; não pode iniciar pagamento
 depois da validade ou com reserva liberada. Antes de conectar o gateway:

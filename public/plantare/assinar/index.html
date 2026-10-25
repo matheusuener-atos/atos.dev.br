@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Checkout Plantare Maps · Atos</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/conta.css">
+  <link rel="stylesheet" href="/assets/checkout.css">
+  <link rel="stylesheet" href="/assets/plantare-checkout.css">
+  <script src="/assets/tema.js"></script>
+  <script src="/assets/plantare-checkout.js" defer></script>
+</head>
+<body>
+  <header class="topo">
+    <a class="marca" href="/">Atos</a>
+    <nav aria-label="Principal"><a href="/conta/">Minha conta</a></nav>
+  </header>
+  <main class="checkout plantare-checkout">
+    <h1>Checkout Plantare Maps</h1>
+    <p class="checkout-aviso">Ambiente de teste. Este checkout ainda está em homologação.</p>
+    <p id="mensagem" role="status" aria-live="polite">Carregando sua compra…</p>
+    <section class="card" aria-labelledby="resumo-titulo" id="resumo" hidden>
+      <h2 id="resumo-titulo">Seu planejamento</h2>
+      <dl>
+        <dt>Área</dt><dd id="area"></dd>
+        <dt>Camadas</dt><dd id="camadas"></dd>
+        <dt>Total</dt><dd id="valor"></dd>
+        <dt>Situação</dt><dd id="situacao"></dd>
+      </dl>
+      <p id="prazo"></p>
+      <button type="button" class="btn primario" id="pagar" hidden>Gerar Pix</button>
+    </section>
+    <section id="pix" class="card" aria-labelledby="pix-titulo" hidden>
+      <h2 id="pix-titulo">Pague pelo seu banco</h2>
+      <p>Escaneie o QR code ou copie o código Pix.</p>
+      <img id="qr" alt="QR code para pagamento Pix" width="240" height="240" hidden>
+      <label for="codigo">Pix copia e cola</label>
+      <textarea id="codigo" readonly rows="4"></textarea>
+      <button type="button" class="btn" id="copiar">Copiar código</button>
+    </section>
+    <p id="erro" role="alert" class="erro"></p>
+    <p id="dados-fiscais" hidden>Complete seus <a href="/conta/dados" target="_blank" rel="noopener">dados fiscais na Atos</a> e volte a esta página.</p>
+    <div class="checkout-botoes">
+      <button type="button" class="btn" id="atualizar">Atualizar situação</button>
+      <a href="https://plantaremaps.com.br/" class="btn">Voltar ao Plantare</a>
+    </div>
+  </main>
+</body>
+</html>

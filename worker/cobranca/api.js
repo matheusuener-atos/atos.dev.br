@@ -27,6 +27,7 @@ import { cliente, clienteDaRef, idDoCliente, novaRef } from "./cliente.js";
 import { ehAmbienteDeTeste, segredoDoProduto } from "./eventos.js";
 import { criarPreapproval, ErroMP, fraseDaRecusa, mpFetch } from "./mp.js";
 import { arquivoDaNota, indexarCliente, notasDoCliente, notasDoProduto, porNaFila } from "../nfse/atos.js";
+import { checkoutAtivo, objetoPlantare } from "./plantare/config.js";
 
 const ACOES = { pause: "paused", reactivate: "authorized", cancel: "cancelled" }; // cancel -> canceled (a API grafa "cancelled")
 const PIX_VALIDADE = "P1D";
@@ -508,6 +509,25 @@ async function receberAviso(request, env, url, deps) {
   if (!valido) return erro(401, "assinatura não confere");
   const quando = Number(partes.ts) < 1e12 ? Number(partes.ts) * 1000 : Number(partes.ts);
   if (Math.abs(Date.now() - quando) > AVISO_VALIDADE_MS) return erro(401, "aviso velho");
+  // Plantare tem registro/outbox por compra. Confirmar só após persistir;
+  // falha deve retornar 503 para o provedor reentregar, inclusive devoluções.
+  if (checkoutAtivo(env) && tipo === "order") {
+    try {
+      const o = await mpFetch(env, "GET", "/v1/orders/" + encodeURIComponent(dataId), undefined, { buscar: deps.fetch || fetch });
+      if (!o.ok || String(o.dados?.id) !== dataId) return erro(503, "não foi possível conferir a order");
+      if (String(o.dados?.external_reference || "").startsWith("plantare-")) {
+        const r = await objetoPlantare(env).fetch("https://plantare-orcamentos/", {
+          method: "POST", body: JSON.stringify({ op: "order", order: o.dados }),
+        });
+        return r.ok ? json({ recebido: true }) : erro(503, "não foi possível registrar a order Plantare");
+      }
+      // Os demais produtos continuam com a aplicação legada, sem nova busca.
+      const trabalho = aplicarOrder(env, o.dados, { buscar: deps.fetch || fetch }).catch(() => null);
+      if (deps.ctx?.waitUntil) deps.ctx.waitUntil(trabalho);
+      else await trabalho;
+      return json({ recebido: true });
+    } catch { return erro(503, "não foi possível registrar a order"); }
+  }
   const trabalho = aplicarAviso(env, tipo, dataId, { buscar: deps.fetch || fetch }).catch(() => null);
   if (deps.ctx && deps.ctx.waitUntil) deps.ctx.waitUntil(trabalho);
   else await trabalho;

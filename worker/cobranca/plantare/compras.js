@@ -1,5 +1,6 @@
 import { sha256 } from "../../comum.js";
 import { CHAVE, ID, SUB, falhar } from "./contrato.js";
+import { guardarCompra } from "./eventos.js";
 
 export const COMPRA_ID = /^cmp-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const ORCAMENTO_ID = /^orc-[a-f0-9-]{36}$/;
@@ -66,11 +67,18 @@ export async function criarCompra(objeto, entrada, chave) {
 
 function resposta(compra) { return { compra, checkout_disponivel: false, checkout_url: null }; }
 
-export async function consultarCompra(objeto, sub, id, tx = objeto.ctx.storage) {
+export async function consultarCompra(objeto, sub, id, tx) {
   identidade(sub);
   if (typeof id !== "string" || !COMPRA_ID.test(id)) falhar(400, "entrada_invalida", "identificador de compra inválido");
+  if (!tx) return objeto.ctx.storage.transaction((t) => consultarCompra(objeto, sub, id, t));
   const registro = await tx.get("compra:" + id);
   if (!registro || registro.snapshot.sub !== sub) falhar(404, "compra_nao_encontrada", "compra não encontrada nesta conta");
+  if (registro.snapshot.direito_ativo && registro.snapshot.baixar_ate && Date.parse(registro.snapshot.baixar_ate) <= objeto.agora()) {
+    registro.snapshot = { ...registro.snapshot, direito_ativo: false, versao: registro.snapshot.versao + 1 };
+    const atual = await tx.getAlarm(), proximo = objeto.agora() + 60000;
+    if (atual === null || atual > proximo) await tx.setAlarm(proximo);
+    await guardarCompra(objeto, tx, registro);
+  }
   // Só o snapshot público: referências e fases do gateway ficam na Atos.
   return registro.snapshot;
 }

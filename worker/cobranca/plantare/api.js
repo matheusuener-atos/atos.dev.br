@@ -1,11 +1,12 @@
 import { iguais, json } from "../../comum.js";
 import { CHAVE, ErroPlantare, falhar } from "./contrato.js";
+import { objetoPlantare, urlCheckout } from "./config.js";
 
 const PREFIXO = "/api/cobranca/v1/plantare";
 const MAX_BYTES = 4096;
 export const ehRotaPlantare = (url) => url.pathname === PREFIXO || url.pathname.startsWith(PREFIXO + "/");
 
-async function corpoLimitado(request) {
+export async function corpoLimitado(request) {
   if (!/^application\/json(?:;|$)/i.test(request.headers.get("content-type") || ""))
     falhar(415, "tipo_invalido", "envie application/json");
   if (!request.body) falhar(400, "entrada_invalida", "corpo JSON obrigatório");
@@ -66,9 +67,13 @@ export async function atenderPlantare(request, env, url) {
         falhar(400, "entrada_invalida", "informe somente um sub");
       dados = { op: "intencao", id: url.pathname.slice((PREFIXO + "/intencoes/").length), sub: url.searchParams.get("sub") };
     } else return json({ erro: "rota não encontrada", codigo: "rota_inexistente" }, 404);
-    const stub = env.PLANTARE_ORCAMENTOS.get(env.PLANTARE_ORCAMENTOS.idFromName(
-      (env.AMBIENTE === "teste" ? "teste:" : "producao:") + "plantare:orcamentos:v1"));
+    const stub = objetoPlantare(env);
     const r = await stub.fetch("https://plantare-orcamentos/", { method: "POST", body: JSON.stringify(dados) });
+    if (dados.op === "checkout" && r.ok) {
+      const d = await r.json();
+      const destino = urlCheckout(env, d.compra.id);
+      return json({ ...d, checkout_disponivel: Boolean(destino), checkout_url: destino });
+    }
     return new Response(r.body, { status: r.status, headers: {
       "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
   } catch (e) {
