@@ -25,8 +25,8 @@ export function storage() {
       db.prepare("insert into dados values (?,?) on conflict(chave) do update set valor=excluded.valor").run(k, JSON.stringify(v));
     },
     contar() { return db.prepare("select count(*) as n from dados").get().n; },
-    async list({ prefix = "", startAfter = "", end = "\uffff", limit = 1000 } = {}) {
-      const rows = db.prepare("select chave, valor from dados where chave >= ? and chave > ? and chave < ? order by chave limit ?")
+    async list({ prefix = "", startAfter = "", end = "\uffff", limit = 1000, reverse = false } = {}) {
+      const rows = db.prepare(`select chave, valor from dados where chave >= ? and chave > ? and chave < ? order by chave ${reverse ? 'desc' : 'asc'} limit ?`)
         .all(prefix, startAfter, end === "\uffff" ? prefix + "\uffff" : end, limit);
       return new Map(rows.filter((r) => r.chave.startsWith(prefix)).map((r) => [r.chave, JSON.parse(r.valor)]));
     },

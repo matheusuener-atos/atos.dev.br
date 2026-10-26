@@ -75,3 +75,7 @@ merge exige configurar as regras da branch separadamente.
 A suíte de cobrança inclui 19 testes de faturamento Plantare com SQLite real,
 ClienteCobranca e EmissorNFSe reais, gateway e Sefin simulados. Veja as provas
 e os limites em [PLANTARE-FATURAMENTO.md](PLANTARE-FATURAMENTO.md).
+
+A operação de revisões Plantare acrescenta 16 testes de recuperação, concorrência,
+compensação, auditoria e autenticação do painel. A suíte essencial completa
+passou com 141 resultados nesta entrega. Veja [PLANTARE-REVISOES.md](PLANTARE-REVISOES.md).

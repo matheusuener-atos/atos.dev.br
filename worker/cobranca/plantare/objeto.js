@@ -5,6 +5,7 @@ import { criarCompra, consultarCompra, listarCompras } from "./compras.js";
 import { consultarPagamento, pagarCompra, receberOrder, retomarPagamentos } from "./pagamentos.js";
 import { entregarEventos } from "./eventos.js";
 import { sincronizarFaturamento } from "./faturamento.js";
+import { listarRevisoes, detalheRevisao, consultarRevisao } from "./revisoes.js";
 
 // Um único objeto para o produto: os limites de campanha cruzam contas.
 // Transações locais incluem intenção, orçamento, idempotência e reserva.
@@ -17,6 +18,9 @@ export class PlantareOrcamentos {
   async fetch(request) {
     try {
       const d = await request.json();
+      if (d.op === "revisoes") return json(await listarRevisoes(this, d.cursor));
+      if (d.op === "revisao") return json(await detalheRevisao(this, d.id));
+      if (d.op === "revisao_consultar") return json(await consultarRevisao(this, d));
       if (d.op === "criar") return json(await this.criar(d.dados, d.chave), 200);
       if (d.op === "intencao") return json(await this.intencao(d.sub, d.id));
       if (d.op === "pagar") return json(await pagarCompra(this, d.sub, d.id, d.perfil, d.email));

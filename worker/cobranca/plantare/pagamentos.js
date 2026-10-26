@@ -68,7 +68,7 @@ async function conceder(o, tx, r, estado) {
   await encerrarNaConta(tx, r);
 }
 
-async function encerrarNaConta(tx, r) {
+export async function encerrarNaConta(tx, r) {
   const conta = await sha256(r.snapshot.sub), id = r.snapshot.id;
   const k = "conta-pagamentos:" + conta;
   await tx.put(k, (await tx.get(k) || []).filter((x) => x !== id));
@@ -187,7 +187,7 @@ function centavos(valor) {
   return Number(reais) * 100 + Number(cent);
 }
 
-async function aplicar(o, tx, r, order) {
+export async function aplicar(o, tx, r, order) {
   const pagamento = order?.transactions?.payments?.[0];
   const pm = pagamento?.payment_method;
   if (!order || typeof order.id !== "string" || !/^[A-Za-z0-9_-]{1,100}$/.test(order.id)
@@ -198,6 +198,7 @@ async function aplicar(o, tx, r, order) {
       || (order.country_code && order.country_code !== "BRA"))
     falhar(503, "gateway_divergente", "resposta do pagamento exige conferência");
   r.mp_id = order.id;
+  r.gateway_situacao = { estado: order.status || "", detalhe: order.status_detail || pagamento.status_detail || "" };
   r.fase = r.fase === "criando_pix" ? "pix_pendente" : r.fase;
   r.pix = typeof pm.qr_code === "string" && pm.qr_code.length > 0 && pm.qr_code.length <= 10000 ? { qr_code: pm.qr_code,
     qr_code_base64: typeof pm.qr_code_base64 === "string" && pm.qr_code_base64.length < 1000000
