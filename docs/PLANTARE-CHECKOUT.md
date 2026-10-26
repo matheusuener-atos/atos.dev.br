@@ -163,9 +163,9 @@ Isso **não é** homologação com Mercado Pago real ou com um Worker Plantare
 de teste. O dono autorizou em 24/10/2026 ativar produção quando pertinente;
 essa autorização não depende de nova confirmação. Antes da ativação, concluir
 receptor/projeção/downloads de M3, preservar/importar legado, testar gateway e
-dois Workers em M4 e fechar a integração das compras centrais com faturamento
-e fila fiscal compartilhados. Esta versão guarda a compra no coordenador
-Plantare, mas ainda não a espelha nas faturas da Minha conta/NFS-e.
+dois Workers em M4 e concluir a operação de tentativas de pagamento em revisão.
+O [faturamento compartilhado](PLANTARE-FATURAMENTO.md) espelha as compras nas
+faturas da Minha conta e na fila fiscal, com recuperação e conciliação auditada.
 
 A trava de ambiente deve ser revista junto com essas provas e o corte
 reversível, não removida isoladamente para liberar uma cobrança ainda sem

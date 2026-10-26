@@ -126,6 +126,11 @@ export async function atenderEmissor(request, env, url, quem, { ctx = null, pref
       if (r.status !== 200) return json(r.dados, r.status);
       return json({ ...r.dados, cloudflare: await situacaoCf(env), config: await configNfse(env) });
     }
+    const conciliacao = /^plantare\/(cmp-[a-f0-9-]{36})\/conciliar$/.exec(p);
+    if (m === "POST" && conciliacao) {
+      if (!quem || !["dono", "financeiro"].includes(quem.papel)) return json({ erro: "conciliação é do dono ou financeiro" }, 403);
+      return via("plantare_conciliar", { id: conciliacao[1], versao: corpo.versao, texto: corpo.texto, quem: autor });
+    }
     if (m === "POST" && p === "prestador") return via("configurar", { prestador: corpo.prestador, quem: autor, motivo: corpo.motivo || "" });
     if (m === "POST" && p === "certificado") return json(...(await receberCertificado(env, corpo, autor)));
     if (m === "POST" && p === "testar") return json(await testar(env));
@@ -388,12 +393,13 @@ export async function resumoParaPainel(env) {
   const falta = faltaDoEmissor(env);
   const { pagamentos } = env.CONTAS ? await listarPagamentos(env) : { pagamentos: [] };
   // teste: o Worker de teste (o painel mostra a Sefin simulada e o "Carregar dados de exemplo").
-  const base = { config, teste: ehAmbienteDeTeste(env), emissor: { ligado: !falta, falta }, situacao: null, notas: [], cloudflare: env.CONTAS ? await situacaoCf(env) : null, erro: "" };
-  if (falta) return { ...base, pagamentos: pagamentos.filter((x) => x.nota !== "emitida" && x.nota !== "cancelada") };
+  const base = { config, teste: ehAmbienteDeTeste(env), emissor: { ligado: !falta, falta }, situacao: null, notas: [],
+    revisoes_fiscais: pagamentos.filter((x) => x.revisao_fiscal), cloudflare: env.CONTAS ? await situacaoCf(env) : null, erro: "" };
+  if (falta) return { ...base, pagamentos: pagamentos.filter((x) => !x.revisao_fiscal && x.nota !== "emitida" && x.nota !== "cancelada") };
   const [s, l] = await Promise.all([chamar(env, "situacao", {}), chamar(env, "listar", { limite: 300 })]);
   const notas = l.status === 200 ? l.dados.notas : [];
   const comNota = new Set(notas.filter((n) => n.pagamento && n.estado !== "descartada").map((n) => n.pagamento));
-  const semNota = pagamentos.filter((x) => !comNota.has(x.id) && x.nota !== "emitida" && x.nota !== "cancelada");
+  const semNota = pagamentos.filter((x) => !x.revisao_fiscal && !comNota.has(x.id) && x.nota !== "emitida" && x.nota !== "cancelada");
   return { ...base, situacao: s.status === 200 ? s.dados : null, notas, pagamentos: semNota,
     erro: s.status !== 200 ? s.dados.erro : l.status !== 200 ? l.dados.erro : "" };
 }

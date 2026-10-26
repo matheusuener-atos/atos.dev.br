@@ -71,3 +71,7 @@ teste simulado, teste de integração e confirmação humana.
 
 O workflow é uma verificação disponível no PR. Torná-lo obrigatório para
 merge exige configurar as regras da branch separadamente.
+
+A suíte de cobrança inclui 19 testes de faturamento Plantare com SQLite real,
+ClienteCobranca e EmissorNFSe reais, gateway e Sefin simulados. Veja as provas
+e os limites em [PLANTARE-FATURAMENTO.md](PLANTARE-FATURAMENTO.md).

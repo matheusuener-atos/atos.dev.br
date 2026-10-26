@@ -353,6 +353,15 @@
         '<div><span class="rotulo">Próxima DPS</span><span>nº ' + esc(s.proximo_numero) + " · série " + esc(p.serie || "1") + "</span></div></div></div>";
     }
     var npg = (d.pagamentos || []).length;
+    var revisoes = d.revisoes_fiscais || [];
+    if (revisoes.length) h += h2("Conciliação fiscal · " + revisoes.length) + '<div class="card">' + revisoes.map(function (x) {
+      var n = ns.filter(function (nota) { return nota.pagamento === x.id; })[0];
+      return '<div class="item"><span class="nome"><strong>' + esc(nomeDoPagamento(x)) + " · " + esc(reais(x.valor)) +
+        '</strong><small>' + esc(x.descricao) + '<span class="nf-atencao"> · ' + esc(x.motivo) + '</span></small></span>' +
+        (n ? '<button type="button" class="btn p" data-nf="abrir" data-id="' + esc(n.id) + '">Ver nota</button>' : '<span>Sem nota emitida</span>') + '</div>' +
+        (pode() ? '<div class="item"><label class="campo"><span class="rotulo">Registro da conferência</span><textarea id="nf-conc-' + esc(x.id) + '" maxlength="1000" rows="2"></textarea></label>' +
+          '<button type="button" class="btn p" data-nf="plantare-conciliar" data-id="' + esc(x.id) + '"' + (S.ocupado === "conc:" + x.id ? " disabled" : "") + '>Registrar conciliação</button></div>' : '');
+    }).join("") + '</div>';
     if (npg) h += '<div class="card nf-faixa"><span>' + npg + (npg === 1 ? " pagamento aprovado está sem nota." : " pagamentos aprovados estão sem nota.") + '</span><button type="button" class="btn p" data-nf-aba="emitir">Ver em Emitir NFS-e</button></div>';
     var cont = { "": ns.length, pendentes: 0, emitidas: 0 };
     ns.forEach(function (n) { if (n.estado === "emitida") cont.emitidas++; else if (PENDENTES.indexOf(n.estado) >= 0 || n.estado === "rejeitada" || n.estado === "rascunho") cont.pendentes++; });
@@ -859,6 +868,19 @@
     });
   }
 
+  function conciliarPlantare(id) {
+    var x = ((S.resumo && S.resumo.revisoes_fiscais) || []).filter(function (p) { return p.id === id; })[0];
+    var campo = document.getElementById("nf-conc-" + id), texto = campo ? campo.value.trim() : "";
+    if (!x || texto.length < 10) { avisar("Registre o que foi conferido (pelo menos 10 caracteres).", false); pintar(); return; }
+    S.ocupado = "conc:" + id;
+    api("POST", "plantare/" + encodeURIComponent(id) + "/conciliar", { versao: x.versao, texto: texto }).then(function (r) {
+      S.ocupado = "";
+      if (!ok(r)) { avisar(erroDe(r), false, r); pintar(); return; }
+      avisar("Conciliação registrada. O documento e o pagamento foram preservados.", true);
+      carregar();
+    });
+  }
+
   function salvarCliente(id) {
     var C = S.cl;
     if (C.enviando) return;
@@ -1096,6 +1118,7 @@
       pintar();
     } else if (a === "acao-sim") confirmarAcao();
     else if (a === "acao-voltar") { S.acao = null; pintar(); }
+    else if (a === "plantare-conciliar") conciliarPlantare(id);
     else if (a === "pag-emitir") emitirPagamento(id);
     else if (a === "pag-revisar") {
       S.em = novoEm();

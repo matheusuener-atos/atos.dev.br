@@ -43,3 +43,6 @@ Testes complementares e publicação (com os ambientes preparados):
     npx wrangler deploy
 
 Segredos: `ATOS_CHAVE` (`node tools/gerar-chave.mjs`) e `RESEND_API_KEY`.
+
+O [faturamento Plantare](docs/PLANTARE-FATURAMENTO.md) integra as compras à
+Minha conta e à fila fiscal compartilhada, com recuperação e conciliação de devoluções.

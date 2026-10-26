@@ -5,6 +5,11 @@ export function checkoutAtivo(env) {
     && env.PLANTARE_COMPRAS_ATIVAS === "1" && env.PLANTARE_CHECKOUT_ATIVO === "1";
 }
 
+export async function agendar(o, depois = 60000) {
+  const atual = await o.ctx.storage.getAlarm(), proximo = o.agora() + depois;
+  if (atual === null || atual > proximo) await o.ctx.storage.setAlarm(proximo);
+}
+
 export function objetoPlantare(env) {
   return env.PLANTARE_ORCAMENTOS.get(env.PLANTARE_ORCAMENTOS.idFromName(
     (env.AMBIENTE === "teste" ? "teste:" : "producao:") + "plantare:orcamentos:v1"));

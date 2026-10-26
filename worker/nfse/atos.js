@@ -34,6 +34,7 @@ import { cliente as clienteDaCobranca } from "../cobranca/cliente.js";
 import { ehAmbienteDeTeste } from "../cobranca/eventos.js";
 import { enviarEmail } from "../email.js";
 import { cnpjValido, cpfValido } from "./texto.js";
+import { COMPRA } from "../cobranca/plantare/faturamento-contrato.js";
 
 // As chaves, pelo ambiente: o Worker de teste (wrangler --env teste, AMBIENTE "teste") usa o MESMO KV da
 // producao, entao as dele levam "atos-teste:nfse:" - a fila, as notas e o token de um nunca se misturam com os
@@ -255,6 +256,7 @@ export async function gravarTomador(env, clienteId, tomador) {
  * (emitirAutomatico). Nunca lanca: devolve {ok, repetido?, automatico?, motivo?}.
  */
 export async function porNaFila(env, pagamento) {
+  if (COMPRA.test(String(pagamento?.id || ""))) return { ok: false, motivo: "compras Plantare usam a fila transacional do emissor" };
   try {
     if (!env.CONTAS) return { ok: false, motivo: "sem o KV" };
     const p = pagamento || {};
@@ -286,6 +288,11 @@ export async function marcarPagamento(env, pagamento, campos) {
 }
 
 export async function lerPagamento(env, pagamento) {
+  if (COMPRA.test(String(pagamento || ""))) {
+    const r = await chamar(env, "plantare_ler", { id: pagamento });
+    if (r.status !== 200) throw new Error("registro fiscal Plantare indisponível");
+    return r.dados.pagamento;
+  }
   return kvJSON(env, K(env).pag + pagamento, null);
 }
 
@@ -293,11 +300,13 @@ export async function listarPagamentos(env) {
   const lista = [];
   const nomes = new Map();
   for (const k of await kvPor(env, K(env).pag)) {
-    const x = await kvJSON(env, k);
+    const id = k.slice(K(env).pag.length);
+    const x = COMPRA.test(id) ? await lerPagamento(env, id) : await kvJSON(env, k);
     if (!x) continue;
     if (!nomes.has(x.cliente)) nomes.set(x.cliente, ((await kvJSON(env, K(env).clientes + x.cliente, null)) || {}).nome || "");
     lista.push({ id: x.id, cliente: x.cliente || "", nome: nomes.get(x.cliente), produto: x.produto || "", descricao: x.descricao || "", valor: x.valor,
-      quando: x.quando, nota: x.nota || "pendente", numero: x.numero || "", nota_id: x.nota_id || "", motivo: x.motivo || "", erro: x.erro || "" });
+      quando: x.quando, nota: x.nota || "pendente", numero: x.numero || "", nota_id: x.nota_id || "", motivo: x.motivo || "", erro: x.erro || "",
+      ...(COMPRA.test(id) ? { versao: x.versao, revisao_fiscal: x.revisao_fiscal, situacao_financeira: x.situacao_financeira, conciliacao: x.conciliacao } : {}) });
   }
   lista.sort((a, b) => String(b.quando).localeCompare(String(a.quando)));
   return { pagamentos: lista, config: await configNfse(env) };
