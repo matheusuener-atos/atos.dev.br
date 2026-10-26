@@ -46,3 +46,6 @@ Segredos: `ATOS_CHAVE` (`node tools/gerar-chave.mjs`) e `RESEND_API_KEY`.
 
 O [faturamento Plantare](docs/PLANTARE-FATURAMENTO.md) integra as compras à
 Minha conta e à fila fiscal compartilhada, com recuperação e conciliação de devoluções.
+
+O painel inclui a [operação das revisões de pagamento Plantare](docs/PLANTARE-REVISOES.md),
+com recuperação por ordem do gateway e histórico de conferências.

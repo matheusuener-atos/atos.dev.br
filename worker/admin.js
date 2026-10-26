@@ -54,6 +54,7 @@ import { resumoDaSeguranca } from "./seguranca/objeto.js";
 import { atenderWorkspaceNoPainel, ehRotaDoWorkspaceNoPainel } from "./admin-workspace.js";
 import { atenderContasNoPainel, ehRotaDasContasNoPainel } from "./admin-contas.js";
 import { atenderPortfolio, ehNavegacaoDoPortfolio, ehRotaDoPortfolio } from "./portfolio.js";
+import { atenderRevisoes } from "./cobranca/plantare/admin.js";
 
 export const RECENTE_S = 12 * 3600;
 export const PAPEIS = ["dono", "financeiro", "suporte"];
@@ -70,7 +71,7 @@ export const PRODUTOS = {
   pavlvs: { nome: "PAVLVS", binding: "PAVLVS", segredo: "PAINEL_SEGREDO_PAVLVS", origem: "https://paulus.ia.br", github: true },
 };
 // Nomes que nao podem ser id de produto (sao rotas do proprio painel).
-export const RESERVADOS = ["eu", "nfse", "equipe", "alteracoes", "publicar", "retroagir", "github", "oauth", "atos", "email", "workspace", "contas", "busca", "portfolio"];
+export const RESERVADOS = ["eu", "nfse", "equipe", "alteracoes", "publicar", "retroagir", "github", "oauth", "atos", "email", "workspace", "contas", "busca", "portfolio", "plantare-pagamentos"];
 export const AREA_ATOS = "atos";
 
 // O prefixo aqui e la (o Worker do PAVLVS atende o mesmo caminho) e a janela da assinatura.
@@ -724,6 +725,8 @@ export async function atenderAdmin(request, env, url, deps = {}) {
     if (!quem.areas.includes(id)) return json({ erro: "você não atua no " + PRODUTOS[id].nome + ": peça ao dono para incluir a área" }, 403);
     return encaminharAoProduto(request, env, url, c, id);
   }
+  if (p === "/api/admin/plantare-pagamentos" || p.startsWith("/api/admin/plantare-pagamentos/"))
+    return atenderRevisoes(request, env, url, quem);
   if (p.startsWith("/api/admin/nfse/")) {
     // A tabela de municipios (IBGE) e de consulta: serve tambem as telas dos produtos.
     const consulta = m === "GET" && p === "/api/admin/nfse/municipios";

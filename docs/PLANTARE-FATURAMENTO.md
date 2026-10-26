@@ -55,7 +55,8 @@ componente real do painel, justificativa e registro da conciliação. Gateway,
 Sefin, credenciais e identidade administrativa desse harness eram sintéticos;
 isso não substitui homologação com serviços externos ou entre dois Workers.
 
-M2 continua aberto para a operação de tentativas de pagamento em revisão.
+A [operação das revisões de pagamento](PLANTARE-REVISOES.md) recupera ordens
+e registra devoluções tardias confirmadas. M2 segue aberto para homologação.
 Depois seguem M3 (receptor, projeção de direitos, downloads e legado no
 Plantare) e M4 (gateway real de teste e integração entre os Workers). A
 autorização de 24/10/2026 para ativar produção quando pertinente permanece

@@ -163,7 +163,8 @@ Isso **não é** homologação com Mercado Pago real ou com um Worker Plantare
 de teste. O dono autorizou em 24/10/2026 ativar produção quando pertinente;
 essa autorização não depende de nova confirmação. Antes da ativação, concluir
 receptor/projeção/downloads de M3, preservar/importar legado, testar gateway e
-dois Workers em M4 e concluir a operação de tentativas de pagamento em revisão.
+dois Workers em M4. A [operação das revisões](PLANTARE-REVISOES.md) permite
+recuperar ordens e conferir devoluções tardias pelo painel.
 O [faturamento compartilhado](PLANTARE-FATURAMENTO.md) espelha as compras nas
 faturas da Minha conta e na fila fiscal, com recuperação e conciliação auditada.
 
