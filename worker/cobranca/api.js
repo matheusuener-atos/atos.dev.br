@@ -593,7 +593,7 @@ async function minhaConta(meu) {
   }
   const faturas = [
     ...l.compra.filter((c) => ["paga", "aguardando", "processando", "devolvida"].includes(c.status))
-      .map((c) => ({ id: c.ref, data: c.paga_em || c.criada, descricao: nomeDoPreco(c.preco), centavos: c.centavos, status: c.status, forma: c.forma, produto: c.produto || "" })),
+      .map((c) => ({ id: c.ref, data: c.paga_em || c.criada, descricao: c.plantare ? c.descricao : nomeDoPreco(c.preco), centavos: c.centavos, status: c.status, forma: c.forma, produto: c.produto || "" })),
     ...l.cobranca.map((c) => ({ id: c.ref, data: c.quando || c.criada, descricao: nomeDoPreco(c.preco) + " · mensalidade", centavos: c.centavos, status: c.status, forma: "cartao", produto: c.produto || "" })),
   ].sort((x, y) => String(y.data).localeCompare(String(x.data)));
   return { perfil, produtos, gratuitos, faturas };

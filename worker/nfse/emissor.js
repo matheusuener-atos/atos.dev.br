@@ -51,6 +51,8 @@ import { lerXml } from "./xml.js";
 import { avisarNotaCancelada, guardarNotaDoCliente, K, kvJSON, marcarPagamento, RE_CLIENTE } from "./atos.js";
 import { SefinSimuladaGuardada } from "./sefin-simulada.js";
 import { ehAmbienteDeTeste } from "../cobranca/eventos.js";
+import { conciliarPlantare, criarTabelaPlantare, exigirPlantare, pagamentoPlantare, processarPlantare, registrarPlantare } from "./plantare.js";
+import { COMPRA, ErroFaturamento } from "../cobranca/plantare/faturamento-contrato.js";
 
 export const VER_APLIC = "Atos-nuvem";
 export const ORIGEM = "atos";
@@ -279,6 +281,7 @@ export class EmissorNFSe {
       `CREATE TABLE IF NOT EXISTS liberacao (id INTEGER PRIMARY KEY AUTOINCREMENT, liberado_em TEXT, liberado_por TEXT,
         testes INTEGER, revogado_em TEXT, revogado_por TEXT)`,
     ]) this.sql.exec(q);
+    criarTabelaPlantare(this);
   }
 
   // ------------------------------------------------------------ SQL
@@ -630,6 +633,7 @@ export class EmissorNFSe {
   }
 
   async pagamento(id) {
+    if (COMPRA.test(id || "")) return pagamentoPlantare(this, id);
     if (!id || !this.env.CONTAS) return null;
     return kvJSON(this.env, K(this.env).pag + id, null);
   }
@@ -659,6 +663,7 @@ export class EmissorNFSe {
     const conta = String(d.conta || "");
     if (conta && !RE_CLIENTE.test(conta)) throw new ErroEmissor("cliente inválido (o id do cliente da Atos)");
     const pagamento = String(d.pagamento || "").slice(0, 80);
+    exigirPlantare(this, pagamento, conta, { nova: true, substitui: Boolean(substituiId) });
     if (pagamento && !substituiId && this.um("SELECT id FROM notas WHERE pagamento = ? AND substitui_id IS NULL AND estado NOT IN ('descartada','cancelada')", pagamento)) {
       throw new ErroEmissor("este pagamento já tem nota", 409);
     }
@@ -685,6 +690,7 @@ export class EmissorNFSe {
     const serie = prest.serie || "1";
     const quando = this.agora();
     const id = this.ctx.storage.transactionSync(() => {
+      exigirPlantare(this, pagamento, conta, { nova: true, substitui: Boolean(substituiId) });
       const agora = this.agoraIso();
       const nova = this.um(`INSERT INTO notas (estado, ambiente, origem, conta, pagamento, prestador_versao, rascunho, calculo,
         avisos, centavos, competencia, tomador_nome, substitui_id, criado_por, criado_em, atualizado_em)
@@ -737,6 +743,7 @@ export class EmissorNFSe {
   }
 
   async enviar(nota, quem) {
+    exigirPlantare(this, nota.pagamento, nota.conta);
     let cliente;
     try {
       cliente = this.cliente(nota.ambiente);
@@ -1029,6 +1036,7 @@ export class EmissorNFSe {
   }
 
   async alarm() {
+    await processarPlantare(this);
     await this.processarFila("alarme");
   }
 
@@ -1293,6 +1301,9 @@ export class EmissorNFSe {
   // ------------------------------------------------------------ porta
 
   async fazer(acao, d) {
+    if (acao === "plantare_registrar") return registrarPlantare(this, d.lancamento);
+    if (acao === "plantare_ler") return { pagamento: pagamentoPlantare(this, String(d.id || "")) };
+    if (acao === "plantare_conciliar") return conciliarPlantare(this, d);
     switch (acao) {
       case "situacao": return this.situacao();
       case "configurar": return this.configurar(d);
@@ -1346,7 +1357,7 @@ export class EmissorNFSe {
     try {
       return resposta(await this.fazer(d.acao, d.dados || {}));
     } catch (e) {
-      if (e instanceof ErroEmissor) return resposta({ erro: e.message, ...e.extra }, e.status);
+      if (e instanceof ErroEmissor || e instanceof ErroFaturamento) return resposta({ erro: e.message, ...e.extra }, e.status);
       if (e instanceof ProducaoBloqueada) return resposta({ erro: e.message }, 403);
       return resposta({ erro: String((e && e.message) || e).slice(0, 300) }, 500);
     }

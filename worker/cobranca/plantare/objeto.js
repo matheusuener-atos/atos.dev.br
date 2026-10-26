@@ -4,6 +4,7 @@ import { calcularPreco, definirCupom } from "./preco.js";
 import { criarCompra, consultarCompra, listarCompras } from "./compras.js";
 import { consultarPagamento, pagarCompra, receberOrder, retomarPagamentos } from "./pagamentos.js";
 import { entregarEventos } from "./eventos.js";
+import { sincronizarFaturamento } from "./faturamento.js";
 
 // Um único objeto para o produto: os limites de campanha cruzam contas.
 // Transações locais incluem intenção, orçamento, idempotência e reserva.
@@ -11,7 +12,7 @@ import { entregarEventos } from "./eventos.js";
 export class PlantareOrcamentos {
   constructor(ctx, env, deps = {}) { this.ctx = ctx; this.env = env; this.agora = deps.agora || Date.now; this.buscar = deps.buscar || fetch; }
 
-  async alarm() { await retomarPagamentos(this); await entregarEventos(this); }
+  async alarm() { await retomarPagamentos(this); await entregarEventos(this); await sincronizarFaturamento(this); }
 
   async fetch(request) {
     try {

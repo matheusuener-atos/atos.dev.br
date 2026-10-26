@@ -22,6 +22,8 @@
 
 import { entregar, REENTREGAS_S } from "./eventos.js";
 import { PRODUTOS } from "./catalogo.js";
+import { checkoutAtivo } from "./plantare/config.js";
+import { compararLancamento, conferirLancamento, descricaoPlantare, ErroFaturamento } from "./plantare/faturamento-contrato.js";
 
 const PREFIXOS = { assinatura: "assinatura:", compra: "compra:", cobranca: "cobranca:" };
 const VIVAS = ["authorized", "pending", "paused"];
@@ -89,6 +91,7 @@ export class ClienteCobranca {
   }
 
   async fazer(d) {
+    if (d.op === "plantare_sincronizar") return this.sincronizarPlantare(d);
     const s = this.ctx.storage;
     const agora = new Date().toISOString();
     // Quem e o dono (o sub e o e-mail da Conta Atos): anotado no primeiro pedido que o traz.
@@ -220,6 +223,31 @@ export class ClienteCobranca {
         return { ok: true, eventos: [...(await s.list({ prefix: "evento:" })).values()] };
       default:
         return { ok: false, erro: "op desconhecida" };
+    }
+  }
+
+  async sincronizarPlantare(d) {
+    if (!checkoutAtivo(this.env)) return { ok: false, status: 503, erro: "integração Plantare desabilitada" };
+    try {
+      const p = conferirLancamento(d.lancamento);
+      if (await idDoCliente(p.sub) !== p.cliente || d.dono?.sub !== p.sub || d.dono?.email !== p.email)
+        throw new ErroFaturamento("dono do lançamento divergente", 409);
+      return await this.ctx.storage.transaction(async (tx) => {
+        const dono = await tx.get("dono");
+        if (dono && dono.sub !== p.sub) throw new ErroFaturamento("conta do lançamento divergente", 409);
+        const k = "compra:" + p.id, antes = await tx.get(k);
+        if (antes && !antes.plantare) throw new ErroFaturamento("referência já utilizada", 409);
+        const resultado = compararLancamento(antes?.plantare, p);
+        if (resultado !== "novo") return { ok: true, repetido: true, versao: antes.plantare.versao };
+        if (!dono) await tx.put("dono", { sub: p.sub, email: p.email });
+        await tx.put(k, { ref: p.id, produto: "plantare", preco: "plantare.talhao", periodo: "avulso",
+          descricao: descricaoPlantare(p), centavos: p.centavos, forma: p.centavos ? "pix" : "concedida",
+          status: p.estado, criada: p.criado_em, paga_em: p.pago_em, plantare: p, atualizada: new Date().toISOString() });
+        return { ok: true, versao: p.versao };
+      });
+    } catch (e) {
+      if (e instanceof ErroFaturamento) return { ok: false, status: e.status, erro: e.message };
+      throw e;
     }
   }
 

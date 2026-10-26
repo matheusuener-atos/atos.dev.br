@@ -1,6 +1,7 @@
 import { sha256 } from "../../comum.js";
 import { CHAVE, ID, SUB, falhar } from "./contrato.js";
 import { guardarCompra } from "./eventos.js";
+import { planejarFaturamento } from "./faturamento.js";
 
 export const COMPRA_ID = /^cmp-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const ORCAMENTO_ID = /^orc-[a-f0-9-]{36}$/;
@@ -73,6 +74,7 @@ export async function consultarCompra(objeto, sub, id, tx) {
   if (!tx) return objeto.ctx.storage.transaction((t) => consultarCompra(objeto, sub, id, t));
   const registro = await tx.get("compra:" + id);
   if (!registro || registro.snapshot.sub !== sub) falhar(404, "compra_nao_encontrada", "compra não encontrada nesta conta");
+  if (await planejarFaturamento(objeto, tx, registro)) await tx.put("compra:" + id, registro);
   if (registro.snapshot.direito_ativo && registro.snapshot.baixar_ate && Date.parse(registro.snapshot.baixar_ate) <= objeto.agora()) {
     registro.snapshot = { ...registro.snapshot, direito_ativo: false, versao: registro.snapshot.versao + 1 };
     const atual = await tx.getAlarm(), proximo = objeto.agora() + 60000;

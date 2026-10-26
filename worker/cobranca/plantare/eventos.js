@@ -1,16 +1,13 @@
 import { assinarEvento } from "../eventos.js";
-import { checkoutAtivo } from "./config.js";
-
-export async function agendar(o, depois = 60000) {
-  const atual = await o.ctx.storage.getAlarm();
-  const proximo = o.agora() + depois;
-  if (atual === null || atual > proximo) await o.ctx.storage.setAlarm(proximo);
-}
+import { agendar, checkoutAtivo } from "./config.js";
+import { planejarFaturamento } from "./faturamento.js";
+export { agendar } from "./config.js";
 
 // Alteração do snapshot e outbox pertencem à mesma transação. Uma entrega
 // pode repetir; nunca se confirma ao produto antes do commit na Atos.
 export async function guardarCompra(o, tx, r) {
   const antes = await tx.get("compra:" + r.snapshot.id);
+  await planejarFaturamento(o, tx, r);
   await tx.put("compra:" + r.snapshot.id, r);
   if (!antes || antes.snapshot.versao === r.snapshot.versao) return;
   const id = "plantare:" + r.snapshot.id + ":v" + r.snapshot.versao;
