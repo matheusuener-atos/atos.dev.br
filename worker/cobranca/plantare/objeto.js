@@ -18,6 +18,16 @@ export class PlantareOrcamentos {
   async fetch(request) {
     try {
       const d = await request.json();
+      if (d.op === "homologacao_evento") {
+        if (this.env.AMBIENTE !== "teste" || this.env.PLANTARE_HOMOLOG_ATIVO !== "1") return json({erro:"indisponível"},404);
+        if (!/^[a-f0-9-]{36}$/.test(d.run || "") || !Number.isSafeInteger(d.versao) || d.versao < 1)
+          falhar(400,"entrada_invalida","ensaio inválido");
+        const r = await this.ctx.storage.get("compra:" + d.id);
+        if (!r || r.snapshot.sub !== "hmg-" + d.run) falhar(404,"compra_nao_encontrada","fixture não encontrada");
+        const e = await this.ctx.storage.get("evento:plantare:" + r.snapshot.id + ":v" + d.versao);
+        if (!e) falhar(404,"evento_nao_encontrado","evento não encontrado");
+        return json(e.evento);
+      }
       if (d.op === "revisoes") return json(await listarRevisoes(this, d.cursor));
       if (d.op === "revisao") return json(await detalheRevisao(this, d.id));
       if (d.op === "revisao_consultar") return json(await consultarRevisao(this, d));

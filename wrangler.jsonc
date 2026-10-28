@@ -141,13 +141,13 @@
   // ATOS_EQUIPE (abaixo, SO no teste): quem entra no painel de teste (atos-teste.<conta>.workers.dev/admin/), as
   // Contas Atos do dono. E texto JSON (worker/admin.js faz JSON.parse). A equipe da producao NAO vem daqui.
   // E a semente da equipe de teste: a guardada fica em "atos-teste:admin:equipe" (a da producao, em
-  // "atos:admin:equipe"; o KV e o mesmo). Sem PAVLVS de teste: sem o binding PAVLVS, /api/admin/pavlvs/* da 503.
+  // "atos:admin:equipe"; agora em namespace de teste isolado). Sem PAVLVS de teste: sem o binding PAVLVS, /api/admin/pavlvs/* da 503.
   "env": {
     "teste": {
       "name": "atos-teste",
       "workers_dev": true,
       "routes": [],
-      "kv_namespaces": [{ "binding": "CONTAS", "id": "c8011a70799b40b0b3215f4a01b2d28c" }],
+      "kv_namespaces": [{ "binding": "CONTAS", "id": "ff9c59117b2a47a1a3960539e381c1b7" }],
       "ratelimits": [{ "name": "LIMITE", "namespace_id": "1003", "simple": { "limit": 10, "period": 60 } }, { "name": "PLANTARE_LIMITE", "namespace_id": "1005", "simple": { "limit": 60, "period": 60 } }],
       "durable_objects": { "bindings": [{ "name": "CLIENTES", "class_name": "ClienteCobranca" }, { "name": "EMISSOR_NFSE", "class_name": "EmissorNFSe" }, { "name": "EMAIL_ATOS", "class_name": "EmailAtos" }, { "name": "SEGURANCA", "class_name": "SegurancaConta" }, { "name": "WS_DADOS", "class_name": "WorkspaceDados" }, { "name": "PLANTARE_ORCAMENTOS", "class_name": "PlantareOrcamentos" }] },
       "vars": {

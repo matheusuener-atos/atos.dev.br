@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const c=JSON.parse(readFileSync(new URL("./wrangler.json",import.meta.url),"utf8"));
+assert.equal(c.name,"atos-teste");assert.deepEqual(c.routes,[]);assert.equal(c.vars.AMBIENTE,"teste");
+assert.equal(c.main,"./worker.js");assert.equal(c.kv_namespaces.length,1);
+assert.equal(c.kv_namespaces[0].binding,"CONTAS");
+assert.equal(c.kv_namespaces[0].id,"ff9c59117b2a47a1a3960539e381c1b7");
+assert.notEqual(c.kv_namespaces[0].id,"c8011a70799b40b0b3215f4a01b2d28c");
+assert.deepEqual(c.services,[{binding:"PLANTARE_EVENTOS_TESTE",service:"plantare-atos-teste"}]);
+assert.match(c.vars.APP_URL,/^https:\/\/atos-teste\.[a-z0-9-]+\.workers\.dev$/);
+for(const k of ["MP_ACCESS_TOKEN","NFSE_CHAVE_MESTRA","PLANTARE_COBRANCA_TOKEN","EVENTOS_SEGREDO_PLANTARE","PLANTARE_HOMOLOG_TOKEN"])assert.equal(c.vars[k],undefined,"Segredo não deve constar da configuração");
+console.log("Configuração Atos de homologação: recursos isolados e nenhum domínio/binding de produção.");
