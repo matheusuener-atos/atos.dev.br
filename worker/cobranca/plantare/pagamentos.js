@@ -105,7 +105,9 @@ export async function pagarCompra(o, sub, id, perfil, email) {
       r.iniciado_em = o.agora();
       r.corpo_gateway = { type: "online", processing_mode: "automatic", total_amount: moeda(r.snapshot.centavos),
         external_reference: r.referencia_gateway,
-        payer: { email: o.env.MP_PAGADOR_TESTE || email, identification: { type: perfil.tipo === "pj" ? "CNPJ" : "CPF", number: perfil.documento } },
+        payer: { email: o.env.MP_PAGADOR_TESTE || email,
+          ...(o.env.AMBIENTE === "teste" && o.env.MP_PIX_TESTE_APRO === "1" ? { first_name: "APRO" } : {}),
+          identification: { type: perfil.tipo === "pj" ? "CNPJ" : "CPF", number: perfil.documento } },
         transactions: { payments: [{ amount: moeda(r.snapshot.centavos), payment_method: { id: "pix", type: "bank_transfer" }, expiration_time: "P1D" }] } };
       await tx.put("pagamento-pendente:" + id, id);
     }

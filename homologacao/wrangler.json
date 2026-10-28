@@ -1,0 +1,130 @@
+{
+  "name": "atos-teste",
+  "compatibility_date": "2026-09-25",
+  "main": "./worker.js",
+  "workers_dev": true,
+  "routes": [],
+  "assets": {
+    "directory": "../public",
+    "binding": "ASSETS",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "none",
+    "run_worker_first": true
+  },
+  "kv_namespaces": [
+    {
+      "binding": "CONTAS",
+      "id": "ff9c59117b2a47a1a3960539e381c1b7"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "LIMITE",
+      "namespace_id": "1003",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    },
+    {
+      "name": "PLANTARE_LIMITE",
+      "namespace_id": "1005",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CLIENTES",
+        "class_name": "ClienteCobranca"
+      },
+      {
+        "name": "EMISSOR_NFSE",
+        "class_name": "EmissorNFSe"
+      },
+      {
+        "name": "EMAIL_ATOS",
+        "class_name": "EmailAtos"
+      },
+      {
+        "name": "SEGURANCA",
+        "class_name": "SegurancaConta"
+      },
+      {
+        "name": "WS_DADOS",
+        "class_name": "WorkspaceDados"
+      },
+      {
+        "name": "PLANTARE_ORCAMENTOS",
+        "class_name": "PlantareOrcamentos"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-clientes-cobranca",
+      "new_sqlite_classes": [
+        "ClienteCobranca"
+      ]
+    },
+    {
+      "tag": "v2-emissor-nfse",
+      "new_sqlite_classes": [
+        "EmissorNFSe"
+      ]
+    },
+    {
+      "tag": "v3-email-atos",
+      "new_sqlite_classes": [
+        "EmailAtos"
+      ]
+    },
+    {
+      "tag": "v4-seguranca-conta",
+      "new_sqlite_classes": [
+        "SegurancaConta"
+      ]
+    },
+    {
+      "tag": "v5-workspace-dados",
+      "new_sqlite_classes": [
+        "WorkspaceDados"
+      ]
+    },
+    {
+      "tag": "v6-plantare-orcamentos",
+      "new_sqlite_classes": [
+        "PlantareOrcamentos"
+      ]
+    }
+  ],
+  "services": [
+    {
+      "binding": "PLANTARE_EVENTOS_TESTE",
+      "service": "plantare-atos-teste"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "AMBIENTE": "teste",
+    "EMAIL_CF_SIMULADA": "1",
+    "APP_URL": "https://atos-teste.matheusuener-atos.workers.dev",
+    "MP_PUBLIC_KEY": "APP_USR-8eddac59-2852-455f-8b12-04f7761ff00b",
+    "PRODUTOS_ABERTOS": "pavlvs,workspace",
+    "MP_PAGADOR_TESTE": "test_user_4004064182913175927@testuser.com",
+    "ATOS_EQUIPE": "[{\"email\":\"master@atos.dev.br\",\"nome\":\"Matheus\",\"papel\":\"dono\"},{\"email\":\"matheusueners@hotmail.com\",\"nome\":\"Matheus\",\"papel\":\"dono\"},{\"email\":\"matheusuener.atos@gmail.com\",\"nome\":\"Matheus\",\"papel\":\"dono\"},{\"email\":\"arcaderetrorama@gmail.com\",\"nome\":\"Matheus\",\"papel\":\"dono\"}]",
+    "PLANTARE_ORCAMENTOS_ATIVOS": "1",
+    "PLANTARE_COMPRAS_ATIVAS": "1",
+    "PLANTARE_CHECKOUT_ATIVO": "1",
+    "PLANTARE_CHECKOUT_ORIGEM": "https://atos-teste.matheusuener-atos.workers.dev",
+    "PLANTARE_HOMOLOG_ATIVO": "0",
+    "PLANTARE_HOMOLOG_ISOLADO": "1",
+    "MP_PIX_TESTE_APRO": "1",
+    "PLANTARE_CUPONS": "{\"HMG_LIVRE\":{\"versao\":\"hmg-v1\",\"tipo\":\"cortesia\",\"ilimitado\":true},\"HMG_ULTIMO\":{\"versao\":\"hmg-v1\",\"tipo\":\"percentual\",\"desconto_bps\":1000,\"usos_max\":1}}"
+  }
+}
